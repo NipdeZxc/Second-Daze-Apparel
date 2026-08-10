@@ -11,7 +11,7 @@
 - **Team Number:** [Team #8]  
 - **Team Leader:** [JAE MARVIN L. SALAZAR]  
 - **Members:**  
-  - [EMMANUEL B. CARURUCAN]  
+  - [EMMANUEL M. CARURUCAN]  
   - [ARMHEL G. MAYAO]  
   - [MARC IÑIGO P. OROZCO]  
   - [RHEINWELL Q. PALOMARES]  
