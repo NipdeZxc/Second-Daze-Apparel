@@ -15,3 +15,8 @@
   - [ARMHEL G. MAYAO]  
   - [MARC IÑIGO P. OROZCO]  
   - [RHEINWELL Q. PALOMARES]  
+
+## Instructional Materials  
+
+- **Web App:** [BSIS Agile SAD Curriculum](https://tupcossad.netlify.app/)
+- **Google Drive:** [Access Materials Here](https://drive.google.com/drive/folders/1e6S8s2XvSlx_qyoAlUGewRo02ndxR-e3?usp=drive_link)
