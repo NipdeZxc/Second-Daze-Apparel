@@ -63,4 +63,5 @@ class MainScreenTests(TestCase):
         )
 
         self.assertNotContains(response, 'href="/mobile/')
+        self.assertNotContains(response, 'href="/mobile/overlays/')
         self.assertNotContains(response, 'href="/overlays/')

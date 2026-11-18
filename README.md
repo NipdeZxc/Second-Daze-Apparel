@@ -23,10 +23,11 @@
 
 ## UI prototype
 
-The static prototype groups its HTML screens by section under `screens/`, with
-one shared `styles.css` and `app.js` in the repository root. Open `index.html`
-for a screen directory with links to each page. Sections 1–7, the mobile screens
-in Section 8, and the overlays in Section 9 are kept separate. The prototype
+The static prototype groups the main-system screens from Sections 1–7 under
+`screens/section-1-7/`. The mobile companion keeps its Section 8 screens and
+Section 9 overlays together under `screens/mobile-companion/`. Both use the
+shared `styles.css` and `app.js` at the repository root. Open `index.html` for a
+screen directory grouped by main system and mobile companion. The prototype
 uses placeholder text and does not connect to a backend.
 
 The sign-in flow uses local UI state only. It does not authenticate users,
@@ -36,9 +37,9 @@ state. The dashboard screens use sample placeholder content.
 
 ### Screen groups
 
-- [Sections 1–7: sign-in and main app](./screens/section-1-7/)
-- [Section 8: mobile app screens](./screens/section-8-mobile/)
-- [Section 9: overlay screens](./screens/section-9-overlays/)
+- [Main system: Sections 1–7](./screens/section-1-7/)
+- [Mobile companion: Section 8 screens](./screens/mobile-companion/section-8-mobile/)
+- [Mobile companion: Section 9 overlays](./screens/mobile-companion/section-9-overlays/)
 
 To run locally, start a static server from the repository root, for example
 `python -m http.server 8000`, then open `http://localhost:8000`.
@@ -46,27 +47,36 @@ To run locally, start a static server from the repository root, for example
 ### Django template test frontend
 
 A Django-rendered version of the screens is available in
-[django_frontend](./django_frontend/). It keeps the applications separate:
+[django_frontend](./django_frontend/). The main-system and mobile-companion
+areas are separate:
 
-- Sections 1–7 are served by `main_screens` at `/`.
+- The main system (Sections 1–7) is served by `main_screens` at `/`.
 - Section 8 mobile screens are served by `mobile_screens` at `/mobile/`.
-- Section 9 overlays are served by `overlay_screens` at `/overlays/`.
+- Section 9 mobile overlays are served by `overlay_screens` at
+  `/mobile/overlays/` and are linked from the mobile companion.
 
-The mobile and overlay apps have their own route namespaces and template
-directories; neither is included in the Sections 1–7 navigation. These are
-independent UI test screens, not a production authentication or data backend.
+Mobile overlays return to their corresponding mobile screen when closed; the
+main-system navigation remains limited to Sections 1–7. These are UI test
+screens, not a production authentication or data backend.
 
-Use Python 3.12 or newer, then run in PowerShell:
+#### Quick start on Windows
+
+Double-click [run-django.bat](./run-django.bat) from the repository root. It
+creates a virtual environment and installs Django on first run, starts the
+development server, then opens the browser when the site is ready. Keep the
+terminal window open during testing; press **Ctrl+C** there to stop the server.
+If port 8000 is already serving locally, the script opens that server instead.
+
+#### Manual start
 
 ```powershell
 cd django_frontend
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python manage.py runserver
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe manage.py runserver
 ```
 
 Open `http://127.0.0.1:8000/` for Sections 1–7,
-`http://127.0.0.1:8000/mobile/` for the mobile app, or
-`http://127.0.0.1:8000/overlays/` for the separate overlays. The organized
-static prototype is available from the repository root `index.html`.
+`http://127.0.0.1:8000/mobile/` for the mobile companion, or
+`http://127.0.0.1:8000/mobile/overlays/` for its overlays. The organized static
+prototype is available from the repository root `index.html`.

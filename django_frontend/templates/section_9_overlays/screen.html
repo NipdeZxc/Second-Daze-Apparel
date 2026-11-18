@@ -6,16 +6,16 @@
     <div class="overlay-mark" aria-hidden="true">{% if is_confirmation %}?{% else %}Tx{% endif %}</div>
     <div class="overlay-heading">
       <div><h1 id="overlay-title">Placeholder text</h1><p>Placeholder text Placeholder text</p></div>
-      <button type="button" class="icon-button" data-dismiss aria-label="Placeholder">×</button>
+      <a class="icon-button" href="{% url 'mobile:screen' return_screen %}" aria-label="Placeholder">×</a>
     </div>
     {% if is_confirmation %}
       <div class="notice-box"><span>i</span><p>Placeholder text Placeholder text Placeholder text</p></div>
-      <div class="overlay-actions"><button class="outline-button" type="button" data-dismiss>Placeholder</button><button class="solid-button" type="button" data-dismiss>Placeholder</button></div>
+      <div class="overlay-actions"><a class="outline-button button-link" href="{% url 'mobile:screen' return_screen %}">Placeholder</a><a class="solid-button button-link" href="{% url 'mobile:screen' return_screen %}">Placeholder</a></div>
     {% else %}
       <div class="notification-list">
         {% for item in "1234" %}<article class="notification-item"><span class="notification-dot"></span><div><strong>Placeholder text</strong><p>Placeholder text Placeholder</p></div></article>{% endfor %}
       </div>
-      <button class="outline-button full-button" type="button" data-dismiss>Placeholder text</button>
+      <a class="outline-button button-link full-button" href="{% url 'mobile:screen' return_screen %}">Placeholder text</a>
     {% endif %}
   </section>
 </main>

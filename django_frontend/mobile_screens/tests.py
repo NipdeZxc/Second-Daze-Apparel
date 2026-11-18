@@ -14,6 +14,8 @@ class MobileScreenTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "mobile-app")
                 self.assertNotContains(response, 'href="/1.3-forgot-password/')
+                if slug == "8.1-mobile-admin-dashboard":
+                    self.assertContains(response, 'href="/mobile/overlays/')
                 self.assertNotContains(response, 'href="/overlays/')
 
     def test_mobile_root_redirects_to_mobile_sign_in(self):
@@ -26,6 +28,16 @@ class MobileScreenTests(TestCase):
                 kwargs={"screen_slug": "8-mobile-sign-in"},
             ),
         )
+
+    def test_mobile_companion_links_to_its_overlay_screens(self):
+        response = self.client.get(
+            reverse(
+                "mobile:screen",
+                kwargs={"screen_slug": "8.1-mobile-admin-dashboard"},
+            )
+        )
+
+        self.assertContains(response, 'href="/mobile/overlays/')
 
     def test_mobile_demo_sign_in_stays_in_mobile_app(self):
         response = self.client.post(

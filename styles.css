@@ -464,6 +464,16 @@ button {
   text-align: center;
 }
 
+.hub-subgroup + .hub-subgroup {
+  margin-top: 20px;
+}
+
+.hub-subgroup h3 {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .hub-group nav {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
@@ -917,8 +927,12 @@ body.prototype-page {
   width: 38px;
   height: 38px;
   border: 1px solid #dedfe1;
+  display: inline-grid;
+  place-items: center;
+  color: inherit;
   background: #fff;
   font-size: 18px;
+  text-decoration: none;
 }
 
 .profile-button {
@@ -1766,6 +1780,18 @@ body.prototype-page {
   place-items: center;
   font-size: 12px;
   font-weight: 700;
+}
+
+.mobile-notifications-link {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #222;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: inherit;
+  font-size: 17px;
+  text-decoration: none;
 }
 
 .mobile-content {

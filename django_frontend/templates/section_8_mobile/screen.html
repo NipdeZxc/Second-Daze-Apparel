@@ -7,7 +7,9 @@
     {% else %}
       <a href="{% url 'mobile:index' %}" aria-label="Placeholder">‹</a>
     {% endif %}
-    <strong>Placeholder text</strong><span class="mobile-avatar">Tx</span>
+    <strong>Placeholder text</strong>
+    {% if screen.kind != "mobile-login" %}<a class="mobile-notifications-link" href="{% url 'mobile:overlays:index' %}" aria-label="Placeholder">♧</a>{% endif %}
+    <span class="mobile-avatar">Tx</span>
   </header>
   <main class="mobile-content">
     {% if screen.kind != "mobile-login" %}<h1>Placeholder text</h1><p class="mobile-subtitle">Placeholder text Placeholder</p>{% else %}<p class="mobile-subtitle">Placeholder text</p>{% endif %}

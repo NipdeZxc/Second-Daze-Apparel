@@ -61,38 +61,47 @@ function initializeScreenHub() {
   document.title = "Placeholder text";
   const sections = [
     {
-      label: "Sections 1–7",
-      folder: "section-1-7",
-      screens: [
-        { id: "1-staff-sign-in", file: "1-staff-sign-in.html" },
-        { id: "1.1-sign-in-error", file: "1.1-sign-in-error.html" },
+      label: "Main system · Sections 1–7",
+      groups: [
         {
-          id: "1.2-access-awaiting-approval",
-          file: "1.2-access-awaiting-approval.html",
+          folder: "section-1-7",
+          screens: [
+            { id: "1-staff-sign-in", file: "1-staff-sign-in.html" },
+            { id: "1.1-sign-in-error", file: "1.1-sign-in-error.html" },
+            {
+              id: "1.2-access-awaiting-approval",
+              file: "1.2-access-awaiting-approval.html",
+            },
+            { id: "1.3-forgot-password", file: "1.3-forgot-password.html" },
+            ...prototypeScreens.filter(
+              (screen) =>
+                !screen.type.startsWith("mobile-") &&
+                screen.type !== "notifications" &&
+                screen.type !== "confirm",
+            ),
+          ],
         },
-        { id: "1.3-forgot-password", file: "1.3-forgot-password.html" },
-        ...prototypeScreens.filter(
-          (screen) =>
-            !screen.type.startsWith("mobile-") &&
-            screen.type !== "notifications" &&
-            screen.type !== "confirm",
-        ),
       ],
     },
     {
-      label: "Section 8 · Mobile",
-      folder: "section-8-mobile",
-      screens: prototypeScreens.filter((screen) =>
-        screen.type.startsWith("mobile-"),
-      ),
-    },
-    {
-      label: "Section 9 · Overlays",
-      folder: "section-9-overlays",
-      screens: prototypeScreens.filter(
-        (screen) =>
-          screen.type === "notifications" || screen.type === "confirm",
-      ),
+      label: "Mobile companion · Sections 8–9",
+      groups: [
+        {
+          label: "Section 8 · Mobile screens",
+          folder: "mobile-companion/section-8-mobile",
+          screens: prototypeScreens.filter((screen) =>
+            screen.type.startsWith("mobile-"),
+          ),
+        },
+        {
+          label: "Section 9 · Mobile overlays",
+          folder: "mobile-companion/section-9-overlays",
+          screens: prototypeScreens.filter(
+            (screen) =>
+              screen.type === "notifications" || screen.type === "confirm",
+          ),
+        },
+      ],
     },
   ];
 
@@ -109,27 +118,36 @@ function initializeScreenHub() {
       <p class="hub-intro">Placeholder text Placeholder text</p>
       <div class="hub-groups">
         ${sections
-          .map(
-            (section) => `
+          .map((section) => {
+            const screenCount = section.groups.reduce(
+              (count, group) => count + group.screens.length,
+              0,
+            );
+            return `
               <section class="hub-group">
-                <div class="hub-group-heading">
-                  <h2>${section.label}</h2>
-                  <span>${section.screens.length}</span>
-                </div>
-                <nav aria-label="${section.label}">
-                  ${section.screens
-                    .map(
+                <div class="hub-group-heading"><h2>${section.label}</h2><span>${screenCount}</span></div>
+                ${section.groups
+                  .map(
+                    (group) => `
+                      <div class="hub-subgroup">
+                        ${group.label ? `<h3>${group.label}</h3>` : ""}
+                        <nav aria-label="${group.label || section.label}">
+                          ${group.screens
+                            .map(
                       (screen) => `
-                        <a href="screens/${section.folder}/${screen.file}">
+                        <a href="screens/${group.folder}/${screen.file}">
                           <span>${screen.id.split("-")[0]}</span>
                           <span>Placeholder screen</span>
                           <span aria-hidden="true">→</span>
                         </a>`,
                     )
-                    .join("")}
-                </nav>
-              </section>`,
-          )
+                            .join("")}
+                        </nav>
+                      </div>`,
+                  )
+                  .join("")}
+              </section>`;
+          })
           .join("")}
       </div>
     </main>`;
@@ -247,6 +265,17 @@ function initializePrototype(screen) {
   screenRoot.addEventListener("click", (event) => {
     const dismiss = event.target.closest("[data-dismiss]");
     if (dismiss) {
+      if (screen.type === "notifications" || screen.type === "confirm") {
+        const returnScreens = {
+          "9-overlay-notifications-admin": "8.1-mobile-admin-dashboard",
+          "9.1-overlay-notifications-sales": "8.4-mobile-orders",
+          "9.2-overlay-notifications-inventory": "8.5-mobile-low-stock",
+          "9.3-overlay-confirm-approve": "8.2-mobile-approvals",
+        };
+        window.location.href = `../section-8-mobile/${returnScreens[screen.id]}.html`;
+        return;
+      }
+
       const overlay = dismiss.closest(".prototype-overlay");
       if (overlay) {
         overlay.hidden = true;
@@ -265,7 +294,7 @@ function initializePrototype(screen) {
 function renderDesktopScreen(screen) {
   return `
     <header class="app-topbar">
-      <a class="app-brand" href="../section-1-7/1-staff-sign-in.html" aria-label="Placeholder">
+      <a class="app-brand" href="1-staff-sign-in.html" aria-label="Placeholder">
         <span class="app-brand-mark">Tx</span>
         <span><strong>Placeholder</strong><small>Placeholder text</small></span>
       </a>
@@ -542,13 +571,14 @@ function renderMobileScreen(screen) {
       <header class="mobile-header">
         ${login ? '<span class="app-brand-mark">Tx</span>' : '<button type="button" aria-label="Placeholder">‹</button>'}
         <strong>Placeholder text</strong>
+        ${login ? "" : '<a class="mobile-notifications-link" href="../section-9-overlays/9-overlay-notifications-admin.html" aria-label="Placeholder">♧</a>'}
         <span class="mobile-avatar">Tx</span>
       </header>
       <main class="mobile-content">
         ${!login ? '<h1>Placeholder text</h1><p class="mobile-subtitle">Placeholder text Placeholder</p>' : '<p class="mobile-subtitle">Placeholder text</p>'}
         ${content}
       </main>
-      ${login ? "" : `<nav class="mobile-bottom-nav">${prototypeScreens.filter((item) => item.type.startsWith("mobile-")).slice(0, 4).map((item, index) => `<a href="${item.file}" aria-label="${item.id}"><span>${["□", "○", "▱", "□"][index]}</span><small>Placeholder</small></a>`).join("")}</nav>`}
+      ${login ? "" : `<nav class="mobile-bottom-nav">${prototypeScreens.filter((item) => item.type.startsWith("mobile-")).slice(0, 4).map((item, index) => `<a href="../section-8-mobile/${item.file}" aria-label="${item.id}"><span>${["□", "○", "▱", "□"][index]}</span><small>Placeholder</small></a>`).join("")}</nav>`}
     </div>`;
 }
 
