@@ -1,0 +1,5 @@
+<section class="stat-grid" aria-label="Placeholder">
+  {% for item in stats %}
+    <article class="stat-card"><div class="stat-topline"><span>Placeholder text</span><span class="stat-icon" aria-hidden="true">◷</span></div><strong>{% if forloop.counter == 2 %}₱0,000.00{% else %}0{% endif %}</strong><p>Placeholder text Placeholder</p></article>
+  {% endfor %}
+</section>

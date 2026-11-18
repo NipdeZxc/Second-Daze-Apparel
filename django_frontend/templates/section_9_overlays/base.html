@@ -1,0 +1,16 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Placeholder text</title>
+    <link rel="stylesheet" href="{% static 'prototype/styles.css' %}" />
+    <link rel="stylesheet" href="{% static 'django-ui.css' %}" />
+    <script src="{% static 'overlay-dismiss.js' %}" defer></script>
+  </head>
+  <body class="prototype-page prototype-overlay">
+    {% block content %}{% endblock %}
+  </body>
+</html>

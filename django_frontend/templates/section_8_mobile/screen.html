@@ -1,0 +1,58 @@
+{% extends "section_8_mobile/base.html" %}
+{% block content %}
+<div class="mobile-app">
+  <header class="mobile-header">
+    {% if screen.kind == "mobile-login" %}
+      <a class="app-brand-mark" href="{% url 'mobile:index' %}">Tx</a>
+    {% else %}
+      <a href="{% url 'mobile:index' %}" aria-label="Placeholder">‹</a>
+    {% endif %}
+    <strong>Placeholder text</strong><span class="mobile-avatar">Tx</span>
+  </header>
+  <main class="mobile-content">
+    {% if screen.kind != "mobile-login" %}<h1>Placeholder text</h1><p class="mobile-subtitle">Placeholder text Placeholder</p>{% else %}<p class="mobile-subtitle">Placeholder text</p>{% endif %}
+    {% if screen.kind == "mobile-login" %}
+      <section class="mobile-card">
+        <h2>Placeholder text</h2>
+        <form method="post">
+          {% csrf_token %}
+          <label><span>Placeholder text</span><input name="email" type="email" placeholder="Placeholder text" required /></label>
+          <label><span>Placeholder text</span><input name="password" type="password" placeholder="Placeholder text" required /></label>
+          <div class="mobile-inline"><label><input name="remember" type="checkbox" /> Placeholder text</label><a href="{% url 'mobile:index' %}">Placeholder text</a></div>
+          <button class="solid-button full-button" type="submit">Placeholder text</button>
+        </form>
+      </section>
+    {% elif screen.kind == "mobile-dashboard" %}
+      <div class="mobile-stats">{% for stat in stats %}<article class="surface-panel"><strong>Placeholder text</strong><b>0</b></article>{% endfor %}</div>
+      <h2 class="mobile-section-title">Placeholder text <span>Placeholder</span></h2>
+      {% include "section_1_7/partials/rows.html" with rows=rows compact=True %}
+    {% elif screen.kind == "mobile-stock" %}
+      <div class="mobile-stock-list">
+        {% for item in rows %}
+          <article class="mobile-card"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div><button class="outline-button" type="button">Placeholder</button><div class="stock-values"><div><strong>Placeholder</strong><b>0</b></div><div><strong>Placeholder</strong><b>0</b></div><button class="solid-button" type="button">Placeholder</button></div></article>
+        {% endfor %}
+      </div>
+    {% elif screen.kind == "mobile-form" %}
+      <section class="mobile-card">
+        <h2>Placeholder text</h2>
+        {% if submitted %}<div class="notice-box"><span>✓</span><p>Placeholder text Placeholder text</p></div>{% endif %}
+        <form method="post">
+          {% csrf_token %}
+          {% for field in fields %}<label><span>Placeholder text</span><input placeholder="Placeholder text" /></label>{% endfor %}
+          <button class="solid-button full-button" type="submit">Placeholder text</button>
+        </form>
+      </section>
+    {% else %}
+      <div class="mobile-tabs">{% for item in rows %}<button class="outline-button" type="button">Placeholder</button>{% endfor %}</div>
+      {% for item in rows %}<article class="mobile-card"><strong>Placeholder text</strong><p>Placeholder text Placeholder</p><button class="outline-button" type="button">Placeholder</button></article>{% endfor %}
+    {% endif %}
+  </main>
+  {% if screen.kind != "mobile-login" %}
+    <nav class="mobile-bottom-nav" aria-label="Placeholder">
+      {% for item in mobile_screens|slice:":4" %}
+        <a class="{% if item.active %}is-current{% endif %}" href="{% url 'mobile:screen' item.slug %}" aria-label="Placeholder"><span aria-hidden="true">□</span><small>Placeholder</small></a>
+      {% endfor %}
+    </nav>
+  {% endif %}
+</div>
+{% endblock %}

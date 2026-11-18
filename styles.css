@@ -403,6 +403,97 @@ button {
   font-size: 11px;
 }
 
+.prototype-directory {
+  display: block;
+  background: #f7f7f7;
+}
+
+.hub-header {
+  min-height: 76px;
+  padding: 12px max(24px, calc((100% - 1120px) / 2));
+  border-bottom: 1px solid var(--soft-line);
+  background: #fff;
+}
+
+.hub-main {
+  width: min(100% - 40px, 1120px);
+  margin: 0 auto;
+  padding: 44px 0 64px;
+}
+
+.hub-main > h1 {
+  margin: 0 0 8px;
+  font-size: clamp(26px, 4vw, 36px);
+}
+
+.hub-intro {
+  margin: 0 0 28px;
+  color: var(--muted);
+}
+
+.hub-groups {
+  display: grid;
+  gap: 18px;
+}
+
+.hub-group {
+  padding: 20px;
+  border: 1px solid var(--soft-line);
+  background: #fff;
+}
+
+.hub-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.hub-group-heading h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.hub-group-heading > span {
+  min-width: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--soft-line);
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.hub-group nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+  gap: 8px;
+}
+
+.hub-group nav a {
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid #e6e6e6;
+  display: grid;
+  grid-template-columns: 35px 1fr 16px;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.hub-group nav a:hover,
+.hub-group nav a:focus-visible {
+  border-color: var(--ink);
+  background: var(--soft-surface);
+}
+
+.hub-group nav a span:first-child {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 [hidden] {
   display: none !important;
 }

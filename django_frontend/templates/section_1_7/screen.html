@@ -1,0 +1,36 @@
+{% extends "section_1_7/base.html" %}
+{% block body %}
+  <header class="app-topbar">
+    <a class="app-brand" href="{% url 'main:screen' '2-admin-dashboard' %}" aria-label="Placeholder">
+      <span class="app-brand-mark">Tx</span><span><strong>Placeholder</strong><small>Placeholder text</small></span>
+    </a>
+    <label class="app-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Placeholder text Placeholder" /></label>
+    <button class="icon-button" type="button" aria-label="Placeholder">♧</button>
+    <button class="profile-button" type="button"><span class="app-brand-mark">Tx</span><span><strong>Placeholder</strong><small>Placeholder</small></span></button>
+  </header>
+  <div class="app-body">
+    <aside class="app-sidebar">
+      <div class="workspace-label"><strong>Placeholder</strong><span>Placeholder text Placeholder</span></div>
+      <nav class="screen-navigation" aria-label="Placeholder">
+        {% for group in nav_groups %}
+          <div class="navigation-group">
+            <span class="navigation-label">{{ group.label }}</span>
+            {% for item in group.screens %}
+              <a class="{% if item.active %}is-current{% endif %}" href="{% url 'main:screen' item.slug %}" aria-label="Placeholder">
+                <span class="nav-glyph" aria-hidden="true">□</span><span>Placeholder text</span>
+              </a>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </nav>
+      <div class="sidebar-note"><strong>Placeholder</strong><p>Placeholder text Placeholder text Placeholder</p></div>
+    </aside>
+    <main class="app-content">
+      <div class="content-heading">
+        <div><div class="eyebrow">Placeholder</div><h1>Placeholder text Placeholder</h1><p>Placeholder text Placeholder text Placeholder</p></div>
+        <div class="heading-actions"><button class="outline-button" type="button">Placeholder text</button><button class="solid-button" type="button">＋ Placeholder</button></div>
+      </div>
+      {% include screen.template %}
+    </main>
+  </div>
+{% endblock %}

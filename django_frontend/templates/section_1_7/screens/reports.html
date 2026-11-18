@@ -1,0 +1,7 @@
+<div class="filter-bar"><select aria-label="Placeholder"><option>Placeholder text</option></select><select aria-label="Placeholder"><option>Placeholder text</option></select><span>Placeholder text Placeholder</span></div>
+{% include "section_1_7/partials/stats.html" with stats=stats %}
+<section class="dashboard-grid">
+  <article class="surface-panel chart-panel"><div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div></div><div class="chart-area report-chart"><div class="chart-guides"><span></span><span></span><span></span><span></span></div><div class="chart-bars">{% for height in chart_bars %}<i style="height:{{ height }}%"></i>{% endfor %}</div></div></article>
+  <article class="surface-panel side-summary"><div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div></div>{% include "section_1_7/partials/rows.html" with rows=rows compact=True %}</article>
+  <article class="surface-panel wide-panel"><div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div></div>{% include "section_1_7/partials/table.html" with table_rows=table_rows table_columns=table_columns %}</article>
+</section>

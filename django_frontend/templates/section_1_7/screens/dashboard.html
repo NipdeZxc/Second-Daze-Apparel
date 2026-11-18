@@ -1,0 +1,13 @@
+{% include "section_1_7/partials/stats.html" with stats=stats %}
+<section class="dashboard-grid">
+  <article class="surface-panel chart-panel">
+    <div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div><button class="outline-button" type="button">Placeholder</button></div>
+    <div class="chart-area" aria-label="Placeholder">
+      <div class="chart-guides"><span></span><span></span><span></span><span></span></div>
+      <div class="chart-bars">{% for height in chart_bars %}<i style="height:{{ height }}%"></i>{% endfor %}</div>
+      <div class="chart-labels">{% for item in chart_bars %}<span>Placeholder</span>{% endfor %}</div>
+    </div>
+  </article>
+  <article class="surface-panel side-summary"><div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div></div>{% include "section_1_7/partials/rows.html" with rows=rows compact=True %}</article>
+  <article class="surface-panel wide-panel"><div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div><button class="outline-button" type="button">Placeholder</button></div>{% include "section_1_7/partials/rows.html" with rows=rows %}</article>
+</section>

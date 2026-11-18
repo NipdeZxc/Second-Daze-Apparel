@@ -23,76 +23,50 @@
 
 ## UI prototype
 
-Each exported screen has its own HTML file in the repository root. Every page
-uses the same `styles.css` and `app.js`; the reference PNGs remain beside the
-pages. The prototype uses placeholder text throughout and does not connect to a
-backend. Open `index.html` for the initial staff sign-in flow, or any of the
-linked screens below. No build tools or dependencies are required.
+The static prototype groups its HTML screens by section under `screens/`, with
+one shared `styles.css` and `app.js` in the repository root. Open `index.html`
+for a screen directory with links to each page. Sections 1–7, the mobile screens
+in Section 8, and the overlays in Section 9 are kept separate. The prototype
+uses placeholder text and does not connect to a backend.
 
 The sign-in flow uses local UI state only. It does not authenticate users,
 create accounts, or send password-reset emails. Enter `pending@demo.local` with
 any non-empty password on the sign-in screen to preview the pending-approval
 state. The dashboard screens use sample placeholder content.
 
-### Screen files
+### Screen groups
 
-- **Staff access**
-  - [index.html](./index.html) — Screen 1
-  - [1.1-sign-in-error.html](./1.1-sign-in-error.html) — Screen 1.1
-  - [1.2-access-awaiting-approval.html](./1.2-access-awaiting-approval.html) — Screen 1.2
-  - [1.3-forgot-password.html](./1.3-forgot-password.html) — Screen 1.3
-- **Admin**
-  - [2-admin-dashboard.html](./2-admin-dashboard.html)
-  - [2.1-subaccounts.html](./2.1-subaccounts.html)
-  - [2.2-access-approvals.html](./2.2-access-approvals.html)
-  - [2.3-sales-documents.html](./2.3-sales-documents.html)
-  - [2.4-refunds.html](./2.4-refunds.html)
-  - [2.5-reservations.html](./2.5-reservations.html)
-  - [2.6-reports.html](./2.6-reports.html)
-- **Sales**
-  - [3-sales-catalog.html](./3-sales-catalog.html)
-  - [3.1-checkout-pending-payment.html](./3.1-checkout-pending-payment.html)
-  - [3.2-sale-completed.html](./3.2-sale-completed.html)
-  - [3.3-sales-documents.html](./3.3-sales-documents.html)
-  - [3.4-new-refund-request.html](./3.4-new-refund-request.html)
-  - [3.5-refund-condition-review.html](./3.5-refund-condition-review.html)
-  - [3.6-approval-request-detail.html](./3.6-approval-request-detail.html)
-  - [3.7-refund-completed.html](./3.7-refund-completed.html)
-  - [3.8-checkout-gcash-payment.html](./3.8-checkout-gcash-payment.html)
-  - [3.9-orders-status-tracking.html](./3.9-orders-status-tracking.html)
-  - [3.10-order-detail-shipment.html](./3.10-order-detail-shipment.html)
-  - [3.11-customers.html](./3.11-customers.html)
-  - [3.12-new-customer-validation.html](./3.12-new-customer-validation.html)
-  - [3.13-create-purchase-order.html](./3.13-create-purchase-order.html)
-  - [3.14-confirm-delivery.html](./3.14-confirm-delivery.html)
-  - [3.15-payment-not-received.html](./3.15-payment-not-received.html)
-- **Inventory**
-  - [4-inventory-workspace.html](./4-inventory-workspace.html)
-  - [4.1-stock-movement-saved.html](./4.1-stock-movement-saved.html)
-  - [4.2-low-stock-alerts.html](./4.2-low-stock-alerts.html)
-  - [4.3-edit-product-admin-only.html](./4.3-edit-product-admin-only.html)
-- **Reservations**
-  - [5-reservations.html](./5-reservations.html)
-  - [5.1-new-reservation.html](./5.1-new-reservation.html)
-  - [5.2-expired-reservation-void-notice.html](./5.2-expired-reservation-void-notice.html)
-  - [5.3-reservation-approved.html](./5.3-reservation-approved.html)
-- **Reports and staff**
-  - [6-sales-inventory-reports.html](./6-sales-inventory-reports.html)
-  - [6.1-sales-inventory-reports-v2.html](./6.1-sales-inventory-reports-v2.html)
-  - [7-staff-accounts.html](./7-staff-accounts.html)
-- **Mobile**
-  - [8-mobile-sign-in.html](./8-mobile-sign-in.html)
-  - [8.1-mobile-admin-dashboard.html](./8.1-mobile-admin-dashboard.html)
-  - [8.2-mobile-approvals.html](./8.2-mobile-approvals.html)
-  - [8.3-mobile-checkout-gcash.html](./8.3-mobile-checkout-gcash.html)
-  - [8.4-mobile-orders.html](./8.4-mobile-orders.html)
-  - [8.5-mobile-low-stock.html](./8.5-mobile-low-stock.html)
-  - [8.6-mobile-new-reservation.html](./8.6-mobile-new-reservation.html)
-- **Overlays**
-  - [9-overlay-notifications-admin.html](./9-overlay-notifications-admin.html)
-  - [9.1-overlay-notifications-sales.html](./9.1-overlay-notifications-sales.html)
-  - [9.2-overlay-notifications-inventory.html](./9.2-overlay-notifications-inventory.html)
-  - [9.3-overlay-confirm-approve.html](./9.3-overlay-confirm-approve.html)
+- [Sections 1–7: sign-in and main app](./screens/section-1-7/)
+- [Section 8: mobile app screens](./screens/section-8-mobile/)
+- [Section 9: overlay screens](./screens/section-9-overlays/)
 
 To run locally, start a static server from the repository root, for example
 `python -m http.server 8000`, then open `http://localhost:8000`.
+
+### Django template test frontend
+
+A Django-rendered version of the screens is available in
+[django_frontend](./django_frontend/). It keeps the applications separate:
+
+- Sections 1–7 are served by `main_screens` at `/`.
+- Section 8 mobile screens are served by `mobile_screens` at `/mobile/`.
+- Section 9 overlays are served by `overlay_screens` at `/overlays/`.
+
+The mobile and overlay apps have their own route namespaces and template
+directories; neither is included in the Sections 1–7 navigation. These are
+independent UI test screens, not a production authentication or data backend.
+
+Use Python 3.12 or newer, then run in PowerShell:
+
+```powershell
+cd django_frontend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python manage.py runserver
+```
+
+Open `http://127.0.0.1:8000/` for Sections 1–7,
+`http://127.0.0.1:8000/mobile/` for the mobile app, or
+`http://127.0.0.1:8000/overlays/` for the separate overlays. The organized
+static prototype is available from the repository root `index.html`.

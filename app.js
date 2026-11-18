@@ -49,10 +49,90 @@ const prototypeScreens = [
 const prototypeId = document.body.dataset.screen?.replace(/^prototype-/, "");
 const prototypeScreen = prototypeScreens.find(({ id }) => id === prototypeId);
 
-if (prototypeScreen) {
+if (document.body.dataset.screen === "screen-hub") {
+  initializeScreenHub();
+} else if (prototypeScreen) {
   initializePrototype(prototypeScreen);
 } else {
   initializeAccessScreens();
+}
+
+function initializeScreenHub() {
+  document.title = "Placeholder text";
+  const sections = [
+    {
+      label: "Sections 1–7",
+      folder: "section-1-7",
+      screens: [
+        { id: "1-staff-sign-in", file: "1-staff-sign-in.html" },
+        { id: "1.1-sign-in-error", file: "1.1-sign-in-error.html" },
+        {
+          id: "1.2-access-awaiting-approval",
+          file: "1.2-access-awaiting-approval.html",
+        },
+        { id: "1.3-forgot-password", file: "1.3-forgot-password.html" },
+        ...prototypeScreens.filter(
+          (screen) =>
+            !screen.type.startsWith("mobile-") &&
+            screen.type !== "notifications" &&
+            screen.type !== "confirm",
+        ),
+      ],
+    },
+    {
+      label: "Section 8 · Mobile",
+      folder: "section-8-mobile",
+      screens: prototypeScreens.filter((screen) =>
+        screen.type.startsWith("mobile-"),
+      ),
+    },
+    {
+      label: "Section 9 · Overlays",
+      folder: "section-9-overlays",
+      screens: prototypeScreens.filter(
+        (screen) =>
+          screen.type === "notifications" || screen.type === "confirm",
+      ),
+    },
+  ];
+
+  document.querySelector("#screen-hub").innerHTML = `
+    <header class="hub-header">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true">Tx</span>
+        <span class="brand-copy"><strong>Placeholder</strong><span>Placeholder text</span></span>
+      </a>
+    </header>
+    <main class="hub-main">
+      <p class="eyebrow">Placeholder</p>
+      <h1>Placeholder text</h1>
+      <p class="hub-intro">Placeholder text Placeholder text</p>
+      <div class="hub-groups">
+        ${sections
+          .map(
+            (section) => `
+              <section class="hub-group">
+                <div class="hub-group-heading">
+                  <h2>${section.label}</h2>
+                  <span>${section.screens.length}</span>
+                </div>
+                <nav aria-label="${section.label}">
+                  ${section.screens
+                    .map(
+                      (screen) => `
+                        <a href="screens/${section.folder}/${screen.file}">
+                          <span>${screen.id.split("-")[0]}</span>
+                          <span>Placeholder screen</span>
+                          <span aria-hidden="true">→</span>
+                        </a>`,
+                    )
+                    .join("")}
+                </nav>
+              </section>`,
+          )
+          .join("")}
+      </div>
+    </main>`;
 }
 
 function initializeAccessScreens() {
@@ -67,7 +147,7 @@ function initializeAccessScreens() {
   document.title = pageTitles[screen] || "Placeholder text";
   document.querySelector("#site-header").innerHTML = `
     <header class="topbar">
-      <a class="brand" href="index.html" aria-label="Second Daze Apparel home">
+      <a class="brand" href="1-staff-sign-in.html" aria-label="Second Daze Apparel home">
         <span class="brand-mark" aria-hidden="true">Tx</span>
         <span class="brand-copy">
           <strong>Placeholder</strong>
@@ -185,7 +265,7 @@ function initializePrototype(screen) {
 function renderDesktopScreen(screen) {
   return `
     <header class="app-topbar">
-      <a class="app-brand" href="index.html" aria-label="Placeholder">
+      <a class="app-brand" href="../section-1-7/1-staff-sign-in.html" aria-label="Placeholder">
         <span class="app-brand-mark">Tx</span>
         <span><strong>Placeholder</strong><small>Placeholder text</small></span>
       </a>
@@ -207,6 +287,12 @@ function renderDesktopScreen(screen) {
         </div>
         <nav class="screen-navigation" aria-label="Placeholder">
           ${prototypeScreens
+            .filter(
+              (item) =>
+                !item.type.startsWith("mobile-") &&
+                item.type !== "notifications" &&
+                item.type !== "confirm",
+            )
             .map(
               (item) => `
                 <a class="${item.id === screen.id ? "is-current" : ""}"
@@ -442,7 +528,7 @@ function renderCatalog() {
 function renderMobileScreen(screen) {
   const login = screen.type === "mobile-login";
   const content = login
-    ? `<section class="mobile-card"><h2>Placeholder text</h2><form><label><span>Placeholder text</span><input placeholder="Placeholder text" /></label><label><span>Placeholder text</span><input type="password" placeholder="Placeholder text" /></label><div class="mobile-inline"><label><input type="checkbox" /> Placeholder text</label><a href="1.3-forgot-password.html">Placeholder text</a></div><button class="solid-button full-button" type="submit">Placeholder text</button><p class="mobile-note">Placeholder text Placeholder text Placeholder text</p><p class="inline-message" id="prototype-message" hidden>Placeholder text Placeholder</p></form></section>`
+    ? `<section class="mobile-card"><h2>Placeholder text</h2><form><label><span>Placeholder text</span><input placeholder="Placeholder text" /></label><label><span>Placeholder text</span><input type="password" placeholder="Placeholder text" /></label><div class="mobile-inline"><label><input type="checkbox" /> Placeholder text</label><a href="8-mobile-sign-in.html">Placeholder text</a></div><button class="solid-button full-button" type="submit">Placeholder text</button><p class="mobile-note">Placeholder text Placeholder text Placeholder text</p><p class="inline-message" id="prototype-message" hidden>Placeholder text Placeholder</p></form></section>`
     : screen.type === "mobile-dashboard"
       ? `<div class="mobile-stats">${Array.from({ length: 6 }, () => `<article class="surface-panel"><strong>Placeholder text</strong><b>0</b></article>`).join("")}</div><h2 class="mobile-section-title">Placeholder text <span>Placeholder</span></h2>${renderRows(3, true)}`
       : screen.type === "mobile-stock"

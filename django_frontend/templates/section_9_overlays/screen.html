@@ -1,0 +1,22 @@
+{% extends "section_9_overlays/base.html" %}
+{% block content %}
+<main class="prototype-overlay-page">
+  <div class="overlay-scrim"></div>
+  <section class="prototype-overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+    <div class="overlay-mark" aria-hidden="true">{% if is_confirmation %}?{% else %}Tx{% endif %}</div>
+    <div class="overlay-heading">
+      <div><h1 id="overlay-title">Placeholder text</h1><p>Placeholder text Placeholder text</p></div>
+      <button type="button" class="icon-button" data-dismiss aria-label="Placeholder">×</button>
+    </div>
+    {% if is_confirmation %}
+      <div class="notice-box"><span>i</span><p>Placeholder text Placeholder text Placeholder text</p></div>
+      <div class="overlay-actions"><button class="outline-button" type="button" data-dismiss>Placeholder</button><button class="solid-button" type="button" data-dismiss>Placeholder</button></div>
+    {% else %}
+      <div class="notification-list">
+        {% for item in "1234" %}<article class="notification-item"><span class="notification-dot"></span><div><strong>Placeholder text</strong><p>Placeholder text Placeholder</p></div></article>{% endfor %}
+      </div>
+      <button class="outline-button full-button" type="button" data-dismiss>Placeholder text</button>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

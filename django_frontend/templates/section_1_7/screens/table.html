@@ -1,0 +1,10 @@
+{% include "section_1_7/partials/stats.html" with stats=stats %}
+<section class="surface-panel table-panel">
+  <div class="filter-bar table-filters">
+    <label class="filter-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Placeholder text Placeholder" /></label>
+    <select aria-label="Placeholder"><option>Placeholder text</option></select>
+    <select aria-label="Placeholder"><option>Placeholder text</option></select>
+    <button class="outline-button" type="button">Placeholder</button>
+  </div>
+  {% include "section_1_7/partials/table.html" with table_rows=table_rows table_columns=table_columns %}
+</section>
