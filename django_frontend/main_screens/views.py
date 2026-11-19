@@ -4,6 +4,8 @@ from .catalog import (
     ACCESS_SCREENS,
     MAIN_NAVIGATION,
     MAIN_SCREEN_BY_SLUG,
+    SCREEN_COLUMNS,
+    SCREEN_FIELDS,
 )
 
 
@@ -60,22 +62,47 @@ def screen(request, screen_slug):
                     {
                         "slug": slug,
                         "active": slug == screen_slug,
+                        "label": MAIN_SCREEN_BY_SLUG[slug]["label"],
                     }
                     for slug, _, _ in group["screens"]
                 ],
             }
         )
 
+    fields = SCREEN_FIELDS.get(
+        screen_slug,
+        ("Name", "Reference", "Status", "Date", "Notes"),
+    )
+    screen_copy = {
+        "2-admin-dashboard": ("Gross sales", "Total cost", "Profit", "Orders placed"),
+        "2.6-reports": ("Gross sales", "Total cost", "Profit", "Orders placed"),
+        "6-sales-inventory-reports": ("Total sales", "Total cost", "Total profit", "Profit margin"),
+        "6.1-sales-inventory-reports-v2": ("Revenue", "Cost", "Profit", "Margin"),
+    }
+    metric_labels = screen_copy.get(screen_slug, ())
+    columns = SCREEN_COLUMNS.get(screen_slug, ("Record", "Reference", "Status", "Updated", "Action"))
+    action_labels = {
+        "2.1-subaccounts": "Create subaccount",
+        "2.3-sales-documents": "Create sales document",
+        "2.5-reservations": "Create reservation",
+        "3-sales-catalog": "View orders",
+        "3.3-sales-documents": "Create document",
+        "3.11-customers": "New customer",
+        "3.13-create-purchase-order": "Submit for approval",
+        "4-inventory-workspace": "Add item",
+        "4.2-low-stock-alerts": "Record restock",
+        "5-reservations": "New reservation",
+        "7-staff-accounts": "Create subaccount",
+    }
+
     context = {
         "screen": current,
         "nav_groups": nav_groups,
-        "stats": range(4 if current["kind"] not in {"form", "detail"} else 3),
-        "rows": range(5),
-        "table_rows": range(6),
-        "table_columns": range(6),
-        "chart_bars": (44, 68, 51, 82, 62, 92, 75),
-        "steps": range(5),
-        "fields": range(6),
+        "metric_labels": metric_labels,
+        "columns": columns,
+        "fields": fields,
+        "records_label": current["title"].lower(),
+        "action_label": action_labels.get(screen_slug, ""),
         "submitted": request.method == "POST",
     }
     return render(request, "section_1_7/screen.html", context)

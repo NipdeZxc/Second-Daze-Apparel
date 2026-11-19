@@ -1,6 +1,37 @@
-<div class="stepper surface-panel">{% for step in steps %}<div class="step {% if forloop.counter == 3 %}is-active{% elif forloop.counter < 3 %}is-done{% endif %}"><span>{% if forloop.counter < 3 %}✓{% else %}{{ forloop.counter }}{% endif %}</span><strong>Placeholder</strong></div>{% endfor %}</div>
-{% include "section_1_7/partials/stats.html" with stats=stats %}
 <div class="form-layout detail-layout">
-  <article class="surface-panel detail-main"><div class="panel-heading"><div><h2>Placeholder text Placeholder</h2><p>Placeholder text Placeholder text Placeholder</p></div><button class="outline-button" type="button">Placeholder</button></div>{% include "section_1_7/partials/rows.html" with rows=rows %}<div class="total-row"><span>Placeholder text</span><strong>₱0,000.00</strong></div><div class="notice-box"><span>i</span><p>Placeholder text Placeholder text Placeholder text</p></div></article>
-  <aside class="surface-panel form-aside"><div class="panel-heading"><div><h2>Placeholder</h2><p>Placeholder text Placeholder</p></div></div>{% for field in fields|slice:":4" %}<div class="summary-row"><span>Placeholder text</span><strong>Placeholder</strong></div>{% endfor %}<button class="solid-button full-button" type="button">Placeholder text</button><button class="outline-button full-button" type="button">Placeholder</button></aside>
+  <article class="surface-panel detail-main">
+    {% if screen.slug == "3.15-payment-not-received" %}
+      <div class="notice-box"><span>!</span><p><strong>Payment not verified</strong><br />The payment could not be matched. Check the customer's receipt before resubmitting.</p></div>
+    {% endif %}
+    <div class="panel-heading"><div><h2>{% if screen.slug == "3.10-order-detail-shipment" %}Shipment{% elif screen.slug == "3.6-approval-request-detail" %}Refund request{% else %}Order summary{% endif %}</h2><p>{{ screen.description }}</p></div></div>
+    {% if screen.slug == "3.10-order-detail-shipment" %}
+      <div class="summary-row"><span>Courier</span><strong>Not provided</strong></div>
+      <div class="summary-row"><span>Tracking number</span><strong>Not provided</strong></div>
+      <div class="summary-row"><span>Shipment status</span><strong>Awaiting update</strong></div>
+    {% elif screen.slug == "3.6-approval-request-detail" %}
+      <div class="summary-row"><span>Requested amount</span><strong>—</strong></div>
+      <div class="summary-row"><span>Item condition</span><strong>Awaiting review</strong></div>
+      <div class="summary-row"><span>Approval status</span><strong>Pending decision</strong></div>
+    {% else %}
+      <div class="summary-row"><span>Items</span><strong>No order items loaded</strong></div>
+      <div class="summary-row"><span>Subtotal</span><strong>—</strong></div>
+      <div class="total-row"><span>Total due</span><strong>—</strong></div>
+    {% endif %}
+    <div class="notice-box"><span>i</span><p>Connect the application to its data source to load this record.</p></div>
+  </article>
+  <aside class="surface-panel form-aside">
+    <div class="panel-heading"><div><h2>{% if screen.slug == "3.8-checkout-gcash-payment" or screen.slug == "3.1-checkout-pending-payment" %}Payment details{% elif screen.slug == "3.6-approval-request-detail" %}Admin decision{% else %}Next step{% endif %}</h2><p>Review the record before continuing.</p></div></div>
+    {% if screen.slug == "3.1-checkout-pending-payment" or screen.slug == "3.8-checkout-gcash-payment" %}
+      <label>Payment method<select aria-label="Payment method"><option>GCash</option></select></label>
+      <label>Amount paid<input type="text" placeholder="Enter amount paid" /></label>
+      <label>GCash reference number<input type="text" placeholder="Enter reference number" /></label>
+      <button class="solid-button full-button" type="button">Record payment</button>
+    {% elif screen.slug == "3.6-approval-request-detail" %}
+      <button class="solid-button full-button" type="button">Approve request</button>
+      <button class="outline-button full-button" type="button">Reject request</button>
+    {% else %}
+      <button class="solid-button full-button" type="button">Update shipment</button>
+      <button class="outline-button full-button" type="button">Back to orders</button>
+    {% endif %}
+  </aside>
 </div>

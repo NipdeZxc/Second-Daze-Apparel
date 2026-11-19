@@ -1,5 +1,11 @@
-<section class="stat-grid" aria-label="Placeholder">
-  {% for item in stats %}
-    <article class="stat-card"><div class="stat-topline"><span>Placeholder text</span><span class="stat-icon" aria-hidden="true">◷</span></div><strong>{% if forloop.counter == 2 %}₱0,000.00{% else %}0{% endif %}</strong><p>Placeholder text Placeholder</p></article>
-  {% endfor %}
-</section>
+{% if metric_labels %}
+  <section class="stat-grid" aria-label="Performance metrics">
+    {% for label in metric_labels %}
+      <article class="stat-card">
+        <div class="stat-topline"><span>{{ label }}</span><span class="stat-icon" aria-hidden="true">◷</span></div>
+        <strong>—</strong>
+        <p>Available when connected to live data</p>
+      </article>
+    {% endfor %}
+  </section>
+{% endif %}

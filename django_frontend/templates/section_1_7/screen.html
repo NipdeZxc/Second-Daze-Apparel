@@ -1,34 +1,38 @@
 {% extends "section_1_7/base.html" %}
+{% load static %}
 {% block body %}
   <header class="app-topbar">
-    <a class="app-brand" href="{% url 'main:screen' '2-admin-dashboard' %}" aria-label="Placeholder">
-      <span class="app-brand-mark">Tx</span><span><strong>Placeholder</strong><small>Placeholder text</small></span>
+    <a class="app-brand" href="{% url 'main:screen' '2-admin-dashboard' %}" aria-label="Second Daze dashboard">
+      <img class="app-brand-logo" src="{% static 'brand-logo.jpg' %}" alt="" /><span><strong>Second Daze</strong><small>Apparel Admin</small></span>
     </a>
-    <label class="app-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Placeholder text Placeholder" /></label>
-    <button class="icon-button" type="button" aria-label="Placeholder">♧</button>
-    <button class="profile-button" type="button"><span class="app-brand-mark">Tx</span><span><strong>Placeholder</strong><small>Placeholder</small></span></button>
+    <label class="app-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search orders, requests, reports" /></label>
+    <button class="icon-button" type="button" aria-label="Notifications">♧</button>
+    <button class="profile-button" type="button"><span class="app-brand-mark">SD</span><span><strong>Staff account</strong><small>{{ screen.group }}</small></span></button>
   </header>
   <div class="app-body">
     <aside class="app-sidebar">
-      <div class="workspace-label"><strong>Placeholder</strong><span>Placeholder text Placeholder</span></div>
-      <nav class="screen-navigation" aria-label="Placeholder">
+      <div class="workspace-label"><strong>Workspace</strong><span>Second Daze Apparel</span></div>
+      <nav class="screen-navigation" aria-label="Main system navigation">
         {% for group in nav_groups %}
           <div class="navigation-group">
             <span class="navigation-label">{{ group.label }}</span>
             {% for item in group.screens %}
-              <a class="{% if item.active %}is-current{% endif %}" href="{% url 'main:screen' item.slug %}" aria-label="Placeholder">
-                <span class="nav-glyph" aria-hidden="true">□</span><span>Placeholder text</span>
+              <a class="{% if item.active %}is-current{% endif %}" href="{% url 'main:screen' item.slug %}" aria-label="{{ item.label }}">
+                <span class="nav-glyph" aria-hidden="true">□</span><span>{{ item.label }}</span>
               </a>
             {% endfor %}
           </div>
         {% endfor %}
       </nav>
-      <div class="sidebar-note"><strong>Placeholder</strong><p>Placeholder text Placeholder text Placeholder</p></div>
+      <div class="sidebar-note"><strong>Prototype data</strong><p>Connect a data source to display live records and metrics.</p></div>
     </aside>
     <main class="app-content">
       <div class="content-heading">
-        <div><div class="eyebrow">Placeholder</div><h1>Placeholder text Placeholder</h1><p>Placeholder text Placeholder text Placeholder</p></div>
-        <div class="heading-actions"><button class="outline-button" type="button">Placeholder text</button><button class="solid-button" type="button">＋ Placeholder</button></div>
+        <div><div class="eyebrow">{{ screen.group }}</div><h1>{{ screen.title }}</h1><p>{{ screen.description }}</p></div>
+        {% if action_label or screen.kind == "reports" %}<div class="heading-actions">
+          {% if screen.kind == "reports" %}<button class="outline-button" type="button">Export report</button>{% endif %}
+          {% if action_label %}<button class="solid-button" type="button">＋ {{ action_label }}</button>{% endif %}
+        </div>{% endif %}
       </div>
       {% include screen.template %}
     </main>

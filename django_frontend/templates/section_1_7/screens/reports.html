@@ -1,7 +1,20 @@
-<div class="filter-bar"><select aria-label="Placeholder"><option>Placeholder text</option></select><select aria-label="Placeholder"><option>Placeholder text</option></select><span>Placeholder text Placeholder</span></div>
-{% include "section_1_7/partials/stats.html" with stats=stats %}
+<div class="filter-bar">
+  <select aria-label="Reporting period"><option>Select reporting period</option></select>
+  <select aria-label="Product category"><option>All categories</option></select>
+  <span>Filters apply to recorded sales and inventory data.</span>
+</div>
+{% include "section_1_7/partials/stats.html" %}
 <section class="dashboard-grid">
-  <article class="surface-panel chart-panel"><div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div></div><div class="chart-area report-chart"><div class="chart-guides"><span></span><span></span><span></span><span></span></div><div class="chart-bars">{% for height in chart_bars %}<i style="height:{{ height }}%"></i>{% endfor %}</div></div></article>
-  <article class="surface-panel side-summary"><div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div></div>{% include "section_1_7/partials/rows.html" with rows=rows compact=True %}</article>
-  <article class="surface-panel wide-panel"><div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div></div>{% include "section_1_7/partials/table.html" with table_rows=table_rows table_columns=table_columns %}</article>
+  <article class="surface-panel chart-panel">
+    <div class="panel-heading"><div><h2>Sales and profit by period</h2><p>Recorded sales compared with costs</p></div></div>
+    <p>Chart data will appear when sales records are available.</p>
+  </article>
+  <article class="surface-panel side-summary">
+    <div class="panel-heading"><div><h2>Sales by category</h2><p>Category share for the selected period</p></div></div>
+    <p>Category breakdown is not available yet.</p>
+  </article>
+  <article class="surface-panel wide-panel">
+    <div class="panel-heading"><div><h2>Top-selling items</h2><p>Items ranked by recorded sales</p></div></div>
+    {% include "section_1_7/partials/table.html" %}
+  </article>
 </section>

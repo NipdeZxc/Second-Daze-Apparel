@@ -1,7 +1,13 @@
 <article class="surface-panel success-panel">
-  <div class="success-mark" aria-hidden="true">✓</div><span class="status-badge">Placeholder text</span><h2>Placeholder text Placeholder</h2><p>Placeholder text Placeholder text Placeholder text</p>
-  {% include "section_1_7/partials/stats.html" with stats=stats %}
-  <div class="notice-box"><span>i</span><p>Placeholder text Placeholder text Placeholder text Placeholder</p></div>
-  <div class="success-actions"><a class="solid-button button-link" href="{% url 'main:screen' '2-admin-dashboard' %}">Placeholder text</a><button class="outline-button" type="button">Placeholder</button></div>
+  <div class="success-mark" aria-hidden="true">✓</div>
+  <span class="status-badge">{% if screen.slug == "5.2-expired-reservation-void-notice" %}Expired / voided{% else %}Recorded{% endif %}</span>
+  <h2>{{ screen.title }}</h2>
+  <p>{{ screen.description }}</p>
+  <div class="notice-box"><span>i</span><p>This prototype does not store payment, inventory, or customer records.</p></div>
+  <div class="success-actions">
+    {% if screen.slug == "3.7-refund-completed" %}<a class="solid-button button-link" href="{% url 'main:screen' '2.4-refunds' %}">Back to refunds</a>
+    {% elif screen.slug == "5.2-expired-reservation-void-notice" or screen.slug == "5.3-reservation-approved" %}<a class="solid-button button-link" href="{% url 'main:screen' '5-reservations' %}">Back to reservations</a>
+    {% else %}<a class="solid-button button-link" href="{% url 'main:screen' '2-admin-dashboard' %}">Back to dashboard</a>{% endif %}
+    <a class="outline-button button-link" href="{% url 'main:screen' '3.9-orders-status-tracking' %}">View orders</a>
+  </div>
 </article>
-<section class="surface-panel"><div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div></div>{% include "section_1_7/partials/rows.html" with rows=rows %}</section>

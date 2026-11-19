@@ -5,7 +5,19 @@ OVERLAY_SCREENS = [
     ("9.3-overlay-confirm-approve", "confirm"),
 ]
 
+OVERLAY_COPY = {
+    "9-overlay-notifications-admin": ("Notifications", "Admin workspace"),
+    "9.1-overlay-notifications-sales": ("Notifications", "Sales Management"),
+    "9.2-overlay-notifications-inventory": ("Notifications", "Inventory Management"),
+    "9.3-overlay-confirm-approve": ("Confirm this approval?", "This decision is saved with your name and the time."),
+}
+
 OVERLAY_SCREEN_BY_SLUG = {
-    slug: {"slug": slug, "kind": kind}
+    slug: {
+        "slug": slug,
+        "kind": kind,
+        "title": OVERLAY_COPY[slug][0],
+        "description": OVERLAY_COPY[slug][1],
+    }
     for slug, kind in OVERLAY_SCREENS
 }

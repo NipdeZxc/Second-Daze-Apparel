@@ -1,22 +1,41 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Shrikhand&display=swap");
+
 :root {
+  --brand-primary: #954478;
+  --brand-accent: #e8a3cf;
+  --brand-highlight: #ffa6dc;
+  --brand-background: #fdf8f2;
+  --brand-card: #f8d3ea;
+  --brand-text: #3a1f33;
   color-scheme: light;
-  font-family: Arial, Helvetica, sans-serif;
-  color: #111;
-  background: #fff;
+  font-family: "Poppins", sans-serif;
+  color: var(--brand-text);
+  background: var(--brand-background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --ink: #111;
-  --muted: #555;
-  --line: #222;
-  --soft-line: #d3d3d3;
-  --soft-surface: #f7f7f7;
+  --ink: var(--brand-text);
+  --muted: #725d6d;
+  --line: var(--brand-primary);
+  --soft-line: #e9c2d9;
+  --soft-surface: #fcebf4;
   --error: #8b1e1e;
   --error-surface: #fff7f7;
 }
 
 * {
   box-sizing: border-box;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Shrikhand", Georgia, serif;
+  font-weight: 400;
+  color: var(--brand-text);
 }
 
 body {
@@ -328,6 +347,22 @@ button {
 
 .secondary-button:hover {
   background: var(--soft-surface);
+}
+
+.brand-logo {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  background: var(--brand-background);
+}
+
+.app-brand-logo {
+  width: 64px;
+  height: 54px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  background: var(--brand-background);
 }
 
 .card-divider {
@@ -2137,4 +2172,98 @@ body.prototype-page {
   .prototype-overlay {
     padding: 18px;
   }
+}
+
+body,
+body.prototype-page,
+.prototype-directory {
+  color: var(--brand-text);
+  background-color: var(--brand-background);
+}
+
+.hub-header,
+.topbar,
+.app-topbar,
+.app-sidebar,
+.mobile-header,
+.mobile-bottom-nav,
+.page-footer {
+  border-color: #e9c2d9;
+  background-color: var(--brand-background);
+}
+
+.auth-card,
+.surface-panel,
+.stat-card,
+.mobile-card,
+.feature-card,
+.hub-group,
+.prototype-overlay,
+.sidebar-note,
+.cart-panel {
+  border-color: #e9c2d9;
+  background-color: var(--brand-card);
+}
+
+.primary-button,
+.solid-button {
+  border-color: var(--brand-primary);
+  color: #fff;
+  background-color: var(--brand-primary);
+}
+
+.primary-button:hover,
+.solid-button:hover {
+  background-color: #7e3865;
+}
+
+.secondary-button,
+.outline-button {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+  background-color: var(--brand-background);
+}
+
+.outline-button:hover,
+.secondary-button:hover {
+  background-color: #fcebf4;
+}
+
+.status-badge,
+.mobile-bottom-nav a.is-current,
+.hub-group nav a span:first-child,
+.app-sidebar a.is-current,
+.nav-glyph,
+.mobile-notifications-link {
+  color: var(--brand-primary);
+}
+
+.status-badge {
+  border-color: var(--brand-highlight);
+  background-color: var(--brand-highlight);
+}
+
+.notification-dot {
+  background-color: var(--brand-primary);
+}
+
+.app-sidebar a.is-current,
+.mobile-bottom-nav a.is-current,
+.hub-group nav a:hover,
+.hub-group nav a:focus-visible {
+  background-color: var(--brand-accent);
+}
+
+.app-brand-logo {
+  border-radius: 0;
+}
+
+.app-content,
+.mobile-app {
+  background-color: var(--brand-background);
+}
+
+.mobile-header .app-brand-logo {
+  width: 52px;
+  height: 52px;
 }

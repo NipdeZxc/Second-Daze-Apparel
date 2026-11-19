@@ -18,6 +18,60 @@
 }
 
 .mobile-bottom-nav a.is-current {
-  color: #111;
+  color: #954478;
   font-weight: 700;
+  background: #e8a3cf;
+}
+
+body.prototype-page {
+  color: #3a1f33;
+  background-color: #fdf8f2;
+}
+
+.prototype-page .app-topbar,
+.prototype-page .app-sidebar,
+.prototype-page .mobile-header,
+.prototype-page .mobile-bottom-nav {
+  border-color: #e9c2d9;
+  background-color: #fdf8f2;
+}
+
+.prototype-page .surface-panel,
+.prototype-page .stat-card,
+.prototype-page .mobile-card,
+.prototype-page .auth-card {
+  border-color: #e9c2d9;
+  background-color: #f8d3ea;
+}
+
+body.prototype-mobile .mobile-app {
+  background-color: #fdf8f2;
+}
+
+.prototype-page .solid-button {
+  border-color: #954478;
+  background-color: #954478;
+}
+
+.prototype-page .solid-button:hover {
+  background-color: #7e3865;
+}
+
+.prototype-page .outline-button {
+  border-color: #954478;
+  color: #954478;
+  background-color: #fdf8f2;
+}
+
+.prototype-page .app-sidebar a.is-current {
+  color: #954478;
+  background-color: #e8a3cf;
+}
+
+.prototype-page h1,
+.prototype-page h2,
+.prototype-page h3 {
+  color: #3a1f33;
+  font-family: "Shrikhand", Georgia, serif;
+  font-weight: 400;
 }

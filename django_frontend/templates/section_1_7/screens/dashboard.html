@@ -1,13 +1,19 @@
-{% include "section_1_7/partials/stats.html" with stats=stats %}
+{% include "section_1_7/partials/stats.html" %}
 <section class="dashboard-grid">
   <article class="surface-panel chart-panel">
-    <div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div><button class="outline-button" type="button">Placeholder</button></div>
-    <div class="chart-area" aria-label="Placeholder">
-      <div class="chart-guides"><span></span><span></span><span></span><span></span></div>
-      <div class="chart-bars">{% for height in chart_bars %}<i style="height:{{ height }}%"></i>{% endfor %}</div>
-      <div class="chart-labels">{% for item in chart_bars %}<span>Placeholder</span>{% endfor %}</div>
-    </div>
+    <div class="panel-heading"><div><h2>Sales overview</h2><p>Performance for the selected period</p></div></div>
+    <div class="notice-box"><span>i</span><p>Chart data will appear when sales records are available.</p></div>
   </article>
-  <article class="surface-panel side-summary"><div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div></div>{% include "section_1_7/partials/rows.html" with rows=rows compact=True %}</article>
-  <article class="surface-panel wide-panel"><div class="panel-heading"><div><h2>Placeholder text</h2><p>Placeholder text Placeholder</p></div><button class="outline-button" type="button">Placeholder</button></div>{% include "section_1_7/partials/rows.html" with rows=rows %}</article>
+  <article class="surface-panel side-summary">
+    <div class="panel-heading"><div><h2>Inventory overview</h2><p>Current availability and stock status</p></div></div>
+    <p>Inventory metrics are not connected to a data source.</p>
+  </article>
+  <article class="surface-panel wide-panel">
+    <div class="panel-heading"><div><h2>Recent activity</h2><p>Latest updates across the workspace</p></div></div>
+    <p>No recent activity is available.</p>
+  </article>
+  <article class="surface-panel side-summary">
+    <div class="panel-heading"><div><h2>Needs attention</h2><p>Items requiring review</p></div></div>
+    <p>No pending items are available.</p>
+  </article>
 </section>

@@ -27,13 +27,18 @@ The static prototype groups the main-system screens from Sections 1–7 under
 `screens/section-1-7/`. The mobile companion keeps its Section 8 screens and
 Section 9 overlays together under `screens/mobile-companion/`. Both use the
 shared `styles.css` and `app.js` at the repository root. Open `index.html` for a
-screen directory grouped by main system and mobile companion. The prototype
-uses placeholder text and does not connect to a backend.
+screen directory grouped by main system and mobile companion. Screen copy is
+based on the supplied high-fidelity references. Lists, metrics, and product
+catalogs use empty states until connected to live data. The separate
+`High Fidelity/` prototype has its own renderer and styles.
+The prototypes use Shrikhand headings, Poppins body text, the supplied brand
+palette, and the `download.jpg` Second Daze Apparel logo.
 
 The sign-in flow uses local UI state only. It does not authenticate users,
 create accounts, or send password-reset emails. Enter `pending@demo.local` with
 any non-empty password on the sign-in screen to preview the pending-approval
-state. The dashboard screens use sample placeholder content.
+state. Dashboard metrics, records, and product listings remain empty until
+connected to live data.
 
 ### Screen groups
 
