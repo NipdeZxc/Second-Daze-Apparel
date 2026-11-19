@@ -1,7 +1,12 @@
 from django.http import Http404
 from django.shortcuts import redirect, render
 
-from .catalog import MOBILE_NAVIGATION, MOBILE_SCREEN_BY_SLUG, MOBILE_SCREENS
+from .catalog import (
+    MOBILE_NAVIGATION,
+    MOBILE_NOTIFICATION_SCREENS,
+    MOBILE_SCREEN_BY_SLUG,
+    MOBILE_SCREENS,
+)
 
 
 def index(request):
@@ -22,6 +27,7 @@ def screen(request, screen_slug):
         )
     context = {
         "screen": current,
+        "notification_screen": MOBILE_NOTIFICATION_SCREENS.get(screen_slug),
         "mobile_navigation": [
             {"slug": slug, "label": label, "active": slug == screen_slug}
             for slug, label in MOBILE_NAVIGATION

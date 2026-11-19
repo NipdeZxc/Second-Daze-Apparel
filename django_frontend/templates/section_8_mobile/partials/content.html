@@ -1,0 +1,85 @@
+<main class="mobile-content">
+  {% if screen.kind != "mobile-login" %}
+    <h1>{{ screen.title }}</h1>
+    <p class="mobile-subtitle">{{ screen.description }}</p>
+  {% else %}
+    <p class="mobile-subtitle">{{ screen.description }}</p>
+  {% endif %}
+
+  {% if screen.kind == "mobile-login" %}
+    <section class="mobile-card">
+      <h2>Sign in to your workspace</h2>
+      <form method="post">
+        {% csrf_token %}
+        <label><span>Email address</span><input name="email" type="email" placeholder="name@seconddaze.ph" required /></label>
+        <label><span>Password</span><input name="password" type="password" placeholder="Enter your password" required /></label>
+        <div class="mobile-inline"><label><input name="remember" type="checkbox" /> Remember me</label></div>
+        <button class="solid-button full-button" type="submit">Sign in</button>
+      </form>
+      <p>Need access? Ask your Admin to create a subaccount.</p>
+    </section>
+  {% elif screen.kind == "mobile-dashboard" %}
+    <section class="mobile-worklist">
+      <div class="mobile-worklist-heading">
+        <h2>Needs attention</h2>
+        <a href="{% url 'mobile:screen' '8.2-mobile-approvals' %}">View approvals</a>
+      </div>
+      <p>Queue data will appear when workspace records are available.</p>
+    </section>
+    <section class="mobile-worklist">
+      <div class="mobile-worklist-heading">
+        <h2>Orders</h2>
+        <a href="{% url 'mobile:screen' '8.4-mobile-orders' %}">View orders</a>
+      </div>
+      <p>Order data will appear when workspace records are available.</p>
+    </section>
+    <section class="mobile-quick-actions" aria-label="Quick actions">
+      <h2>Quick actions</h2>
+      <a href="{% url 'mobile:screen' '8.3-mobile-checkout-gcash' %}">Record GCash payment <span aria-hidden="true">→</span></a>
+      <a href="{% url 'mobile:screen' '8.6-mobile-new-reservation' %}">Request reservation <span aria-hidden="true">→</span></a>
+    </section>
+  {% elif screen.slug == "8.3-mobile-checkout-gcash" %}
+    <section class="mobile-card">
+      <h2>GCash payment</h2>
+      {% if submitted %}<div class="notice-box"><span>i</span><p>Payment details were not saved; the backend workflow is not connected.</p></div>{% endif %}
+      <p>Enter the payment details for the selected order.</p>
+      <div class="mobile-inline mobile-inline--summary"><span>Order items and total appear when order data is available.</span></div>
+      <form method="post">
+        {% csrf_token %}
+        <label><span>Amount paid</span><input inputmode="decimal" placeholder="Enter amount paid" /></label>
+        <label><span>GCash reference number</span><input placeholder="Enter the reference number" /></label>
+        <label><span>Payment date</span><input type="datetime-local" /></label>
+        <button class="solid-button full-button" type="submit">Submit for review</button>
+      </form>
+    </section>
+  {% elif screen.kind == "mobile-form" %}
+    <section class="mobile-card">
+      <h2>Reservation details</h2>
+      {% if submitted %}<div class="notice-box"><span>i</span><p>This request was not saved; the backend workflow is not connected.</p></div>{% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <label><span>Customer</span><input placeholder="Search customer name or ID" /></label>
+        <label><span>Add a product</span><input placeholder="Search SKU or product name" /></label>
+        <label><span>Agreed days</span><select aria-label="Agreed days"><option>Select agreed days</option></select></label>
+        <label><span>Pickup note</span><input placeholder="Add a pickup note" /></label>
+        <div class="notice-box"><span>i</span><p>Admin approval is required before a stock hold is activated.</p></div>
+        <button class="solid-button full-button" type="submit">Submit request</button>
+      </form>
+    </section>
+  {% elif screen.slug == "8.2-mobile-approvals" %}
+    <section class="mobile-worklist">
+      <div class="mobile-worklist-heading"><h2>Approval queue</h2></div>
+      <p>Queue data will appear when there are requests to review.</p>
+    </section>
+  {% elif screen.kind == "mobile-stock" %}
+    <section class="mobile-worklist">
+      <div class="mobile-worklist-heading"><h2>Stock alerts</h2></div>
+      <p>Items below their restock threshold will appear when inventory data is connected.</p>
+    </section>
+  {% else %}
+    <section class="mobile-worklist">
+      <div class="mobile-worklist-heading"><h2>Order queue</h2></div>
+      <p>Orders will appear when sales data is connected.</p>
+    </section>
+  {% endif %}
+</main>

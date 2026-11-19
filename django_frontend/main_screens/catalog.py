@@ -116,22 +116,43 @@ ACCESS_SCREENS = {
 
 MAIN_NAVIGATION = [
     {
-        "label": "Admin",
-        "screens": [screen for screen in MAIN_SCREENS if screen[2] == "Admin"],
+        "label": "Overview",
+        "screens": [("2-admin-dashboard", "dashboard", "Admin")],
     },
     {
-        "label": "Sales",
-        "screens": [screen for screen in MAIN_SCREENS if screen[2] == "Sales"],
-    },
-    {
-        "label": "Inventory & reservations",
+        "label": "Administration",
         "screens": [
-            screen for screen in MAIN_SCREENS if screen[2] in {"Inventory", "Reservations"}
+            ("2.1-subaccounts", "table", "Admin"),
+            ("2.2-access-approvals", "table", "Admin"),
         ],
     },
     {
+        "label": "Sales",
+        "screens": [
+            ("3-sales-catalog", "catalog", "Sales"),
+            ("3.3-sales-documents", "table", "Sales"),
+            ("2.4-refunds", "table", "Admin"),
+            ("3.9-orders-status-tracking", "table", "Sales"),
+            ("3.11-customers", "table", "Sales"),
+        ],
+    },
+    {
+        "label": "Inventory",
+        "screens": [
+            ("4-inventory-workspace", "table", "Inventory"),
+            ("4.2-low-stock-alerts", "table", "Inventory"),
+        ],
+    },
+    {
+        "label": "Reservations",
+        "screens": [("5-reservations", "table", "Reservations")],
+    },
+    {
         "label": "Reports & staff",
-        "screens": [screen for screen in MAIN_SCREENS if screen[2] in {"Reports", "Staff"}],
+        "screens": [
+            ("2.6-reports", "reports", "Admin"),
+            ("7-staff-accounts", "table", "Staff"),
+        ],
     },
 ]
 

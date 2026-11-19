@@ -47,3 +47,27 @@ class OverlayScreenTests(TestCase):
         )
 
         self.assertContains(response, 'href="/mobile/8.4-mobile-orders/"')
+
+    def test_overlay_renders_over_its_mobile_workflow(self):
+        response = self.client.get(
+            reverse(
+                "mobile:overlays:screen",
+                kwargs={"screen_slug": "9.3-overlay-confirm-approve"},
+            )
+        )
+
+        self.assertContains(response, "mobile-app--underlay")
+        self.assertContains(response, "Approval queue")
+        self.assertContains(response, 'aria-modal="true"')
+        self.assertNotContains(response, "The requester is notified")
+
+    def test_confirmation_does_not_claim_to_save_an_approval(self):
+        response = self.client.post(
+            reverse(
+                "mobile:overlays:screen",
+                kwargs={"screen_slug": "9.3-overlay-confirm-approve"},
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No approval was saved")

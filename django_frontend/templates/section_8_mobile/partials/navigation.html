@@ -1,0 +1,7 @@
+<nav class="mobile-bottom-nav" aria-label="Mobile companion navigation">
+  {% for item in mobile_navigation %}
+    <a class="{% if item.active %}is-current{% endif %}" href="{% url 'mobile:screen' item.slug %}" aria-label="{{ item.label }}">
+      <span aria-hidden="true">□</span><small>{{ item.label }}</small>
+    </a>
+  {% endfor %}
+</nav>

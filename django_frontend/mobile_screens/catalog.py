@@ -34,3 +34,12 @@ MOBILE_NAVIGATION = [
     ("8.4-mobile-orders", "Orders"),
     ("8.5-mobile-low-stock", "Reports"),
 ]
+
+MOBILE_NOTIFICATION_SCREENS = {
+    "8.1-mobile-admin-dashboard": "9-overlay-notifications-admin",
+    "8.2-mobile-approvals": "9-overlay-notifications-admin",
+    "8.3-mobile-checkout-gcash": "9.1-overlay-notifications-sales",
+    "8.4-mobile-orders": "9.1-overlay-notifications-sales",
+    "8.5-mobile-low-stock": "9.2-overlay-notifications-inventory",
+    "8.6-mobile-new-reservation": "9-overlay-notifications-admin",
+}

@@ -65,3 +65,17 @@ class MainScreenTests(TestCase):
         self.assertNotContains(response, 'href="/mobile/')
         self.assertNotContains(response, 'href="/mobile/overlays/')
         self.assertNotContains(response, 'href="/overlays/')
+
+    def test_dashboard_links_to_operational_queues_and_common_actions(self):
+        response = self.client.get(
+            reverse("main:screen", kwargs={"screen_slug": "2-admin-dashboard"})
+        )
+
+        self.assertContains(response, "Quick actions")
+        self.assertContains(response, "Work queues")
+        self.assertContains(
+            response,
+            f'href="{reverse("main:screen", kwargs={"screen_slug": "2.2-access-approvals"})}"',
+        )
+        self.assertContains(response, "Queue data will appear when connected.")
+        self.assertNotContains(response, "Sales overview")

@@ -85,3 +85,32 @@ Open `http://127.0.0.1:8000/` for Sections 1–7,
 `http://127.0.0.1:8000/mobile/` for the mobile companion, or
 `http://127.0.0.1:8000/mobile/overlays/` for its overlays. The organized static
 prototype is available from the repository root `index.html`.
+
+### React + Vite comparison frontend
+
+The independent React + Vite version is in
+[react_frontend](./react_frontend/). It keeps the Sections 1–7 main system
+separate from the Section 8 mobile companion and Section 9 overlays, and does
+not modify or replace the Django frontend.
+
+#### Quick start on Windows
+
+Install [Node.js](https://nodejs.org/) if it is not already available, then run
+these commands from the repository root:
+
+```powershell
+cd react_frontend
+npm install
+npm run dev
+```
+
+Open the Vite URL shown in the terminal (normally
+`http://127.0.0.1:5173/`). The React app opens on its dashboard; select
+**Screen index** in the sidebar to browse the available screens. Leave the
+terminal open while testing and press **Ctrl+C** to stop the server. Run Django
+separately at `http://127.0.0.1:8000/` when comparing the two frontends.
+
+To verify a production build, run `npm run build` inside `react_frontend/`.
+The generated site is written to `react_frontend/dist/`. Like the Django
+prototype, this is a UI-only comparison: authentication, form submissions,
+reports, metrics, and records are not backed by a database.

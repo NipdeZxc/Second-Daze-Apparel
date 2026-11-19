@@ -1,73 +1,10 @@
 {% extends "section_8_mobile/base.html" %}
-{% load static %}
 {% block content %}
 <div class="mobile-app">
-  <header class="mobile-header">
-    <a href="{% url 'mobile:screen' '8.1-mobile-admin-dashboard' %}" aria-label="Second Daze dashboard"><img class="app-brand-logo" src="{% static 'brand-logo.jpg' %}" alt="" /></a>
-    <strong>Second Daze</strong>
-    {% if screen.kind != "mobile-login" %}<a class="mobile-notifications-link" href="{% url 'mobile:overlays:index' %}" aria-label="Notifications">♧</a>{% endif %}
-    <span class="mobile-avatar">SD</span>
-  </header>
-  <main class="mobile-content">
-    {% if screen.kind != "mobile-login" %}<h1>{{ screen.title }}</h1><p class="mobile-subtitle">{{ screen.description }}</p>{% else %}<p class="mobile-subtitle">{{ screen.description }}</p>{% endif %}
-    {% if screen.kind == "mobile-login" %}
-      <section class="mobile-card">
-        <h2>Sign in to your workspace</h2>
-        <form method="post">
-          {% csrf_token %}
-          <label><span>Email address</span><input name="email" type="email" placeholder="name@seconddaze.ph" required /></label>
-          <label><span>Password</span><input name="password" type="password" placeholder="Enter your password" required /></label>
-          <div class="mobile-inline"><label><input name="remember" type="checkbox" /> Remember me</label></div>
-          <button class="solid-button full-button" type="submit">Sign in</button>
-        </form>
-        <p>Need access? Ask your Admin to create a subaccount.</p>
-      </section>
-    {% elif screen.kind == "mobile-dashboard" %}
-      <h2 class="mobile-section-title">Needs attention</h2>
-      <article class="mobile-card"><strong>No pending items</strong><p>Approvals and activity will appear here when live data is connected.</p></article>
-    {% elif screen.kind == "mobile-stock" %}
-      <article class="mobile-card"><strong>No low-stock items</strong><p>Stock alerts will appear here when inventory data is connected.</p></article>
-    {% elif screen.kind == "mobile-form" and screen.slug == "8.3-mobile-checkout-gcash" %}
-      <section class="mobile-card">
-        <h2>GCash payment</h2>
-        {% if submitted %}<div class="notice-box"><span>✓</span><p>Payment details were submitted for this prototype session.</p></div>{% endif %}
-        <p>Order summary</p><p>Order items and total will appear when order data is available.</p>
-        <form method="post">
-          {% csrf_token %}
-          <label><span>Amount paid</span><input inputmode="decimal" placeholder="Enter amount paid" /></label>
-          <label><span>GCash reference number</span><input placeholder="Enter the reference number" /></label>
-          <label><span>Payment date</span><input type="datetime-local" /></label>
-          <button class="solid-button full-button" type="submit">Record payment</button>
-        </form>
-      </section>
-    {% elif screen.kind == "mobile-form" %}
-      <section class="mobile-card">
-        <h2>Customer</h2>
-        {% if submitted %}<div class="notice-box"><span>✓</span><p>Your reservation request is ready for Admin review.</p></div>{% endif %}
-        <form method="post">
-          {% csrf_token %}
-          <label><span>Customer</span><input placeholder="Search customer name or ID" /></label>
-          <label><span>Add a product</span><input placeholder="Search SKU or product name" /></label>
-          <label><span>Agreed days</span><select aria-label="Agreed days"><option>Select agreed days</option></select></label>
-          <label><span>Pickup note</span><input placeholder="Add a pickup note" /></label>
-          <div class="notice-box"><span>i</span><p>Admin approval is required before a stock hold is activated.</p></div>
-          <button class="solid-button full-button" type="submit">Request Admin approval</button>
-        </form>
-      </section>
-    {% elif screen.slug == "8.2-mobile-approvals" %}
-      <div class="mobile-tabs"><button class="solid-button" type="button">Access</button><button class="outline-button" type="button">Payments</button><button class="outline-button" type="button">Refunds</button><button class="outline-button" type="button">Reservations</button></div>
-      <article class="mobile-card"><strong>No approval requests</strong><p>Requests will appear here when there are records to review.</p></article>
-    {% else %}
-      <div class="mobile-tabs"><button class="solid-button" type="button">All</button><button class="outline-button" type="button">To ship</button><button class="outline-button" type="button">Shipped</button><button class="outline-button" type="button">Done</button></div>
-      <article class="mobile-card"><strong>No orders found</strong><p>Orders will appear here when sales data is connected.</p></article>
-    {% endif %}
-  </main>
+  {% include "section_8_mobile/partials/header.html" %}
+  {% include "section_8_mobile/partials/content.html" %}
   {% if screen.kind != "mobile-login" %}
-    <nav class="mobile-bottom-nav" aria-label="Mobile companion navigation">
-      {% for item in mobile_navigation %}
-        <a class="{% if item.active %}is-current{% endif %}" href="{% url 'mobile:screen' item.slug %}" aria-label="{{ item.label }}"><span aria-hidden="true">□</span><small>{{ item.label }}</small></a>
-      {% endfor %}
-    </nav>
+    {% include "section_8_mobile/partials/navigation.html" %}
   {% endif %}
 </div>
 {% endblock %}

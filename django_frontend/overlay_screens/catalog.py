@@ -9,7 +9,7 @@ OVERLAY_COPY = {
     "9-overlay-notifications-admin": ("Notifications", "Admin workspace"),
     "9.1-overlay-notifications-sales": ("Notifications", "Sales Management"),
     "9.2-overlay-notifications-inventory": ("Notifications", "Inventory Management"),
-    "9.3-overlay-confirm-approve": ("Confirm this approval?", "This decision is saved with your name and the time."),
+    "9.3-overlay-confirm-approve": ("Confirm this approval?", "Review the selected access request before confirming."),
 }
 
 OVERLAY_SCREEN_BY_SLUG = {

@@ -1,17 +1,33 @@
 {% extends "section_9_overlays/base.html" %}
+{% load static %}
 {% block content %}
+<div class="mobile-app mobile-app--underlay" aria-hidden="true" inert>
+  {% include "section_8_mobile/partials/header.html" with screen=underlay_screen notification_screen=notification_screen %}
+  {% include "section_8_mobile/partials/content.html" with screen=underlay_screen %}
+  {% include "section_8_mobile/partials/navigation.html" with mobile_navigation=mobile_navigation %}
+</div>
+<div class="overlay-scrim" aria-hidden="true"></div>
 <main class="overlay-page">
-  <div class="overlay-scrim"></div>
   <section class="notification-overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
     <header class="overlay-heading">
-      <div><h1 id="overlay-title">{{ screen.title }}</h1><p>{{ screen.description }}</p></div>
+      <div><p class="eyebrow">{% if is_confirmation %}APPROVAL{% else %}NOTIFICATIONS{% endif %}</p><h1 id="overlay-title">{{ screen.title }}</h1><p>{{ screen.description }}</p></div>
       <a class="icon-button" href="{% url 'mobile:screen' return_screen %}" aria-label="Close">×</a>
     </header>
     {% if is_confirmation %}
-      <div class="notice-box"><span>i</span><p><strong>What happens next</strong><br />The requester is notified and the record moves to its next step. You can view it in the audit trail.</p></div>
-      <div class="overlay-actions"><a class="outline-button button-link" href="{% url 'mobile:screen' return_screen %}">Cancel</a><a class="solid-button button-link" href="{% url 'mobile:screen' return_screen %}">Confirm approval</a></div>
+      <div class="notice-box"><span>i</span><p>The selected request and decision details will appear here when approval data is connected.</p></div>
+      {% if submitted %}<div class="notice-box"><span>i</span><p>No approval was saved; this action requires a connected backend.</p></div>{% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="overlay-actions">
+          <a class="outline-button button-link" href="{% url 'mobile:screen' return_screen %}">Cancel</a>
+          <button class="solid-button" type="submit">Confirm approval</button>
+        </div>
+      </form>
     {% else %}
-      <p>No notifications are available.</p>
+      <section class="notification-empty-state">
+        <h2>No notifications</h2>
+        <p>Updates will appear here when notification data is available.</p>
+      </section>
       <a class="outline-button button-link full-button" href="{% url 'mobile:screen' return_screen %}">Close</a>
     {% endif %}
   </section>
