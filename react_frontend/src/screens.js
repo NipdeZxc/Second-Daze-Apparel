@@ -1,15 +1,16 @@
 const main = [
-  ["1-staff-sign-in", "Staff sign-in", "Sign in with the account provided by your Admin.", "auth"],
+  ["1-staff-sign-in", "Workspace sign-in", "Sign in with the account provided by your Admin.", "auth"],
   ["1.1-sign-in-error", "Sign-in error", "Email or password was not recognized. Check your details and try again.", "auth-error"],
   ["1.2-access-awaiting-approval", "Access awaiting approval", "An Admin must approve your subaccount before you can enter the workspace.", "pending"],
   ["1.3-forgot-password", "Forgot password", "Request password-reset instructions for your staff account.", "auth-forgot"],
   ["2-admin-dashboard", "Dashboard", "Workspace overview for sales, inventory, and approvals.", "dashboard"],
-  ["2s-staff-dashboard", "Dashboard", "Your sales, stock, and reservation tasks for today.", "staff-dashboard"],
+  ["3-sales-dashboard", "Sales dashboard", "Your sales and customer tasks for today.", "sales-dashboard"],
+  ["4-inventory-dashboard", "Inventory dashboard", "Stock levels and restocking priorities.", "inventory-dashboard"],
   ["2.1-subaccounts", "Subaccounts", "Create staff accounts and assign workspace access.", "table"],
   ["2.2-access-approvals", "Access approvals", "Review staff requests before granting workspace access.", "table"],
-  ["2.3-sales-documents", "Sales documents", "Create and track invoices, delivery receipts, purchase orders, and quotations.", "table"],
+  ["2.3-sales-documents", "Sales documents", "Create and track invoices, delivery receipts, and purchase orders.", "table"],
   ["2.4-refunds", "Refunds management", "Review return requests, inspect item condition, and record refund decisions.", "table"],
-  ["2.5-reservations", "Reservations", "Review pickup requests, agreed terms, and reservation expiry.", "table"],
+  ["2.5-reservations", "Reservations", "Review hold requests, agreed reservation days, and expiry.", "table"],
   ["2.6-reports", "Reports & Analytics", "Review performance using recorded sales and inventory data.", "reports"],
   ["2.7-csv-import", "Import CSV", "Add products, customers, orders, sales, and reservations from CSV files.", "csv-import"],
   ["2.8-sales", "Sales", "Recorded sales imported into this browser.", "table"],
@@ -29,7 +30,7 @@ const main = [
   ["3.13-create-purchase-order", "New purchase order", "Record what the customer ordered. Admin approval is required before issue.", "form"],
   ["3.14-confirm-delivery", "Confirm delivery", "Issue the Delivery Receipt once the customer has received the parcel.", "form"],
   ["3.15-payment-not-received", "Payment not verified", "The recorded GCash payment could not be matched.", "detail"],
-  ["4-inventory-workspace", "Inventory Management", "Track products, monitor stock levels, and act on low-stock items before they impact sales.", "table"],
+  ["4-inventory-workspace", "Products", "Track products, monitor stock levels, and act on low-stock items before they impact sales.", "table"],
   ["4.1-stock-movement-saved", "Stock movement saved", "The inventory movement has been recorded.", "success"],
   ["4.2-low-stock-alerts", "Low stock", "Items at or below their threshold. Restock them before they sell out.", "table"],
   ["4.3-edit-product-admin-only", "Edit product", "Product details and pricing can be changed by Admin only.", "form"],
@@ -40,33 +41,16 @@ const main = [
   ["6-sales-inventory-reports", "Sales and inventory reports", "Review recorded sales, costs, stock levels, and fulfillment activity.", "reports"],
   ["6.1-sales-inventory-reports-v2", "Sales & Inventory Summary", "Review sales performance and inventory distribution for a selected period.", "reports"],
   ["7-staff-accounts", "Staff accounts", "Create subaccounts, assign responsibilities, and control access.", "table"],
+  ["9-notifications", "Notifications", "Updates for approvals, inventory, and reservations.", "notifications"],
 ].map(([id, title, description, kind]) => ({ id, title, description, kind, group: "Main system" }));
-
-const mobile = [
-  ["8-mobile-sign-in", "Sign in", "Apparel access portal.", "mobile-auth"],
-  ["8.1-mobile-admin-dashboard", "Dashboard", "Your operational queues and tasks.", "mobile-dashboard"],
-  ["8.2-mobile-approvals", "Approvals", "Review access, payment, refund, and reservation requests.", "mobile-list"],
-  ["8.3-mobile-checkout-gcash", "Checkout", "Record GCash payment for Admin verification.", "mobile-form"],
-  ["8.4-mobile-orders", "Orders", "Track customer orders and fulfillment status.", "mobile-list"],
-  ["8.5-mobile-low-stock", "Low stock", "Items at or below their restock threshold.", "mobile-stock"],
-  ["8.6-mobile-new-reservation", "New reservation", "Prepare a hold request for Admin approval.", "mobile-form"],
-].map(([id, title, description, kind]) => ({ id, title, description, kind, group: "Mobile companion" }));
-
-const overlays = [
-  ["9-overlay-notifications-admin", "Admin notifications", "Admin notification center.", "overlay"],
-  ["9.1-overlay-notifications-sales", "Sales notifications", "Sales Management notification center.", "overlay"],
-  ["9.2-overlay-notifications-inventory", "Inventory notifications", "Inventory Management notification center.", "overlay"],
-  ["9.3-overlay-confirm-approve", "Confirm this approval?", "Review the selected access request before confirming.", "confirm"],
-].map(([id, title, description, kind]) => ({ id, title, description, kind, group: "Mobile overlays" }));
-
-export const screens = [...main, ...mobile, ...overlays];
+export const screens = main;
 
 export const tableColumns = {
   "2.1-subaccounts": ["Staff member", "Login", "Role", "Access status", "Action"],
   "2.2-access-approvals": ["Staff member", "Requested role", "Submitted", "Status", "Action"],
   "2.3-sales-documents": ["Document ID", "Type", "Creator", "Client / vendor", "Date", "Amount", "Status", "Action"],
   "2.4-refunds": ["Refund ticket", "Order reference", "Customer", "Reason", "Evidence", "Amount", "Status", "Action"],
-  "2.5-reservations": ["Reservation ID", "Customer", "Pickup date", "Items", "Status", "Action"],
+  "2.5-reservations": ["Reservation ID", "Customer", "Agreed days", "Items", "Status", "Action"],
   "3.3-sales-documents": ["Document ID", "Type", "Related sale", "Date", "Approval status", "Action"],
   "3.9-orders-status-tracking": ["Order", "Customer", "Items", "Amount", "Payment", "Status", "Action"],
   "3.11-customers": ["Customer", "Contact number", "City", "Details", "Orders", "Action"],
@@ -77,13 +61,12 @@ export const tableColumns = {
 };
 
 export const formFields = {
-  "3.4-new-refund-request": ["Order number", "Returned item", "Return quantity", "Item condition", "Issue / reason", "Inspection note"],
+  "3.4-new-refund-request": ["Order number", "Returned item", "Return quantity", "Days of ownership", "Item condition", "Issue / reason", "Inspection note"],
   "3.5-refund-condition-review": ["Refund ticket", "Item condition", "Inspection result", "Inventory disposition", "Review note"],
   "3.6-approval-request-detail": ["Refund ticket", "Order reference", "Requested amount", "Decision", "Admin note"],
   "3.12-new-customer-validation": ["Full name", "Social media handle", "Contact number", "Address", "City", "Province", "Postal code"],
   "3.13-create-purchase-order": ["Customer", "Order", "Product", "Quantity", "Note for the Admin"],
   "3.14-confirm-delivery": ["Delivery status", "Date and time delivered", "Received by"],
   "4.3-edit-product-admin-only": ["Product name", "Category", "Size", "Cost price", "Selling price", "Low-stock threshold", "Status"],
-  "5.1-new-reservation": ["Customer", "Product", "Quantity", "Agreed days", "Pickup note"],
-  "8.6-mobile-new-reservation": ["Customer", "Product", "Quantity", "Agreed days", "Pickup note"],
+  "5.1-new-reservation": ["Customer", "Product", "Quantity", "Agreed days"],
 };

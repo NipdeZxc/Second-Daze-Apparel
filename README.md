@@ -16,8 +16,8 @@ Rheinwell Q. Palomares
 ## Second Daze Apparel frontend
 
 The deployable frontend is the React + Vite app in [`react_frontend`](./react_frontend/).
-It includes the admin workspace and an independently accessible mobile
-companion with its own sign-in and navigation. The original high-fidelity
+It includes role-based Admin, Sales Management, and Inventory Management
+workspaces in one responsive app. The original high-fidelity
 screenshots are retained in [`High Fidelity`](<./High%20Fidelity/>), and
 [`second_daze_physical_schema.sql`](./second_daze_physical_schema.sql) is kept
 as a backend reference.
@@ -33,33 +33,26 @@ npm run dev
 ```
 
 Open the Vite URL printed in the terminal (usually `http://127.0.0.1:5173/`).
-The app opens on staff sign-in. In development, use `admin` / `admin` for the
-admin dashboard or `staff` / `staff` for the staff dashboard.
+The app opens on sign-in. In development, use `admin` / `admin`,
+`sales` / `sales`, or `inventory` / `inventory` to preview the Admin,
+Sales Management, and Inventory Management workspaces, respectively. These
+are browser-only demo accounts, not production authentication.
 Use `pending@demo.local` with any non-empty password to
 view the pending-approval screen. These demo credentials are not real
 authentication and must not be used to protect production data.
 
-Admin and staff menus share the same header, sidebar, typography, and responsive
-layout across dashboards, orders, customers, and other workspace modules.
-Click the name (or avatar on small screens) in the top-right corner and choose
-**Log out** to return to sign-in.
-Use the sidebar to move between workspace modules. Dashboard queues,
-quick actions, and each page's related-workflow links connect common tasks—for
-example, a refund request leads to item review and approval, while order details
-lead to delivery confirmation. The mobile companion is a separate entry at
-`http://127.0.0.1:5173/mobile` (or `https://your-vercel-domain/mobile`); it has
-its own sign-in, Home/Approvals/Orders/Inventory navigation, notifications, and
-sign-out. There is no link between the two app shells. Sign in with the same
-backend account on either surface to use the same workspace.
+The same responsive app shell adapts its navigation and content from desktop to
+mobile. Each role has a separate dashboard and navigation; these are frontend
+views only, not a security boundary. Click the profile in the top-right corner
+and choose **Log out** to return to sign-in. Dashboard queues and related
+workflow links connect common tasks. The legacy `/mobile` URL now opens the
+same app and redirects to the signed-in role's dashboard (or sign-in).
 
-When connected to a backend, both surfaces read the shared
-`GET /api/workspace/overview/` endpoint. They
-refresh it when opened, on demand, and every 30 seconds; changes persisted by a
-connected backend can therefore appear in both dashboards without either app
-linking directly to the other. When using the local demo login, this API is not
-called. Instead, both surfaces display imported records from the current
-browser's storage. No sample products, customers, orders, sales, reservations,
-names, notifications, or dashboard figures are seeded.
+When connected to a backend, the app reads `GET /api/workspace/overview/` and
+refreshes on demand and every 30 seconds. When using demo login, it displays
+records imported into the current browser's storage. No sample products,
+customers, orders, sales, reservations, names, notifications, or dashboard
+figures are seeded.
 
 ## Import CSV data (temporary local mode)
 
@@ -99,7 +92,7 @@ last 7 or 30 days. Workflow forms show field errors and a review confirmation;
 demo actions explicitly state that they are not saved.
 
 Data persists across reloads and sign-out on the **same browser and origin**
-and is available to the staff preview there. Other tabs refresh after an import.
+and is available to the role previews there. Other tabs refresh after an import.
 It is **not a database**, is not shared across browsers/devices, and can be lost
 when site data is cleared. Keep original CSV files as backups. Demo roles only
 hide/disable UI; they are not a security boundary. Do not import sensitive or
@@ -133,14 +126,17 @@ Set `VITE_API_BASE_URL` to the backend origin (leave it empty to use the same
 origin). Vite environment variables are embedded at build time; set the value
 in the Vercel project's environment settings and redeploy after changing it.
 
-When demo login is disabled, the frontend expects:
+When demo login is disabled, the frontend expects the backend to return one of
+the roles `Admin`, `Sales Management`, or `Inventory Management`. The frontend
+uses the role to choose its dashboard and navigation; the backend must still
+enforce access on every protected endpoint. The app expects:
 
 - `POST /api/auth/login/` with JSON `{ "username": "...", "password": "..." }`
 - `200` with JSON containing `user: { "username": "...", "role": "..." }` on success
 - `401` for invalid credentials
 - `403` with `{ "code": "access_pending" }` for pending approval
 - `POST /api/auth/logout/` to end the backend session
-- `GET /api/workspace/overview/` to provide data shared by both interfaces:
+- `GET /api/workspace/overview/` to provide data for the responsive app:
 
 ```json
 {
@@ -155,13 +151,13 @@ When demo login is disabled, the frontend expects:
   "updatedAt": "2026-11-20T08:00:00Z"
 }
 ```
-- `POST /api/workspace/actions/` with JSON containing the originating surface,
+- `POST /api/workspace/actions/` with JSON containing the app surface,
   screen ID, and submitted form values:
 
 ```json
 {
-  "source": "mobile",
-  "screenId": "8.6-mobile-new-reservation",
+  "source": "web",
+  "screenId": "5.1-new-reservation",
   "values": {
     "Customer": "Customer name",
     "Product": "Product name",
@@ -171,8 +167,9 @@ When demo login is disabled, the frontend expects:
 ```
 
 The backend must validate the current user's role and each screen's fields,
-persist the action, and update the overview/activity feed. Both interfaces
-submit to this same endpoint and refresh the shared overview after success.
+persist the action, and update the overview/activity feed. The UI form
+integration is a prototype contract; workflow-specific APIs and persistence
+remain backend work.
 
 The API should use secure, HttpOnly session cookies. For a separate backend
 origin, configure the backend's CORS and cookie policies for the Vercel domain.

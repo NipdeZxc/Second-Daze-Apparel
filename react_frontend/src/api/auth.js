@@ -1,5 +1,7 @@
 import { apiRequest } from "./client.js";
 
+const supportedRoles = new Set(["Admin", "Sales Management", "Inventory Management"]);
+
 export const demoLoginEnabled =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_LOGIN === "true";
 
@@ -17,7 +19,23 @@ export async function signIn({ username, password }) {
     if (demoUsername === "staff" && password === "staff") {
       return {
         status: "authenticated",
-        user: { username: "staff", role: "Staff" },
+        user: { username: "staff", role: "Sales Management" },
+        demo: true,
+      };
+    }
+
+    if (demoUsername === "sales" && password === "sales") {
+      return {
+        status: "authenticated",
+        user: { username: "sales", role: "Sales Management" },
+        demo: true,
+      };
+    }
+
+    if (demoUsername === "inventory" && password === "inventory") {
+      return {
+        status: "authenticated",
+        user: { username: "inventory", role: "Inventory Management" },
         demo: true,
       };
     }
@@ -37,6 +55,9 @@ export async function signIn({ username, password }) {
 
     if (typeof response?.user?.username !== "string") {
       throw new Error("The authentication API response must include a user with a username.");
+    }
+    if (!supportedRoles.has(response.user.role)) {
+      throw new Error("The authentication API response must include a supported workspace role.");
     }
 
     return { status: "authenticated", user: response.user, demo: false };
