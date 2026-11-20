@@ -49,7 +49,7 @@ class MobileScreenTests(TestCase):
                 "mobile:screen",
                 kwargs={"screen_slug": "8-mobile-sign-in"},
             ),
-            {"email": "placeholder@example.com", "password": "placeholder"},
+            {"username": "admin", "password": "admin"},
         )
 
         self.assertRedirects(
@@ -59,6 +59,18 @@ class MobileScreenTests(TestCase):
                 kwargs={"screen_slug": "8.1-mobile-admin-dashboard"},
             ),
         )
+
+    def test_mobile_sign_in_rejects_other_credentials(self):
+        response = self.client.post(
+            reverse(
+                "mobile:screen",
+                kwargs={"screen_slug": "8-mobile-sign-in"},
+            ),
+            {"username": "admin", "password": "wrong"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Username or password was not recognized.")
 
     def test_mobile_dashboard_shows_work_queues_and_actions(self):
         response = self.client.get(

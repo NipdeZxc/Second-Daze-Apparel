@@ -27,18 +27,53 @@ class MainScreenTests(TestCase):
     def test_demo_sign_in_routes_to_pending_screen(self):
         response = self.client.post(
             reverse("main:sign-in"),
-            {"email": "pending@demo.local", "password": "placeholder"},
+            {"username": "pending@demo.local", "password": "placeholder"},
         )
 
         self.assertRedirects(response, reverse("main:access-awaiting-approval"))
 
+    def test_temporary_admin_sign_in_routes_to_dashboard(self):
+        response = self.client.post(
+            reverse("main:sign-in"),
+            {"username": "admin", "password": "admin"},
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("main:screen", kwargs={"screen_slug": "2-admin-dashboard"}),
+        )
+
     def test_other_sign_in_routes_to_error_screen(self):
         response = self.client.post(
             reverse("main:sign-in"),
-            {"email": "placeholder@example.com", "password": "placeholder"},
+            {"username": "admin", "password": "wrong"},
         )
 
         self.assertRedirects(response, reverse("main:sign-in-error"))
+
+    def test_screen_directory_links_to_every_screen_group(self):
+        response = self.client.get(reverse("main:directory"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Account access")
+        self.assertContains(response, "Main system")
+        self.assertContains(response, "Mobile companion")
+        self.assertContains(response, "Mobile overlays")
+        self.assertContains(
+            response,
+            reverse("main:screen", kwargs={"screen_slug": "2-admin-dashboard"}),
+        )
+        self.assertContains(
+            response,
+            reverse("mobile:screen", kwargs={"screen_slug": "8.6-mobile-new-reservation"}),
+        )
+        self.assertContains(
+            response,
+            reverse(
+                "mobile:overlays:screen",
+                kwargs={"screen_slug": "9.3-overlay-confirm-approve"},
+            ),
+        )
 
     def test_password_reset_displays_local_confirmation(self):
         response = self.client.get(reverse("main:forgot-password"))

@@ -21,8 +21,8 @@
             <div class="story-step">
               <span class="step-number" aria-hidden="true">1</span>
               <div>
-                <strong>Enter your staff email</strong>
-                <p>Use the address associated with your subaccount.</p>
+                <strong>Enter your username</strong>
+                <p>Use the username associated with your subaccount.</p>
               </div>
             </div>
             <div class="story-step">
@@ -58,19 +58,19 @@
             <span class="notice-icon" aria-hidden="true">!</span>
             <div>
               <strong>Sign-in unsuccessful</strong>
-              <p>Email or password was not recognized. Check your details and try again.</p>
+              <p>Username or password was not recognized. Check your details and try again.</p>
             </div>
           </div>
           <form id="login-form">
-            <label for="email">Email address</label>
+            <label for="username">Username</label>
             <div class="input-wrap">
               <span class="input-icon" aria-hidden="true">@</span>
               <input
-                id="email"
-                name="email"
-                type="email"
+                id="username"
+                name="username"
+                type="text"
                 autocomplete="username"
-                placeholder="name@seconddaze.ph"
+                placeholder="Enter your username"
                 required
               />
             </div>
@@ -106,6 +106,9 @@
             </label>
             <button class="primary-button" type="submit">Sign in</button>
           </form>
+          <p class="card-footnote">
+            Temporary demo login: username <strong>admin</strong>, password <strong>admin</strong>.
+          </p>
           <a class="back-link" href="1-staff-sign-in.html">Back to sign in</a>
         </section>
       </section>

@@ -7,7 +7,7 @@
       <img class="brand-logo" src="{% static 'brand-logo.jpg' %}" alt="" />
       <span class="brand-copy"><strong>Second Daze</strong><span>Apparel access portal</span></span>
     </a>
-    <span class="topbar-label">Staff workspace</span>
+    <a class="topbar-label" href="{% url 'main:directory' %}">Screen directory</a>
   </header>
   <main class="auth-layout">
     <aside class="story-panel">
@@ -54,14 +54,15 @@
             <a class="text-button" href="{% url 'main:sign-in' %}">Back to sign in</a>
           {% endif %}
         {% else %}
-          {% if screen.error %}<div class="notice-box"><span>!</span><p>Email or password was not recognized. Check your details and try again.</p></div>{% endif %}
+          {% if screen.error %}<div class="notice-box"><span>!</span><p>Username or password was not recognized. Check your details and try again.</p></div>{% endif %}
           <div class="eyebrow">Staff access</div>
           <h1>Sign in to your workspace</h1>
           <p class="card-intro">Use your staff account to access the areas assigned to you.</p>
+          <p class="card-footnote">Temporary demo login: username <strong>admin</strong>, password <strong>admin</strong>.</p>
           <form method="post" action="{% url 'main:sign-in' %}">
             {% csrf_token %}
-            <label for="email">Email address</label>
-            <div class="input-wrap"><span class="input-icon" aria-hidden="true">@</span><input id="email" name="email" type="email" autocomplete="username" placeholder="name@seconddaze.ph" required /></div>
+            <label for="username">Username</label>
+            <div class="input-wrap"><span class="input-icon" aria-hidden="true">@</span><input id="username" name="username" type="text" autocomplete="username" placeholder="Enter your username" required /></div>
             <div class="label-row"><label for="password">Password</label><a class="text-button" href="{% url 'main:forgot-password' %}">Forgot password?</a></div>
             <div class="input-wrap"><span class="input-icon lock-icon" aria-hidden="true">●</span><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required /></div>
             <label class="check-row"><input name="remember" type="checkbox" /><span>Remember me</span></label>
@@ -74,5 +75,5 @@
       </section>
     </section>
   </main>
-  <footer class="page-footer"><span>Second Daze</span><span>Apparel access portal</span><span>Contact your Admin for account assistance.</span></footer>
+  <footer class="page-footer"><span>Second Daze</span><span>Apparel access portal</span><a href="{% url 'main:directory' %}">Screen directory</a></footer>
 {% endblock %}

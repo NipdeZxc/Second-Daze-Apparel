@@ -23,6 +23,9 @@
             {% endfor %}
           </div>
         {% endfor %}
+        <a href="{% url 'main:directory' %}" aria-label="Browse all screens">
+          <span class="nav-glyph" aria-hidden="true">↗</span><span>All screens</span>
+        </a>
       </nav>
       <div class="sidebar-note"><strong>Prototype data</strong><p>Connect a data source to display live records and metrics.</p></div>
     </aside>

@@ -4,6 +4,7 @@
     <img class="app-brand-logo" src="{% static 'brand-logo.jpg' %}" alt="" />
   </a>
   <strong>Second Daze</strong>
+  <a class="outline-button button-link mobile-directory-link" href="{% url 'main:directory' %}">All screens</a>
   {% if screen.kind != "mobile-login" %}
     <a class="mobile-notifications-link" href="{% url 'mobile:overlays:screen' notification_screen %}" aria-label="Notifications">♧</a>
     <span class="mobile-avatar">SD</span>

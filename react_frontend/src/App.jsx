@@ -71,7 +71,7 @@ function Directory() {
       </div>
       <footer className="directory__footer">
         <span>Second Daze Apparel</span>
-        <span>UI prototype · No live records or authentication</span>
+        <span>UI prototype · Temporary demo login only</span>
       </footer>
     </main>
   );
@@ -298,7 +298,11 @@ function AuthScreen({ screen }) {
       setMessage("Password reset is not connected in this prototype.");
       return;
     }
-    if (formData.get("email") === "pending@demo.local" && formData.get("password")) {
+    if (formData.get("username") === "admin" && formData.get("password") === "admin") {
+      window.location.hash = "/2-admin-dashboard";
+      return;
+    }
+    if (formData.get("username") === "pending@demo.local" && formData.get("password")) {
       window.location.hash = "/1.2-access-awaiting-approval";
       return;
     }
@@ -331,12 +335,12 @@ function AuthScreen({ screen }) {
             <h2>{forgot ? "Reset your password" : "Staff sign-in"}</h2>
             <p>{forgot ? "Request password-reset instructions for your staff account." : "Use your staff account to access the workspace."}</p>
             {showError && <p className="inline-error" role="alert">Email or password was not recognized. Check your details and try again.</p>}
-            <label className="field"><span>Email</span><input name="email" type="email" required placeholder="Enter your email" /></label>
+            <label className="field"><span>Username</span><input name="username" type="text" autoComplete="username" required placeholder="Enter your username" /></label>
             {!forgot && <label className="field"><span>Password</span><input name="password" type="password" required placeholder="Enter your password" /></label>}
             {message && <p className="form-note" role="status">{message}</p>}
             <button type="submit" className="button button--primary">{forgot ? "Request reset" : "Sign in"}</button>
             {!forgot && <ScreenLink className="text-link auth-card__link" screen={screens.find((item) => item.id === "1.3-forgot-password")}>Forgot password?</ScreenLink>}
-            <p className="auth-card__hint">Prototype only: use <code>pending@demo.local</code> with any password to preview access approval.</p>
+            <p className="auth-card__hint">Temporary demo login: username <code>admin</code>, password <code>admin</code>. Use <code>pending@demo.local</code> with any non-empty password to preview access approval.</p>
           </form>
         )}
       </section>
@@ -349,12 +353,18 @@ function MobileLogin() {
   return (
     <form className="mobile-login" onSubmit={(event) => {
       event.preventDefault();
-      setMessage("Authentication is not connected in this prototype.");
+      const formData = new FormData(event.currentTarget);
+      if (formData.get("username") === "admin" && formData.get("password") === "admin") {
+        window.location.hash = "/8.1-mobile-admin-dashboard";
+        return;
+      }
+      setMessage("Username or password was not recognized.");
     }}>
       <h2>Sign in</h2>
       <p>Use your staff account to access the workspace.</p>
-      <label className="field"><span>Email address</span><input type="email" placeholder="name@seconddaze.ph" required /></label>
-      <label className="field"><span>Password</span><input type="password" placeholder="Enter your password" required /></label>
+      <p className="form-note">Temporary demo login: username <strong>admin</strong>, password <strong>admin</strong>.</p>
+      <label className="field"><span>Username</span><input name="username" type="text" autoComplete="username" placeholder="Enter your username" required /></label>
+      <label className="field"><span>Password</span><input name="password" type="password" autoComplete="current-password" placeholder="Enter your password" required /></label>
       {message && <span className="form-note" role="status">{message}</span>}
       <button type="submit" className="button button--primary">Sign in</button>
     </form>
@@ -431,6 +441,7 @@ function MobilePreview({ screen }) {
       <div className="mobile-app-shell" aria-hidden={isOverlay} inert={isOverlay}>
         <header className="mobile-app-header">
           <Brand compact to={screen.kind === "mobile-auth" ? "#/screens" : "#/8.1-mobile-admin-dashboard"} />
+          <a className="mobile-directory-link" href="#/screens">All screens</a>
           {screen.kind !== "mobile-auth" && (
             <ScreenLink className={`mobile-notifications ${isOverlay ? "is-current" : ""}`} screen={notificationScreen} aria-label="Notifications">
               <span aria-hidden="true">♧</span><span className="mobile-notifications__label">Notifications</span>
@@ -460,6 +471,7 @@ function MobilePreview({ screen }) {
               <div><p className="eyebrow">{confirm ? "APPROVAL" : "NOTIFICATIONS"}</p><h2 id="mobile-overlay-title">{screen.title}</h2></div>
               <ScreenLink className="modal-close" screen={underlayScreen} aria-label="Close overlay">×</ScreenLink>
             </header>
+            <a className="text-link" href="#/screens">Screen index</a>
             <p className="mobile-overlay-copy">{screen.description}</p>
             {confirm ? (
               <>

@@ -34,11 +34,12 @@ catalogs use empty states until connected to live data. The separate
 The prototypes use Shrikhand headings, Poppins body text, the supplied brand
 palette, and the `download.jpg` Second Daze Apparel logo.
 
-The sign-in flow uses local UI state only. It does not authenticate users,
-create accounts, or send password-reset emails. Enter `pending@demo.local` with
-any non-empty password on the sign-in screen to preview the pending-approval
-state. Dashboard metrics, records, and product listings remain empty until
-connected to live data.
+The sign-in flow uses local UI state only; it is not production authentication
+and does not create accounts or send password-reset emails. Use username
+`admin` and password `admin` for the temporary dashboard preview. Enter
+`pending@demo.local` with any non-empty password to preview the
+pending-approval state. Dashboard metrics, records, and product listings remain
+empty until connected to live data.
 
 ### Screen groups
 
@@ -81,7 +82,8 @@ python -m venv .venv
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-Open `http://127.0.0.1:8000/` for Sections 1–7,
+Open `http://127.0.0.1:8000/` for sign-in, `http://127.0.0.1:8000/screens/`
+for the complete screen directory, `http://127.0.0.1:8000/2-admin-dashboard/` for Sections 1–7,
 `http://127.0.0.1:8000/mobile/` for the mobile companion, or
 `http://127.0.0.1:8000/mobile/overlays/` for its overlays. The organized static
 prototype is available from the repository root `index.html`.

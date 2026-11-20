@@ -175,6 +175,8 @@ td { border-top: 1px solid #f1e7ee; padding: 14px; font-size: 10px; }
 .mobile-app-shell { display: flex; min-height: 100vh; flex-direction: column; background: var(--white); }
 .mobile-app-header { position: sticky; z-index: 2; top: 0; display: flex; min-height: 60px; align-items: center; gap: 15px; border-bottom: 1px solid var(--line); padding: 8px clamp(16px, 4vw, 34px); background: var(--white); }
 .mobile-avatar { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 50%; color: var(--primary); background: var(--card); font-size: 8px; font-weight: 700; }
+.mobile-directory-link { display: inline-flex; min-height: 32px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 0 9px; color: #604d5e; font-size: 9px; white-space: nowrap; }
+.mobile-directory-link:hover { border-color: var(--accent); background: #fff7fb; }
 .mobile-notifications { position: relative; display: inline-flex; min-height: 34px; align-items: center; gap: 7px; margin-left: auto; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; color: #604d5e; font-size: 10px; }
 .mobile-notifications:hover, .mobile-notifications.is-current { border-color: var(--accent); background: #fff7fb; }
 .mobile-notifications > span:first-child { color: var(--primary); font-size: 15px; }

@@ -13,6 +13,7 @@
       <div><p class="eyebrow">{% if is_confirmation %}APPROVAL{% else %}NOTIFICATIONS{% endif %}</p><h1 id="overlay-title">{{ screen.title }}</h1><p>{{ screen.description }}</p></div>
       <a class="icon-button" href="{% url 'mobile:screen' return_screen %}" aria-label="Close">×</a>
     </header>
+    <p><a class="text-button" href="{% url 'main:directory' %}">Screen directory</a></p>
     {% if is_confirmation %}
       <div class="notice-box"><span>i</span><p>The selected request and decision details will appear here when approval data is connected.</p></div>
       {% if submitted %}<div class="notice-box"><span>i</span><p>No approval was saved; this action requires a connected backend.</p></div>{% endif %}

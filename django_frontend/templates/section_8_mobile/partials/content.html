@@ -9,9 +9,11 @@
   {% if screen.kind == "mobile-login" %}
     <section class="mobile-card">
       <h2>Sign in to your workspace</h2>
+      {% if login_error %}<div class="notice-box" role="alert"><span>!</span><p>Username or password was not recognized.</p></div>{% endif %}
+      <p>Temporary demo login: username <strong>admin</strong>, password <strong>admin</strong>.</p>
       <form method="post">
         {% csrf_token %}
-        <label><span>Email address</span><input name="email" type="email" placeholder="name@seconddaze.ph" required /></label>
+        <label><span>Username</span><input name="username" type="text" autocomplete="username" placeholder="Enter your username" required /></label>
         <label><span>Password</span><input name="password" type="password" placeholder="Enter your password" required /></label>
         <div class="mobile-inline"><label><input name="remember" type="checkbox" /> Remember me</label></div>
         <button class="solid-button full-button" type="submit">Sign in</button>

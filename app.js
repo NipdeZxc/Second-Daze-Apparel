@@ -88,9 +88,9 @@ const screenCopy = {
   "8.4-mobile-orders": ["Orders", "Track customer orders and fulfillment status."],
   "8.5-mobile-low-stock": ["Low stock", "Items at or below their restock threshold."],
   "8.6-mobile-new-reservation": ["New reservation", "Prepare a hold request for Admin approval."],
-  "9-overlay-notifications-admin": ["Notifications", "Admin · Notification center"],
-  "9.1-overlay-notifications-sales": ["Notifications", "Sales Management · Notification center"],
-  "9.2-overlay-notifications-inventory": ["Notifications", "Inventory Management · Notification center"],
+  "9-overlay-notifications-admin": ["Admin notifications", "Admin · Notification center"],
+  "9.1-overlay-notifications-sales": ["Sales notifications", "Sales Management · Notification center"],
+  "9.2-overlay-notifications-inventory": ["Inventory notifications", "Inventory Management · Notification center"],
   "9.3-overlay-confirm-approve": ["Confirm this approval?", "This decision is saved with your name and the time."],
 };
 
@@ -135,6 +135,16 @@ function getScreenCopy(screen) {
 function initializeScreenHub() {
   document.title = "Second Daze | Screen directory";
   const groups = [
+    {
+      title: "Account access",
+      folder: "section-1-7",
+      screens: [
+        { id: "1-staff-sign-in", file: "1-staff-sign-in.html", title: "Staff sign-in" },
+        { id: "1.1-sign-in-error", file: "1.1-sign-in-error.html", title: "Sign-in error" },
+        { id: "1.2-access-awaiting-approval", file: "1.2-access-awaiting-approval.html", title: "Access awaiting approval" },
+        { id: "1.3-forgot-password", file: "1.3-forgot-password.html", title: "Forgot password" },
+      ],
+    },
     { title: "Main system · Sections 1–7", folder: "section-1-7", screens: prototypeScreens.filter((item) => !item.type.startsWith("mobile-") && item.type !== "notifications" && item.type !== "confirm") },
     { title: "Mobile companion · Section 8", folder: "mobile-companion/section-8-mobile", screens: prototypeScreens.filter((item) => item.type.startsWith("mobile-")) },
     { title: "Mobile companion · Section 9 overlays", folder: "mobile-companion/section-9-overlays", screens: prototypeScreens.filter((item) => item.type === "notifications" || item.type === "confirm") },
@@ -142,7 +152,7 @@ function initializeScreenHub() {
   document.querySelector("#screen-hub").innerHTML = `
     <header class="hub-header"><a class="brand" href="index.html"><img class="brand-logo" src="download.jpg" alt="Second Daze Apparel" /><span class="brand-copy"><strong>Second Daze</strong><span>Apparel operations prototype</span></span></a></header>
     <main class="hub-main"><p class="eyebrow">Screen directory</p><h1>Choose a screen</h1><p class="hub-intro">Sections 1–7 are the main system. Sections 8–9 are the mobile companion and its overlays.</p>
-      <div class="hub-groups">${groups.map((group) => `<section class="hub-group"><div class="hub-group-heading"><h2>${group.title}</h2><span>${group.screens.length} screens</span></div><nav>${group.screens.map((screen) => `<a href="screens/${group.folder}/${screen.file}"><span>${screen.id.split("-")[0]}</span><span>${getScreenCopy(screen).title}</span><span aria-hidden="true">→</span></a>`).join("")}</nav></section>`).join("")}</div>
+      <div class="hub-groups">${groups.map((group) => `<section class="hub-group"><div class="hub-group-heading"><h2>${group.title}</h2><span>${group.screens.length} screens</span></div><nav>${group.screens.map((screen) => `<a href="screens/${group.folder}/${screen.file}"><span>${screen.id.split("-")[0]}</span><span>${screen.title || getScreenCopy(screen).title}</span><span aria-hidden="true">→</span></a>`).join("")}</nav></section>`).join("")}</div>
     </main>`;
 }
 
@@ -155,8 +165,8 @@ function initializeAccessScreens() {
     "forgot-password": "Forgot password",
   };
   document.title = `${titles[screen] || "Staff sign-in"} | Second Daze`;
-  document.querySelector("#site-header").innerHTML = `<header class="topbar"><a class="brand" href="1-staff-sign-in.html" aria-label="Second Daze"><img class="brand-logo" src="../../download.jpg" alt="" /><span class="brand-copy"><strong>Second Daze</strong><span>Apparel access portal</span></span></a><span class="topbar-label">Staff workspace</span></header>`;
-  document.querySelector("#site-footer").innerHTML = `<footer class="page-footer"><span>Second Daze</span><span>Apparel access portal</span><span>Contact your Admin for account assistance.</span></footer>`;
+  document.querySelector("#site-header").innerHTML = `<header class="topbar"><a class="brand" href="1-staff-sign-in.html" aria-label="Second Daze"><img class="brand-logo" src="../../download.jpg" alt="" /><span class="brand-copy"><strong>Second Daze</strong><span>Apparel access portal</span></span></a><a class="topbar-label" href="../../index.html">Screen directory</a></header>`;
+  document.querySelector("#site-footer").innerHTML = `<footer class="page-footer"><span>Second Daze</span><span>Apparel access portal</span><a class="text-button" href="../../index.html">Screen directory</a></footer>`;
   const passwordInput = document.querySelector("#password");
   const togglePassword = document.querySelector("#toggle-password");
   if (passwordInput && togglePassword) {
@@ -170,15 +180,20 @@ function initializeAccessScreens() {
   }
   const loginForm = document.querySelector("#login-form");
   if (loginForm) {
-    const emailInput = document.querySelector("#email");
+    const usernameInput = document.querySelector("#username");
     const errorScreen = screen === "sign-in-error";
-    const previousEmail = sessionStorage.getItem("staff-email");
-    if (previousEmail) emailInput.value = previousEmail;
+    const previousUsername = sessionStorage.getItem("staff-username");
+    if (previousUsername) usernameInput.value = previousUsername;
     loginForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      const email = emailInput.value.trim();
-      sessionStorage.setItem("staff-email", email);
-      if (email.toLowerCase() === "pending@demo.local") {
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      sessionStorage.setItem("staff-username", username);
+      if (username.toLowerCase() === "admin" && password === "admin") {
+        window.location.href = "2-admin-dashboard.html";
+        return;
+      }
+      if (username.toLowerCase() === "pending@demo.local" && password) {
         window.location.href = "1.2-access-awaiting-approval.html";
         return;
       }
@@ -188,7 +203,7 @@ function initializeAccessScreens() {
       }
       const errorNotice = document.querySelector("#login-error");
       errorNotice.querySelector("strong").textContent = "Sign-in unsuccessful";
-      errorNotice.querySelector("p").textContent = "Email or password was not recognized. Check your details and try again.";
+      errorNotice.querySelector("p").textContent = "Username or password was not recognized. Check your details and try again.";
       errorNotice.hidden = false;
       passwordInput.focus();
     });
@@ -218,6 +233,20 @@ function initializePrototype(screen) {
     if (!event.target.matches("form")) return;
     event.preventDefault();
     const message = root.querySelector("#prototype-message");
+    if (screen.type === "mobile-login") {
+      const formData = new FormData(event.target);
+      const username = String(formData.get("username") || "").trim().toLowerCase();
+      const password = formData.get("password");
+      if (username === "admin" && password === "admin") {
+        window.location.href = "8.1-mobile-admin-dashboard.html";
+        return;
+      }
+      if (message) {
+        message.textContent = "Username or password was not recognized.";
+        message.hidden = false;
+      }
+      return;
+    }
     if (message) message.hidden = false;
   });
   root.addEventListener("click", (event) => {
@@ -247,7 +276,7 @@ function renderDesktopScreen(screen, copy) {
     </header>
     <div class="app-body"><aside class="app-sidebar">
       <div class="workspace-label"><strong>Workspace</strong><span>Second Daze Apparel</span></div>
-      <nav class="screen-navigation" aria-label="Main system navigation">${nav.map((item) => `<a class="${item.id === screen.id ? "is-current" : ""}" href="${item.file}" aria-label="${getScreenCopy(item).title}"><span class="nav-glyph" aria-hidden="true">□</span><span>${getScreenCopy(item).title}</span></a>`).join("")}</nav>
+      <nav class="screen-navigation" aria-label="Main system navigation">${nav.map((item) => `<a class="${item.id === screen.id ? "is-current" : ""}" href="${item.file}" aria-label="${getScreenCopy(item).title}"><span class="nav-glyph" aria-hidden="true">□</span><span>${getScreenCopy(item).title}</span></a>`).join("")}<a href="../../index.html"><span class="nav-glyph" aria-hidden="true">↗</span><span>Screen directory</span></a></nav>
       <div class="sidebar-note"><strong>Prototype data</strong><p>Connect a data source to display live records and metrics.</p></div>
     </aside>
     <main class="app-content"><div class="content-heading"><div><div class="eyebrow">${screen.id.startsWith("2") ? "Admin workspace" : screen.id.startsWith("3") ? "Sales workspace" : screen.id.startsWith("4") ? "Inventory workspace" : screen.id.startsWith("5") ? "Reservations" : "Reporting"}</div><h1>${copy.title}</h1><p>${copy.description}</p></div>${screen.type === "reports" ? '<div class="heading-actions"><button class="outline-button" type="button">Export report</button></div>' : ""}</div>${renderMainContent(screen, copy)}</main></div>`;
@@ -304,10 +333,10 @@ function renderCatalog() {
 }
 
 function renderMobileScreen(screen, copy) {
-  const header = `<header class="mobile-header"><a href="8.1-mobile-admin-dashboard.html" aria-label="Second Daze dashboard"><img class="app-brand-logo" src="../../../download.jpg" alt="" /></a><strong>Second Daze</strong>${screen.type === "mobile-login" ? "" : '<a class="mobile-notifications-link" href="../section-9-overlays/9-overlay-notifications-admin.html" aria-label="Notifications">♧</a>'}<span class="mobile-avatar">SD</span></header>`;
+  const header = `<header class="mobile-header"><a href="8.1-mobile-admin-dashboard.html" aria-label="Second Daze dashboard"><img class="app-brand-logo" src="../../../download.jpg" alt="" /></a><strong>Second Daze</strong><a class="outline-button button-link mobile-directory-link" href="../../../index.html">All screens</a>${screen.type === "mobile-login" ? "" : '<a class="mobile-notifications-link" href="../section-9-overlays/9-overlay-notifications-admin.html" aria-label="Notifications">♧</a>'}<span class="mobile-avatar">SD</span></header>`;
   let content = "";
   if (screen.type === "mobile-login") {
-    content = `<section class="mobile-card"><h2>Sign in to your workspace</h2><form><label><span>Email address</span><input type="email" placeholder="name@seconddaze.ph" /></label><label><span>Password</span><input type="password" placeholder="Enter your password" /></label><label><input type="checkbox" /> Remember me</label><button class="solid-button full-button" type="submit">Sign in</button><p>Need access? Ask your Admin to create a subaccount.</p></form></section>`;
+    content = `<section class="mobile-card"><h2>Sign in to your workspace</h2><p>Temporary demo login: username <strong>admin</strong>, password <strong>admin</strong>.</p><form><label><span>Username</span><input name="username" type="text" autocomplete="username" placeholder="Enter your username" required /></label><label><span>Password</span><input name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required /></label><label><input type="checkbox" /> Remember me</label><button class="solid-button full-button" type="submit">Sign in</button><p>Need access? Ask your Admin to create a subaccount.</p></form></section>`;
   } else if (screen.type === "mobile-dashboard") {
     content = `<h2 class="mobile-section-title">Needs attention</h2><article class="mobile-card"><strong>No pending items</strong><p>Approvals and activity will appear here when live data is connected.</p></article>`;
   } else if (screen.type === "mobile-stock") {
@@ -327,5 +356,5 @@ function renderMobileScreen(screen, copy) {
 function renderOverlayScreen(screen, copy) {
   const confirm = screen.type === "confirm";
   const returnPath = screen.id === "9.1-overlay-notifications-sales" ? "../section-8-mobile/8.4-mobile-orders.html" : screen.id === "9.2-overlay-notifications-inventory" ? "../section-8-mobile/8.5-mobile-low-stock.html" : screen.id === "9.3-overlay-confirm-approve" ? "../section-8-mobile/8.2-mobile-approvals.html" : "../section-8-mobile/8.1-mobile-admin-dashboard.html";
-  return `<main class="prototype-overlay-page"><div class="overlay-scrim"></div><section class="prototype-overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title"><div class="overlay-mark" aria-hidden="true">${confirm ? "?" : "SD"}</div><div class="overlay-heading"><div><h1 id="overlay-title">${copy.title}</h1><p>${copy.description}</p></div><a class="icon-button" href="${returnPath}" aria-label="Close">×</a></div>${confirm ? '<div class="notice-box"><span>i</span><p><strong>What happens next</strong><br />The requester is notified and the record moves to its next step. You can view it in the audit trail.</p></div><div class="overlay-actions"><a class="outline-button button-link" href="' + returnPath + '">Cancel</a><a class="solid-button button-link" href="' + returnPath + '">Confirm approval</a></div>' : `<p>No notifications are available.</p><a class="outline-button button-link full-button" href="${returnPath}">Close</a>`}</section></main>`;
+  return `<main class="prototype-overlay-page"><div class="overlay-scrim"></div><section class="prototype-overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title"><div class="overlay-mark" aria-hidden="true">${confirm ? "?" : "SD"}</div><div class="overlay-heading"><div><h1 id="overlay-title">${copy.title}</h1><p>${copy.description}</p></div><a class="icon-button" href="${returnPath}" aria-label="Close">×</a></div><p><a class="text-button" href="../../../index.html">Screen directory</a></p>${confirm ? '<div class="notice-box"><span>i</span><p><strong>What happens next</strong><br />The requester is notified and the record moves to its next step. You can view it in the audit trail.</p></div><div class="overlay-actions"><a class="outline-button button-link" href="' + returnPath + '">Cancel</a><a class="solid-button button-link" href="' + returnPath + '">Confirm approval</a></div>' : `<p>No notifications are available.</p><a class="outline-button button-link full-button" href="${returnPath}">Close</a>`}</section></main>`;
 }

@@ -1,7 +1,11 @@
 from django.shortcuts import redirect, render
+from django.urls import reverse
 
+from mobile_screens.catalog import MOBILE_COPY, MOBILE_SCREENS
+from overlay_screens.catalog import OVERLAY_COPY, OVERLAY_SCREENS
 from .catalog import (
     ACCESS_SCREENS,
+    MAIN_SCREENS,
     MAIN_NAVIGATION,
     MAIN_SCREEN_BY_SLUG,
     SCREEN_COLUMNS,
@@ -11,8 +15,14 @@ from .catalog import (
 
 def sign_in(request):
     if request.method == "POST":
-        email = request.POST.get("email", "").strip().lower()
-        if email == "pending@demo.local":
+        username = request.POST.get("username", "").strip().lower()
+        password = request.POST.get("password", "")
+        if username == "admin" and password == "admin":
+            return redirect(
+                "main:screen",
+                screen_slug="2-admin-dashboard",
+            )
+        if username == "pending@demo.local" and password:
             return redirect("main:access-awaiting-approval")
         return redirect("main:sign-in-error")
     return render_auth(request, "sign-in")
@@ -29,6 +39,57 @@ def access_awaiting_approval(request):
 def forgot_password(request):
     submitted = request.method == "POST"
     return render_auth(request, "forgot-password", submitted=submitted)
+
+
+def screen_directory(request):
+    groups = [
+        {
+            "title": "Account access",
+            "screens": [
+                {"number": "1", "label": "Staff sign-in", "url": reverse("main:sign-in")},
+                {"number": "1.1", "label": "Sign-in error", "url": reverse("main:sign-in-error")},
+                {"number": "1.2", "label": "Access awaiting approval", "url": reverse("main:access-awaiting-approval")},
+                {"number": "1.3", "label": "Forgot password", "url": reverse("main:forgot-password")},
+            ],
+        },
+        {
+            "title": "Main system · Sections 1–7",
+            "screens": [
+                {
+                    "number": slug.split("-")[0],
+                    "label": MAIN_SCREEN_BY_SLUG[slug]["title"],
+                    "url": reverse("main:screen", kwargs={"screen_slug": slug}),
+                }
+                for slug, _, _ in MAIN_SCREENS
+            ],
+        },
+        {
+            "title": "Mobile companion · Section 8",
+            "screens": [
+                {
+                    "number": slug.split("-")[0],
+                    "label": MOBILE_COPY[slug][0],
+                    "url": reverse("mobile:screen", kwargs={"screen_slug": slug}),
+                }
+                for slug, _ in MOBILE_SCREENS
+            ],
+        },
+        {
+            "title": "Mobile overlays · Section 9",
+            "screens": [
+                {
+                    "number": slug.split("-")[0],
+                    "label": OVERLAY_COPY[slug][0],
+                    "url": reverse(
+                        "mobile:overlays:screen",
+                        kwargs={"screen_slug": slug},
+                    ),
+                }
+                for slug, _ in OVERLAY_SCREENS
+            ],
+        },
+    ]
+    return render(request, "screen_directory.html", {"directory_groups": groups})
 
 
 def render_auth(request, page, submitted=False):

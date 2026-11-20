@@ -7,6 +7,7 @@ app_name = "main"
 
 urlpatterns = [
     path("", views.sign_in, name="sign-in"),
+    path("screens/", views.screen_directory, name="directory"),
     path("1.1-sign-in-error/", views.sign_in_error, name="sign-in-error"),
     path(
         "1.2-access-awaiting-approval/",

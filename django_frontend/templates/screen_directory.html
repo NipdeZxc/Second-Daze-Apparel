@@ -1,0 +1,28 @@
+{% extends "section_1_7/base.html" %}
+{% load static %}
+{% block title %}Screen directory | Second Daze{% endblock %}
+{% block body %}
+  <header class="hub-header">
+    <a class="brand" href="{% url 'main:sign-in' %}">
+      <img class="brand-logo" src="{% static 'brand-logo.jpg' %}" alt="Second Daze Apparel" />
+      <span class="brand-copy"><strong>Second Daze</strong><span>Apparel operations prototype</span></span>
+    </a>
+  </header>
+  <main class="hub-main">
+    <p class="eyebrow">Screen directory</p>
+    <h1>Choose a screen</h1>
+    <p class="hub-intro">Browse account access, the main system, mobile companion, and overlays.</p>
+    <div class="hub-groups">
+      {% for group in directory_groups %}
+        <section class="hub-group">
+          <div class="hub-group-heading"><h2>{{ group.title }}</h2><span>{{ group.screens|length }} screens</span></div>
+          <nav aria-label="{{ group.title }}">
+            {% for item in group.screens %}
+              <a href="{{ item.url }}"><span>{{ item.number }}</span><span>{{ item.label }}</span><span aria-hidden="true">→</span></a>
+            {% endfor %}
+          </nav>
+        </section>
+      {% endfor %}
+    </div>
+  </main>
+{% endblock %}
