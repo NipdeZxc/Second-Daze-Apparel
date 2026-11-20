@@ -26,7 +26,7 @@ export async function getWorkspaceOverview({ signal } = {}) {
   return overview;
 }
 
-export async function submitWorkspaceAction({ source, screenId, values }) {
+export async function submitWorkspaceAction({ source = "web", screenId, values }) {
   return apiRequest("/api/workspace/actions/", {
     method: "POST",
     body: { source, screenId, values },
