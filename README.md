@@ -38,12 +38,13 @@ the dashboard preview, or `pending@demo.local` with any non-empty password to
 view the pending-approval screen. These demo credentials are not real
 authentication and must not be used to protect production data.
 
-Use the sidebar to move between the main-system modules. **Screen index** lists
-every screen; **Mobile companion** opens the mobile workflows. Mobile bottom
-navigation switches between Home, Approvals, Orders, and Inventory. The
-notification icon opens the relevant Section 9 overlay, and its close button
-returns to the underlying mobile screen. Sign out from the sidebar or the
-mobile header.
+Use the sidebar to move between the main-system modules. Dashboard queues,
+quick actions, and each page's related-workflow links connect common tasks—for
+example, a refund request leads to item review and approval, while order details
+lead to delivery confirmation. **Mobile companion** opens the mobile workflows;
+its bottom navigation switches between Home, Approvals, Orders, and Inventory.
+The notification icon opens the relevant overlay, and closing it returns to the
+underlying mobile screen. Sign out from the sidebar or mobile header.
 
 ## Deploy to Vercel
 

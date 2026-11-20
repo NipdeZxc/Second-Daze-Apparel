@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { formFields, groups, screens, tableColumns } from "./screens.js";
+import { formFields, screens, tableColumns } from "./screens.js";
 import { demoLoginEnabled, signIn, signOut } from "./api/auth.js";
 
 const mainScreens = screens.filter((screen) => screen.group === "Main system");
@@ -92,64 +92,12 @@ function ScreenLink({ screen, children, className = "", ...linkProps }) {
   );
 }
 
-function Brand({ compact = false, to = "#/screens" }) {
+function Brand({ compact = false, to = "#/1-staff-sign-in" }) {
   return (
     <a className={`brand ${compact ? "brand--compact" : ""}`} href={to} aria-label="Second Daze workspace">
       <img src="/brand-logo.jpg" alt="" />
       <span>Second Daze</span>
     </a>
-  );
-}
-
-function Directory({ authUser }) {
-  return (
-    <main className="directory">
-      <header className="directory__header">
-        <Brand to={authUser ? "#/2-admin-dashboard" : "#/screens"} />
-        {authUser ? (
-          <ScreenLink screen={mainScreens.find((screen) => screen.id === "2-admin-dashboard")} className="text-link">
-            Return to dashboard
-          </ScreenLink>
-        ) : (
-          <ScreenLink screen={mainScreens.find((screen) => screen.id === "1-staff-sign-in")} className="text-link">
-            Sign in
-          </ScreenLink>
-        )}
-      </header>
-      <section className="directory__intro directory__intro--index">
-        <p className="eyebrow">WORKSPACE NAVIGATION</p>
-        <h1>Screen index</h1>
-        <p className="lede">
-          Select a workflow screen. Sign in to open the dashboard; records and actions remain unconnected until a backend is added.
-        </p>
-      </section>
-      <div className="directory__groups">
-        {groups.map((group, index) => (
-          <section className="directory-group" key={group.title}>
-            <div className="directory-group__heading">
-              <span className="group-index">0{index + 1}</span>
-              <div>
-                <h2>{group.title}</h2>
-                <p>{group.screens.length} screens</p>
-              </div>
-            </div>
-            <div className="screen-grid">
-              {group.screens.map((screen) => (
-                <ScreenLink className="screen-card" key={screen.id} screen={screen}>
-                  <span className="screen-card__number">{screen.id.split("-")[0]}</span>
-                  <span className="screen-card__title">{screen.title}</span>
-                  <span className="screen-card__arrow" aria-hidden="true">↗</span>
-                </ScreenLink>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-      <footer className="directory__footer">
-        <span>Second Daze Apparel</span>
-        <span>UI prototype · Temporary demo login only</span>
-      </footer>
-    </main>
   );
 }
 
@@ -189,7 +137,6 @@ function Sidebar({ active, authUser, onSignOut }) {
         ))}
       </nav>
       <div className="sidebar__bottom">
-        <a href="#/screens" className="nav-link"><Icon className="nav-link__icon" name="grid" size={15} />Screen index</a>
         <ScreenLink screen={mobileScreens[1]} className="nav-link">
           <Icon className="nav-link__icon" name="smartphone" size={15} />Mobile companion
         </ScreenLink>
@@ -199,6 +146,69 @@ function Sidebar({ active, authUser, onSignOut }) {
         <span className="sidebar__note">{authUser?.demo ? "Demo preview · no data is saved" : `Signed in as ${authUser?.role || "Staff"}`}</span>
       </div>
     </aside>
+  );
+}
+
+const workflowLinks = {
+  "2.1-subaccounts": [["Review access requests", "2.2-access-approvals"]],
+  "2.2-access-approvals": [["Manage staff accounts", "7-staff-accounts"]],
+  "2.3-sales-documents": [["Create purchase order", "3.13-create-purchase-order"], ["Confirm delivery", "3.14-confirm-delivery"]],
+  "2.4-refunds": [["Start a refund request", "3.4-new-refund-request"]],
+  "2.5-reservations": [["Create reservation", "5.1-new-reservation"]],
+  "2.6-reports": [["Open sales and inventory reports", "6-sales-inventory-reports"]],
+  "3-sales-catalog": [["Continue to checkout", "3.1-checkout-pending-payment"]],
+  "3.1-checkout-pending-payment": [["Record payment", "3.8-checkout-gcash-payment"], ["View orders", "3.9-orders-status-tracking"]],
+  "3.2-sale-completed": [["View orders", "3.9-orders-status-tracking"], ["Return to catalog", "3-sales-catalog"]],
+  "3.3-sales-documents": [["Create purchase order", "3.13-create-purchase-order"], ["Confirm delivery", "3.14-confirm-delivery"]],
+  "3.4-new-refund-request": [["Continue to item review", "3.5-refund-condition-review"], ["Return to refunds", "2.4-refunds"]],
+  "3.5-refund-condition-review": [["Send for approval", "3.6-approval-request-detail"]],
+  "3.6-approval-request-detail": [["View refund result", "3.7-refund-completed"], ["Return to refunds", "2.4-refunds"]],
+  "3.7-refund-completed": [["Return to refunds", "2.4-refunds"]],
+  "3.8-checkout-gcash-payment": [["View orders", "3.9-orders-status-tracking"], ["Record payment outcome", "3.2-sale-completed"]],
+  "3.9-orders-status-tracking": [["Open order details", "3.10-order-detail-shipment"], ["Create purchase order", "3.13-create-purchase-order"]],
+  "3.10-order-detail-shipment": [["Confirm delivery", "3.14-confirm-delivery"], ["View sales documents", "3.3-sales-documents"]],
+  "3.11-customers": [["Add customer", "3.12-new-customer-validation"]],
+  "3.12-new-customer-validation": [["Continue to purchase order", "3.13-create-purchase-order"], ["Return to customers", "3.11-customers"]],
+  "3.13-create-purchase-order": [["Review orders", "3.9-orders-status-tracking"], ["Return to sales documents", "3.3-sales-documents"]],
+  "3.14-confirm-delivery": [["View sales documents", "3.3-sales-documents"], ["View orders", "3.9-orders-status-tracking"]],
+  "3.15-payment-not-received": [["Retry payment", "3.8-checkout-gcash-payment"], ["Review orders", "3.9-orders-status-tracking"]],
+  "4-inventory-workspace": [["Review low stock", "4.2-low-stock-alerts"], ["Edit product", "4.3-edit-product-admin-only"]],
+  "4.2-low-stock-alerts": [["Update product stock", "4.3-edit-product-admin-only"], ["Open inventory", "4-inventory-workspace"]],
+  "4.3-edit-product-admin-only": [["Review inventory", "4-inventory-workspace"], ["Check low-stock items", "4.2-low-stock-alerts"]],
+  "5-reservations": [["Create reservation", "5.1-new-reservation"]],
+  "5.1-new-reservation": [["Review reservation outcome", "5.3-reservation-approved"], ["Return to reservations", "5-reservations"]],
+  "5.2-expired-reservation-void-notice": [["Review reservations", "5-reservations"]],
+  "5.3-reservation-approved": [["Review reservations", "5-reservations"], ["Continue to checkout", "3.1-checkout-pending-payment"]],
+  "6-sales-inventory-reports": [["Open report summary", "6.1-sales-inventory-reports-v2"]],
+  "6.1-sales-inventory-reports-v2": [["Open sales and inventory reports", "6-sales-inventory-reports"]],
+  "7-staff-accounts": [["Manage subaccounts", "2.1-subaccounts"], ["Review access requests", "2.2-access-approvals"]],
+  "8.1-mobile-admin-dashboard": [["Review approvals", "8.2-mobile-approvals"], ["Record payment", "8.3-mobile-checkout-gcash"], ["Request reservation", "8.6-mobile-new-reservation"]],
+  "8.2-mobile-approvals": [["Review approval confirmation", "9.3-overlay-confirm-approve"]],
+  "8.3-mobile-checkout-gcash": [["Review orders", "8.4-mobile-orders"]],
+  "8.4-mobile-orders": [["Record payment", "8.3-mobile-checkout-gcash"]],
+  "8.5-mobile-low-stock": [["Return to dashboard", "8.1-mobile-admin-dashboard"]],
+  "8.6-mobile-new-reservation": [["Review approvals", "8.2-mobile-approvals"]],
+};
+
+function WorkflowLinks({ screenId, mobile = false }) {
+  const links = workflowLinks[screenId] || [];
+  if (!links.length) return null;
+
+  return (
+    <nav className={`workflow-links ${mobile ? "workflow-links--mobile" : ""}`} aria-label="Related workflows">
+      <h2>{mobile ? "Next steps" : "Related workflows"}</h2>
+      <div className="workflow-links__items">
+        {links.map(([label, targetId]) => {
+          const target = screens.find((item) => item.id === targetId);
+          if (!target) return null;
+          return (
+            <ScreenLink key={targetId} screen={target} className="workflow-link">
+              <span>{label}</span><Icon name="arrow" size={15} />
+            </ScreenLink>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 
@@ -422,7 +432,11 @@ function AuthScreen({ screen, onAuthenticated }) {
         <span className="auth-art__foot">SECOND DAZE APPAREL</span>
       </div>
       <section className="auth-content">
-        <a className="text-link auth-content__back" href="#/screens">← All screens</a>
+        {(forgot || showError) && (
+          <ScreenLink className="text-link auth-content__back" screen={screens.find((item) => item.id === "1-staff-sign-in")}>
+            {forgot ? "← Sign in" : "← Try again"}
+          </ScreenLink>
+        )}
         {pending ? (
           <div className="auth-card">
             <span className="detail-panel__icon"><Icon name="users" size={22} /></span>
@@ -567,8 +581,12 @@ function MobilePreview({ screen, onAuthenticated, authUser, onSignOut }) {
     <main className="mobile-app-view">
       <div className="mobile-app-shell" aria-hidden={isOverlay} inert={isOverlay}>
         <header className="mobile-app-header">
-          <Brand compact to={screen.kind === "mobile-auth" ? "#/screens" : "#/8.1-mobile-admin-dashboard"} />
-          <a className="mobile-directory-link" href="#/screens" aria-label="Open screen index"><Icon name="grid" size={15} /><span>Screens</span></a>
+          <Brand compact to={screen.kind === "mobile-auth" ? "#/1-staff-sign-in" : "#/8.1-mobile-admin-dashboard"} />
+          {screen.kind !== "mobile-auth" && (
+            <a className="mobile-admin-link" href="#/2-admin-dashboard" aria-label="Open main system">
+              <Icon name="home" size={15} /><span>Admin</span>
+            </a>
+          )}
           {screen.kind !== "mobile-auth" && (
             <ScreenLink className={`mobile-notifications ${isOverlay ? "is-current" : ""}`} screen={notificationScreen} aria-label="Notifications">
               <Icon name="bell" size={16} /><span className="mobile-notifications__label">Notifications</span>
@@ -588,6 +606,7 @@ function MobilePreview({ screen, onAuthenticated, authUser, onSignOut }) {
             </header>
           )}
           <MobileContent screen={underlayScreen} onAuthenticated={onAuthenticated} />
+          <WorkflowLinks screenId={underlayScreen.id} mobile />
         </section>
         {screen.kind !== "mobile-auth" && (
           <nav className="mobile-tabs" aria-label="Mobile navigation">
@@ -606,7 +625,6 @@ function MobilePreview({ screen, onAuthenticated, authUser, onSignOut }) {
               <div><p className="eyebrow">{confirm ? "APPROVAL" : "NOTIFICATIONS"}</p><h2 id="mobile-overlay-title">{screen.title}</h2></div>
               <ScreenLink className="modal-close" screen={underlayScreen} aria-label="Close overlay"><span aria-hidden="true">×</span></ScreenLink>
             </header>
-            <a className="text-link" href="#/screens">Screen index</a>
             <p className="mobile-overlay-copy">{screen.description}</p>
             {confirm ? (
               <>
@@ -650,6 +668,7 @@ function MainPreview({ screen, authUser, onAuthenticated, onSignOut }) {
           {screen.kind === "detail" && <DetailPanel screen={screen} />}
           {screen.kind === "success" && <DetailPanel screen={screen} success />}
           {screen.kind === "reports" && <ReportsPanel />}
+          <WorkflowLinks screenId={screen.id} />
         </div>
         <footer className="workspace__footer"><span>Second Daze Apparel</span><span>Main system</span></footer>
       </main>
@@ -666,6 +685,11 @@ export default function App() {
     window.addEventListener("hashchange", updateRoute);
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
+  useEffect(() => {
+    if (currentId === "screens") {
+      window.location.hash = authUser ? "/2-admin-dashboard" : "/1-staff-sign-in";
+    }
+  }, [authUser, currentId]);
 
   const authenticateUser = (user, demo) => {
     const normalizedUser = { ...user, role: user.role || "Staff", demo };
@@ -685,19 +709,19 @@ export default function App() {
     }
   };
 
-  const requestedId = currentId || (authUser ? "2-admin-dashboard" : "1-staff-sign-in");
-  const isScreenIndex = requestedId === "screens";
+  const requestedId = !currentId || currentId === "screens"
+    ? authUser ? "2-admin-dashboard" : "1-staff-sign-in"
+    : currentId;
   const requestedScreen = screens.find((item) => item.id === requestedId)
     || screens.find((item) => item.id === "1-staff-sign-in");
   const publicScreen = requestedScreen.kind.startsWith("auth") || requestedScreen.kind === "pending";
-  const requiresAuthentication = !isScreenIndex && !publicScreen && requestedScreen.id !== "8-mobile-sign-in";
+  const requiresAuthentication = !publicScreen && requestedScreen.id !== "8-mobile-sign-in";
   useEffect(() => {
     if (!authUser && requiresAuthentication) {
       window.location.hash = "/1-staff-sign-in";
     }
   }, [authUser, requestedId, requiresAuthentication]);
 
-  if (isScreenIndex) return <Directory authUser={authUser} />;
   const screen = !authUser && requiresAuthentication
     ? screens.find((item) => item.id === "1-staff-sign-in")
     : requestedScreen;

@@ -84,9 +84,3 @@ export const formFields = {
   "5.1-new-reservation": ["Customer", "Product", "Quantity", "Agreed days", "Pickup note"],
   "8.6-mobile-new-reservation": ["Customer", "Product", "Quantity", "Agreed days", "Pickup note"],
 };
-
-export const groups = [
-  { title: "Main system · Sections 1–7", screens: main },
-  { title: "Mobile companion · Section 8", screens: mobile },
-  { title: "Mobile overlays · Section 9", screens: overlays },
-];
