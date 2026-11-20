@@ -1,118 +1,83 @@
-# Technological University of the Philippines  
-## System Analysis and Design  
+# Technological University of the Philippines
+## System Analysis and Design
 
-### Professor  
-**Prof. PERAGRINO B. AMADOR JR**
+**Section:** BSIS - 3A · **Team:** 8
 
-### Section  
-**BSIS - 3A**
+**Team Leader:** Jae Marvin L. Salazar
 
-### Team Information  
-- **Team Number:** Team #8  
-- **Team Leader:** JAE MARVIN L. SALAZAR  
-- **Members:**  
-  - EMMANUEL M. CARURUCAN 
-  - ARMHEL G. MAYAO
-  - MARC IÑIGO P. OROZCO  
-  - RHEINWELL Q. PALOMARES  
+**Members:** Emmanuel M. Carurucan, Armhel G. Mayao, Marc Iñigo P. Orozco,
+Rheinwell Q. Palomares
 
-## Instructional Materials  
+## Instructional materials
 
-- **Web App:** [BSIS Agile SAD Curriculum](https://tupcossad.netlify.app/)
-- **Google Drive:** [Access Materials Here](https://drive.google.com/drive/folders/1e6S8s2XvSlx_qyoAlUGewRo02ndxR-e3?usp=drive_link)
+- [BSIS Agile SAD Curriculum](https://tupcossad.netlify.app/)
+- [Google Drive materials](https://drive.google.com/drive/folders/1e6S8s2XvSlx_qyoAlUGewRo02ndxR-e3?usp=drive_link)
 
-## UI prototype
+## Second Daze Apparel frontend
 
-The static prototype groups the main-system screens from Sections 1–7 under
-`screens/section-1-7/`. The mobile companion keeps its Section 8 screens and
-Section 9 overlays together under `screens/mobile-companion/`. Both use the
-shared `styles.css` and `app.js` at the repository root. Open `index.html` for a
-screen directory grouped by main system and mobile companion. Screen copy is
-based on the supplied high-fidelity references. Lists, metrics, and product
-catalogs use empty states until connected to live data. The separate
-`High Fidelity/` prototype has its own renderer and styles.
-The prototypes use Shrikhand headings, Poppins body text, the supplied brand
-palette, and the `download.jpg` Second Daze Apparel logo.
+The deployable frontend is the React + Vite app in [`react_frontend`](./react_frontend/).
+It includes the Sections 1–7 admin workspace, the Section 8 mobile companion,
+and Section 9 notification and approval overlays. The original high-fidelity
+screenshots are retained in [`High Fidelity`](<./High%20Fidelity/>), and
+[`second_daze_physical_schema.sql`](./second_daze_physical_schema.sql) is kept
+as a backend reference.
 
-The sign-in flow uses local UI state only; it is not production authentication
-and does not create accounts or send password-reset emails. Use username
-`admin` and password `admin` for the temporary dashboard preview. Enter
-`pending@demo.local` with any non-empty password to preview the
-pending-approval state. Dashboard metrics, records, and product listings remain
-empty until connected to live data.
+## Run locally
 
-### Screen groups
-
-- [Main system: Sections 1–7](./screens/section-1-7/)
-- [Mobile companion: Section 8 screens](./screens/mobile-companion/section-8-mobile/)
-- [Mobile companion: Section 9 overlays](./screens/mobile-companion/section-9-overlays/)
-
-To run locally, start a static server from the repository root, for example
-`python -m http.server 8000`, then open `http://localhost:8000`.
-
-### Django template test frontend
-
-A Django-rendered version of the screens is available in
-[django_frontend](./django_frontend/). The main-system and mobile-companion
-areas are separate:
-
-- The main system (Sections 1–7) is served by `main_screens` at `/`.
-- Section 8 mobile screens are served by `mobile_screens` at `/mobile/`.
-- Section 9 mobile overlays are served by `overlay_screens` at
-  `/mobile/overlays/` and are linked from the mobile companion.
-
-Mobile overlays return to their corresponding mobile screen when closed; the
-main-system navigation remains limited to Sections 1–7. These are UI test
-screens, not a production authentication or data backend.
-
-#### Quick start on Windows
-
-Double-click [run-django.bat](./run-django.bat) from the repository root. It
-creates a virtual environment and installs Django on first run, starts the
-development server, then opens the browser when the site is ready. Keep the
-terminal window open during testing; press **Ctrl+C** there to stop the server.
-If port 8000 is already serving locally, the script opens that server instead.
-
-#### Manual start
-
-```powershell
-cd django_frontend
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe manage.py runserver
-```
-
-Open `http://127.0.0.1:8000/` for sign-in, `http://127.0.0.1:8000/screens/`
-for the complete screen directory, `http://127.0.0.1:8000/2-admin-dashboard/` for Sections 1–7,
-`http://127.0.0.1:8000/mobile/` for the mobile companion, or
-`http://127.0.0.1:8000/mobile/overlays/` for its overlays. The organized static
-prototype is available from the repository root `index.html`.
-
-### React + Vite comparison frontend
-
-The independent React + Vite version is in
-[react_frontend](./react_frontend/). It keeps the Sections 1–7 main system
-separate from the Section 8 mobile companion and Section 9 overlays, and does
-not modify or replace the Django frontend.
-
-#### Quick start on Windows
-
-Install [Node.js](https://nodejs.org/) if it is not already available, then run
-these commands from the repository root:
+Install Node.js 20.19 or newer, then from the repository root run:
 
 ```powershell
 cd react_frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Open the Vite URL shown in the terminal (normally
-`http://127.0.0.1:5173/`). The React app opens on its dashboard; select
-**Screen index** in the sidebar to browse the available screens. Leave the
-terminal open while testing and press **Ctrl+C** to stop the server. Run Django
-separately at `http://127.0.0.1:8000/` when comparing the two frontends.
+Open the Vite URL printed in the terminal (usually `http://127.0.0.1:5173/`).
+The app opens on staff sign-in. In development, use `admin` / `admin` to enter
+the dashboard preview, or `pending@demo.local` with any non-empty password to
+view the pending-approval screen. These demo credentials are not real
+authentication and must not be used to protect production data.
 
-To verify a production build, run `npm run build` inside `react_frontend/`.
-The generated site is written to `react_frontend/dist/`. Like the Django
-prototype, this is a UI-only comparison: authentication, form submissions,
-reports, metrics, and records are not backed by a database.
+Use the sidebar to move between the main-system modules. **Screen index** lists
+every screen; **Mobile companion** opens the mobile workflows. Mobile bottom
+navigation switches between Home, Approvals, Orders, and Inventory. The
+notification icon opens the relevant Section 9 overlay, and its close button
+returns to the underlying mobile screen. Sign out from the sidebar or the
+mobile header.
+
+## Deploy to Vercel
+
+Create a Vercel project connected to this repository and set:
+
+- **Root Directory:** `react_frontend`
+- **Framework preset:** Vite
+- **Build command:** `npm run build`
+- **Output directory:** `dist`
+- **Install command:** `npm ci`
+
+The app uses hash-based routes, so direct navigation to a screen does not need
+extra Vercel rewrite rules. Do not enable `VITE_ENABLE_DEMO_LOGIN` on a
+production deployment. It is false by default in production builds; local Vite
+development enables the preview flow.
+
+## Backend integration
+
+The frontend API helper is in [`react_frontend/src/api/client.js`](./react_frontend/src/api/client.js).
+Set `VITE_API_BASE_URL` to the backend origin (leave it empty to use the same
+origin). Vite environment variables are embedded at build time; set the value
+in the Vercel project's environment settings and redeploy after changing it.
+
+When demo login is disabled, the frontend expects:
+
+- `POST /api/auth/login/` with JSON `{ "username": "...", "password": "..." }`
+- `200` with JSON containing `user: { "username": "...", "role": "..." }` on success
+- `401` for invalid credentials
+- `403` with `{ "code": "access_pending" }` for pending approval
+- `POST /api/auth/logout/` to end the backend session
+
+The API should use secure, HttpOnly session cookies. For a separate backend
+origin, configure the backend's CORS and cookie policies for the Vercel domain.
+The backend must enforce authentication and authorization on every protected
+data endpoint; client-side navigation and session state are UX only. Forms,
+reports, metrics, and records are still preview-only until connected to real
+API endpoints.

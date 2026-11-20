@@ -1,14 +1,84 @@
 import { useEffect, useState } from "react";
 import { formFields, groups, screens, tableColumns } from "./screens.js";
+import { demoLoginEnabled, signIn, signOut } from "./api/auth.js";
 
 const mainScreens = screens.filter((screen) => screen.group === "Main system");
 const mobileScreens = screens.filter((screen) => screen.group === "Mobile companion");
 const mobileTabs = [
-  { id: "8.1-mobile-admin-dashboard", label: "Home" },
-  { id: "8.2-mobile-approvals", label: "Approvals" },
-  { id: "8.4-mobile-orders", label: "Orders" },
-  { id: "8.5-mobile-low-stock", label: "Inventory" },
-].map((tab) => ({ ...mobileScreens.find((screen) => screen.id === tab.id), label: tab.label }));
+  { id: "8.1-mobile-admin-dashboard", label: "Home", icon: "home" },
+  { id: "8.2-mobile-approvals", label: "Approvals", icon: "check" },
+  { id: "8.4-mobile-orders", label: "Orders", icon: "bag" },
+  { id: "8.5-mobile-low-stock", label: "Inventory", icon: "box" },
+].map((tab) => ({ ...mobileScreens.find((screen) => screen.id === tab.id), label: tab.label, icon: tab.icon }));
+
+const iconPaths = {
+  home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9M9 20v-6h6v6" /></>,
+  grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
+  users: <><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
+  bag: <><path d="M5 8h14l1 13H4L5 8Z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></>,
+  box: <><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 8 9 5 9-5M3 8v9l9 5 9-5V8M12 13v9" /></>,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" /></>,
+  chart: <><path d="M4 19V5M4 19h17" /><path d="m7 15 4-4 3 2 6-7" /></>,
+  smartphone: <><rect x="6" y="2" width="12" height="20" rx="2" /><path d="M11 18h2" /></>,
+  bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></>,
+  key: <><circle cx="8" cy="15" r="5" /><path d="m11.5 11.5 8-8 2 2-2 2 2 2-3 3-2-2-3.5 3.5" /></>,
+  plus: <><path d="M12 5v14M5 12h14" /></>,
+  arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
+  logout: <><path d="M10 17l5-5-5-5M15 12H3" /><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7" /></>,
+  check: <><path d="m5 12 4 4L19 6" /></>,
+};
+
+function Icon({ name, size = 16, className = "" }) {
+  return (
+    <svg
+      className={className}
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {iconPaths[name] || iconPaths.grid}
+    </svg>
+  );
+}
+
+function screenIcon(screen) {
+  if (screen.id === "2-admin-dashboard") return "home";
+  if (screen.group === "Mobile companion") return "smartphone";
+  if (screen.group === "Mobile overlays") return "bell";
+  if (screen.id === "2.4-refunds" || screen.id.startsWith("2.3-")) return "bag";
+  if (screen.id === "2.5-reservations") return "calendar";
+  if (screen.id === "2.6-reports") return "chart";
+  const section = screen.id.split(/[.-]/)[0];
+  return { 1: "key", 2: "users", 3: "bag", 4: "box", 5: "calendar", 6: "chart", 7: "users" }[section] || "grid";
+}
+
+function readAuthUser() {
+  const username = sessionStorage.getItem("second-daze-username");
+  if (!username) return null;
+  return {
+    username,
+    role: sessionStorage.getItem("second-daze-role") || "Staff",
+    demo: sessionStorage.getItem("second-daze-demo") === "true",
+  };
+}
+
+function saveAuthUser(user) {
+  sessionStorage.setItem("second-daze-username", user.username);
+  sessionStorage.setItem("second-daze-role", user.role || "Staff");
+  sessionStorage.setItem("second-daze-demo", String(user.demo));
+}
+
+function clearAuthUser() {
+  sessionStorage.removeItem("second-daze-username");
+  sessionStorage.removeItem("second-daze-role");
+  sessionStorage.removeItem("second-daze-demo");
+}
 
 function routeId() {
   return decodeURIComponent(window.location.hash.replace(/^#\/?/, "").split("?")[0]);
@@ -31,20 +101,26 @@ function Brand({ compact = false, to = "#/screens" }) {
   );
 }
 
-function Directory() {
+function Directory({ authUser }) {
   return (
     <main className="directory">
       <header className="directory__header">
-        <Brand to="#/2-admin-dashboard" />
-        <ScreenLink screen={mainScreens.find((screen) => screen.id === "2-admin-dashboard")} className="text-link">
-          Return to dashboard
-        </ScreenLink>
+        <Brand to={authUser ? "#/2-admin-dashboard" : "#/screens"} />
+        {authUser ? (
+          <ScreenLink screen={mainScreens.find((screen) => screen.id === "2-admin-dashboard")} className="text-link">
+            Return to dashboard
+          </ScreenLink>
+        ) : (
+          <ScreenLink screen={mainScreens.find((screen) => screen.id === "1-staff-sign-in")} className="text-link">
+            Sign in
+          </ScreenLink>
+        )}
       </header>
       <section className="directory__intro directory__intro--index">
         <p className="eyebrow">WORKSPACE NAVIGATION</p>
         <h1>Screen index</h1>
         <p className="lede">
-          Select a workflow screen. The dashboard opens by default; records and actions remain unconnected until a backend is added.
+          Select a workflow screen. Sign in to open the dashboard; records and actions remain unconnected until a backend is added.
         </p>
       </section>
       <div className="directory__groups">
@@ -77,14 +153,15 @@ function Directory() {
   );
 }
 
-function Sidebar({ active }) {
+function Sidebar({ active, authUser, onSignOut }) {
   const navGroups = [
-    { title: "Overview", ids: ["2-admin-dashboard"] },
-    { title: "Administration", ids: ["2.1-subaccounts", "2.2-access-approvals"] },
-    { title: "Sales", ids: ["3-sales-catalog", "3.3-sales-documents", "2.4-refunds", "3.9-orders-status-tracking", "3.11-customers"] },
-    { title: "Inventory", ids: ["4-inventory-workspace", "4.2-low-stock-alerts"] },
-    { title: "Reservations", ids: ["5-reservations"] },
-    { title: "Reports & staff", ids: ["2.6-reports", "7-staff-accounts"] },
+    { title: "Overview", icon: "home", ids: ["2-admin-dashboard"] },
+    { title: "Administration", icon: "users", ids: ["2.1-subaccounts", "2.2-access-approvals"] },
+    { title: "Sales", icon: "bag", ids: ["3-sales-catalog", "3.3-sales-documents", "2.4-refunds", "3.9-orders-status-tracking", "3.11-customers"] },
+    { title: "Inventory", icon: "box", ids: ["4-inventory-workspace", "4.2-low-stock-alerts"] },
+    { title: "Reservations", icon: "calendar", ids: ["5-reservations"] },
+    { title: "Reports", icon: "chart", ids: ["2.6-reports"] },
+    { title: "Staff", icon: "users", ids: ["7-staff-accounts"] },
   ].map((group) => ({
     title: group.title,
     items: group.ids.map((id) => mainScreens.find((screen) => screen.id === id)),
@@ -104,7 +181,7 @@ function Sidebar({ active }) {
                 screen={screen}
                 className={`nav-link ${active === screen.id ? "is-active" : ""}`}
               >
-                <span className="nav-link__dot" aria-hidden="true" />
+                <Icon className="nav-link__icon" name={group.icon} size={15} />
                 {screen.title}
               </ScreenLink>
             ))}
@@ -112,11 +189,14 @@ function Sidebar({ active }) {
         ))}
       </nav>
       <div className="sidebar__bottom">
-        <a href="#/screens" className="nav-link"><span className="nav-link__dot" aria-hidden="true" />Screen index</a>
+        <a href="#/screens" className="nav-link"><Icon className="nav-link__icon" name="grid" size={15} />Screen index</a>
         <ScreenLink screen={mobileScreens[1]} className="nav-link">
-          <span className="nav-link__dot" aria-hidden="true" />Mobile companion
+          <Icon className="nav-link__icon" name="smartphone" size={15} />Mobile companion
         </ScreenLink>
-        <span className="sidebar__note">Static prototype · not connected to a backend</span>
+        <button className="nav-link sidebar__sign-out" type="button" onClick={onSignOut} aria-label={`Sign out ${authUser?.username || ""}`}>
+          <Icon className="nav-link__icon" name="logout" size={15} />Sign out
+        </button>
+        <span className="sidebar__note">{authUser?.demo ? "Demo preview · no data is saved" : `Signed in as ${authUser?.role || "Staff"}`}</span>
       </div>
     </aside>
   );
@@ -127,11 +207,21 @@ function PageHeader({ screen }) {
     <header className="page-header">
       <div>
         <p className="eyebrow">SECOND DAZE / {screen.group.toUpperCase()}</p>
-        <h1>{screen.title}</h1>
+        <div className="page-header__title-row">
+          <span className="page-header__icon"><Icon name={screenIcon(screen)} size={19} /></span>
+          <h1>{screen.title}</h1>
+        </div>
         <p>{screen.description}</p>
       </div>
+      <span className="prototype-tag">{authLabel(screen)}</span>
     </header>
   );
+}
+
+function authLabel(screen) {
+  return screen.group === "Mobile companion" || screen.group === "Mobile overlays"
+    ? "Mobile companion"
+    : "Main system";
 }
 
 function EmptyTable({ screen }) {
@@ -177,9 +267,9 @@ function Dashboard() {
         <div className="dashboard-action-list">
           {actions.map((action) => (
             <ScreenLink className="dashboard-action-link" screen={screens.find((screen) => screen.id === action.screenId)} key={action.screenId}>
-              <span className="dashboard-action-icon" aria-hidden="true">+</span>
+              <span className="dashboard-action-icon"><Icon name="plus" size={15} /></span>
               <span>{action.title}</span>
-              <span className="dashboard-action-arrow" aria-hidden="true">→</span>
+              <Icon className="dashboard-action-arrow" name="arrow" size={15} />
             </ScreenLink>
           ))}
         </div>
@@ -286,27 +376,39 @@ function CatalogPanel() {
   );
 }
 
-function AuthScreen({ screen }) {
+function AuthScreen({ screen, onAuthenticated }) {
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const pending = screen.kind === "pending";
   const forgot = screen.kind === "auth-forgot";
   const showError = screen.kind === "auth-error";
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     if (forgot) {
       setMessage("Password reset is not connected in this prototype.");
       return;
     }
-    if (formData.get("username") === "admin" && formData.get("password") === "admin") {
-      window.location.hash = "/2-admin-dashboard";
-      return;
+    setSubmitting(true);
+    setMessage("");
+    try {
+      const result = await signIn({
+        username: String(formData.get("username") || "").trim(),
+        password: String(formData.get("password") || ""),
+      });
+      if (result.status === "authenticated") {
+        onAuthenticated(result.user, result.demo);
+        window.location.hash = "/2-admin-dashboard";
+      } else if (result.status === "pending") {
+        window.location.hash = "/1.2-access-awaiting-approval";
+      } else {
+        window.location.hash = "/1.1-sign-in-error";
+      }
+    } catch (error) {
+      setMessage(error.message || "Unable to contact the sign-in service.");
+    } finally {
+      setSubmitting(false);
     }
-    if (formData.get("username") === "pending@demo.local" && formData.get("password")) {
-      window.location.hash = "/1.2-access-awaiting-approval";
-      return;
-    }
-    setMessage("Authentication is not connected. Use the pending-access preview to continue.");
   };
   return (
     <main className="auth-page">
@@ -320,14 +422,14 @@ function AuthScreen({ screen }) {
         <span className="auth-art__foot">SECOND DAZE APPAREL</span>
       </div>
       <section className="auth-content">
-        <a className="text-link auth-content__back" href="#/">← All screens</a>
+        <a className="text-link auth-content__back" href="#/screens">← All screens</a>
         {pending ? (
           <div className="auth-card">
-            <span className="detail-panel__icon">…</span>
+            <span className="detail-panel__icon"><Icon name="users" size={22} /></span>
             <p className="eyebrow">ACCESS REQUEST</p>
             <h2>Awaiting approval</h2>
             <p>An Admin must approve your subaccount before you can enter the workspace.</p>
-            <a className="button button--primary" href="#/2-admin-dashboard">Return to dashboard preview</a>
+            <a className="button button--primary" href="#/1-staff-sign-in">Return to sign in</a>
           </div>
         ) : (
           <form className="auth-card" onSubmit={handleSubmit}>
@@ -338,9 +440,16 @@ function AuthScreen({ screen }) {
             <label className="field"><span>Username</span><input name="username" type="text" autoComplete="username" required placeholder="Enter your username" /></label>
             {!forgot && <label className="field"><span>Password</span><input name="password" type="password" required placeholder="Enter your password" /></label>}
             {message && <p className="form-note" role="status">{message}</p>}
-            <button type="submit" className="button button--primary">{forgot ? "Request reset" : "Sign in"}</button>
+            <button type="submit" className="button button--primary" disabled={submitting}>
+              <Icon name={forgot ? "arrow" : "key"} size={15} />
+              {submitting ? "Signing in…" : forgot ? "Request reset" : "Sign in"}
+            </button>
             {!forgot && <ScreenLink className="text-link auth-card__link" screen={screens.find((item) => item.id === "1.3-forgot-password")}>Forgot password?</ScreenLink>}
-            <p className="auth-card__hint">Temporary demo login: username <code>admin</code>, password <code>admin</code>. Use <code>pending@demo.local</code> with any non-empty password to preview access approval.</p>
+            <p className="auth-card__hint">
+              {demoLoginEnabled
+                ? <>Demo login: <code>admin</code> / <code>admin</code>. Use <code>pending@demo.local</code> with any password to preview approval.</>
+                : "Sign-in is handled by the configured backend."}
+            </p>
           </form>
         )}
       </section>
@@ -348,33 +457,51 @@ function AuthScreen({ screen }) {
   );
 }
 
-function MobileLogin() {
+function MobileLogin({ onAuthenticated }) {
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   return (
-    <form className="mobile-login" onSubmit={(event) => {
+    <form className="mobile-login" onSubmit={async (event) => {
       event.preventDefault();
       const formData = new FormData(event.currentTarget);
-      if (formData.get("username") === "admin" && formData.get("password") === "admin") {
-        window.location.hash = "/8.1-mobile-admin-dashboard";
-        return;
+      setSubmitting(true);
+      setMessage("");
+      try {
+        const result = await signIn({
+          username: String(formData.get("username") || "").trim(),
+          password: String(formData.get("password") || ""),
+        });
+        if (result.status === "authenticated") {
+          onAuthenticated(result.user, result.demo);
+          window.location.hash = "/8.1-mobile-admin-dashboard";
+        } else if (result.status === "pending") {
+          window.location.hash = "/1.2-access-awaiting-approval";
+        } else {
+          setMessage("Username or password was not recognized.");
+        }
+      } catch (error) {
+        setMessage(error.message || "Unable to contact the sign-in service.");
+      } finally {
+        setSubmitting(false);
       }
-      setMessage("Username or password was not recognized.");
     }}>
       <h2>Sign in</h2>
       <p>Use your staff account to access the workspace.</p>
-      <p className="form-note">Temporary demo login: username <strong>admin</strong>, password <strong>admin</strong>.</p>
+      {demoLoginEnabled && <p className="form-note">Demo login: <strong>admin</strong> / <strong>admin</strong>.</p>}
       <label className="field"><span>Username</span><input name="username" type="text" autoComplete="username" placeholder="Enter your username" required /></label>
       <label className="field"><span>Password</span><input name="password" type="password" autoComplete="current-password" placeholder="Enter your password" required /></label>
       {message && <span className="form-note" role="status">{message}</span>}
-      <button type="submit" className="button button--primary">Sign in</button>
+      <button type="submit" className="button button--primary" disabled={submitting}>
+        <Icon name="key" size={15} />{submitting ? "Signing in…" : "Sign in"}
+      </button>
     </form>
   );
 }
 
-function MobileContent({ screen }) {
+function MobileContent({ screen, onAuthenticated }) {
   if (screen.kind === "mobile-form") return <FormPanel key={screen.id} screen={screen} mobile />;
   if (screen.kind === "mobile-auth") {
-    return <MobileLogin />;
+    return <MobileLogin onAuthenticated={onAuthenticated} />;
   }
   if (screen.kind === "mobile-list" || screen.kind === "mobile-stock") {
     return (
@@ -415,7 +542,7 @@ function MobileContent({ screen }) {
   );
 }
 
-function MobilePreview({ screen }) {
+function MobilePreview({ screen, onAuthenticated, authUser, onSignOut }) {
   const isOverlay = screen.group === "Mobile overlays";
   const confirm = screen.kind === "confirm";
   const returnScreenIds = {
@@ -441,13 +568,17 @@ function MobilePreview({ screen }) {
       <div className="mobile-app-shell" aria-hidden={isOverlay} inert={isOverlay}>
         <header className="mobile-app-header">
           <Brand compact to={screen.kind === "mobile-auth" ? "#/screens" : "#/8.1-mobile-admin-dashboard"} />
-          <a className="mobile-directory-link" href="#/screens">All screens</a>
+          <a className="mobile-directory-link" href="#/screens" aria-label="Open screen index"><Icon name="grid" size={15} /><span>Screens</span></a>
           {screen.kind !== "mobile-auth" && (
             <ScreenLink className={`mobile-notifications ${isOverlay ? "is-current" : ""}`} screen={notificationScreen} aria-label="Notifications">
-              <span aria-hidden="true">♧</span><span className="mobile-notifications__label">Notifications</span>
+              <Icon name="bell" size={16} /><span className="mobile-notifications__label">Notifications</span>
             </ScreenLink>
           )}
-          {screen.kind !== "mobile-auth" && <span className="mobile-avatar">SD</span>}
+          {screen.kind !== "mobile-auth" && (
+            <button className="mobile-avatar" type="button" onClick={onSignOut} aria-label={`Sign out ${authUser?.username || ""}`}>
+              <Icon name="logout" size={14} />
+            </button>
+          )}
         </header>
         <section className="mobile-app-content">
           {screen.kind !== "mobile-auth" && (
@@ -456,11 +587,15 @@ function MobilePreview({ screen }) {
               <p>{underlayScreen.description}</p>
             </header>
           )}
-          <MobileContent screen={underlayScreen} />
+          <MobileContent screen={underlayScreen} onAuthenticated={onAuthenticated} />
         </section>
         {screen.kind !== "mobile-auth" && (
           <nav className="mobile-tabs" aria-label="Mobile navigation">
-            {mobileTabs.map((tab) => <ScreenLink key={tab.id} screen={tab} className={underlayScreen.id === tab.id ? "is-active" : ""}>{tab.label}</ScreenLink>)}
+            {mobileTabs.map((tab) => (
+              <ScreenLink key={tab.id} screen={tab} className={underlayScreen.id === tab.id ? "is-active" : ""}>
+                <Icon name={tab.icon} size={17} />{tab.label}
+              </ScreenLink>
+            ))}
           </nav>
         )}
       </div>
@@ -469,7 +604,7 @@ function MobilePreview({ screen }) {
           <section className="mobile-overlay-panel" role="dialog" aria-modal="true" aria-labelledby="mobile-overlay-title">
             <header className="mobile-overlay-header">
               <div><p className="eyebrow">{confirm ? "APPROVAL" : "NOTIFICATIONS"}</p><h2 id="mobile-overlay-title">{screen.title}</h2></div>
-              <ScreenLink className="modal-close" screen={underlayScreen} aria-label="Close overlay">×</ScreenLink>
+              <ScreenLink className="modal-close" screen={underlayScreen} aria-label="Close overlay"><span aria-hidden="true">×</span></ScreenLink>
             </header>
             <a className="text-link" href="#/screens">Screen index</a>
             <p className="mobile-overlay-copy">{screen.description}</p>
@@ -498,11 +633,13 @@ function MobilePreview({ screen }) {
   );
 }
 
-function MainPreview({ screen }) {
-  if (screen.kind.startsWith("auth") || screen.kind === "pending") return <AuthScreen key={screen.id} screen={screen} />;
+function MainPreview({ screen, authUser, onAuthenticated, onSignOut }) {
+  if (screen.kind.startsWith("auth") || screen.kind === "pending") {
+    return <AuthScreen key={screen.id} screen={screen} onAuthenticated={onAuthenticated} />;
+  }
   return (
     <div className="app-shell">
-      <Sidebar active={screen.id} />
+      <Sidebar active={screen.id} authUser={authUser} onSignOut={onSignOut} />
       <main className="workspace">
         <PageHeader screen={screen} />
         <div className="workspace__body">
@@ -521,16 +658,73 @@ function MainPreview({ screen }) {
 }
 
 export default function App() {
-  const [currentId, setCurrentId] = useState(() => routeId() || "2-admin-dashboard");
+  const [authUser, setAuthUser] = useState(readAuthUser);
+  const [currentId, setCurrentId] = useState(() => routeId());
+  const [authError, setAuthError] = useState("");
   useEffect(() => {
     const updateRoute = () => setCurrentId(routeId());
     window.addEventListener("hashchange", updateRoute);
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
 
-  if (currentId === "screens") return <Directory />;
-  const screen = screens.find((item) => item.id === currentId);
-  if (!screen) return <Directory />;
-  if (screen.group !== "Main system") return <MobilePreview key={screen.id} screen={screen} />;
-  return <MainPreview screen={screen} />;
+  const authenticateUser = (user, demo) => {
+    const normalizedUser = { ...user, role: user.role || "Staff", demo };
+    saveAuthUser(normalizedUser);
+    setAuthUser(normalizedUser);
+    setAuthError("");
+  };
+  const handleSignOut = async () => {
+    try {
+      await signOut(authUser || { demo: true });
+      clearAuthUser();
+      setAuthUser(null);
+      setAuthError("");
+      window.location.hash = "/1-staff-sign-in";
+    } catch (error) {
+      setAuthError(error.message || "Unable to sign out.");
+    }
+  };
+
+  const requestedId = currentId || (authUser ? "2-admin-dashboard" : "1-staff-sign-in");
+  const isScreenIndex = requestedId === "screens";
+  const requestedScreen = screens.find((item) => item.id === requestedId)
+    || screens.find((item) => item.id === "1-staff-sign-in");
+  const publicScreen = requestedScreen.kind.startsWith("auth") || requestedScreen.kind === "pending";
+  const requiresAuthentication = !isScreenIndex && !publicScreen && requestedScreen.id !== "8-mobile-sign-in";
+  useEffect(() => {
+    if (!authUser && requiresAuthentication) {
+      window.location.hash = "/1-staff-sign-in";
+    }
+  }, [authUser, requestedId, requiresAuthentication]);
+
+  if (isScreenIndex) return <Directory authUser={authUser} />;
+  const screen = !authUser && requiresAuthentication
+    ? screens.find((item) => item.id === "1-staff-sign-in")
+    : requestedScreen;
+
+  if (screen.group !== "Main system") {
+    return (
+      <>
+        {authError && <p className="global-error" role="alert">{authError}</p>}
+        <MobilePreview
+          key={screen.id}
+          screen={screen}
+          onAuthenticated={authenticateUser}
+          authUser={authUser}
+          onSignOut={handleSignOut}
+        />
+      </>
+    );
+  }
+  return (
+    <>
+      {authError && <p className="global-error" role="alert">{authError}</p>}
+      <MainPreview
+        screen={screen}
+        authUser={authUser}
+        onAuthenticated={authenticateUser}
+        onSignOut={handleSignOut}
+      />
+    </>
+  );
 }
