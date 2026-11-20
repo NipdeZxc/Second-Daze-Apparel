@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { formFields, screens, tableColumns } from "./screens.js";
-import { demoLoginEnabled, signIn, signOut } from "./api/auth.js";
-import { getWorkspaceOverview, submitWorkspaceAction } from "./api/workspace.js";
-import { buildOverview, readWorkspace, STORAGE_KEY } from "./data/workspace.js";
+import { changePassword, getCurrentUser, requestPasswordReset, resetPassword, signIn, signOut } from "./api/auth.js";
 import { canAccessScreen, homeScreenForRole, navigationForRole, normalizeRole } from "./roles.js";
-import { CsvImportPanel, DataReports, formatMoney, RecordsTable, screenDatasets } from "./DataPanels.jsx";
+import { DataReports, formatMoney, RecordsTable, screenDatasets } from "./DataPanels.jsx";
+import { approveUser, createUser, disableUser, enableUser, listUsers, resetUserPassword } from "./api/users.js";
+import { downloadTableExport, exportableTables } from "./api/export.js";
 
 const mainScreens = screens.filter((screen) => screen.group === "Main system");
 const iconPaths = {
@@ -141,31 +141,10 @@ function screenIcon(screen) {
   return { 1: "key", 2: "users", 3: "bag", 4: "box", 5: "calendar", 6: "chart", 7: "users" }[section] || "grid";
 }
 
-function readAuthUser() {
-  const username = localStorage.getItem("second-daze-username");
-  if (!username) return null;
-  return {
-    username,
-    role: normalizeRole(localStorage.getItem("second-daze-role") || "Sales Management"),
-    demo: localStorage.getItem("second-daze-demo") === "true",
-  };
-}
-
-function saveAuthUser(user) {
-  localStorage.setItem("second-daze-username", user.username);
-  localStorage.setItem("second-daze-role", normalizeRole(user.role || "Sales Management"));
-  localStorage.setItem("second-daze-demo", String(user.demo));
-}
-
-function clearAuthUser() {
-  localStorage.removeItem("second-daze-username");
-  localStorage.removeItem("second-daze-role");
-  localStorage.removeItem("second-daze-demo");
-}
-
 function routeId() {
   const hashRoute = decodeURIComponent(window.location.hash.replace(/^#\/?/, "").split("?")[0]);
   if (hashRoute) return hashRoute;
+  if (new URLSearchParams(window.location.search).has("reset")) return "1.4-reset-password";
   return window.location.pathname.replace(/\/+$/, "") === "/mobile" ? "mobile" : "";
 }
 
@@ -230,7 +209,7 @@ function Sidebar({ active, authUser, onSignOut }) {
         <button className="nav-link sidebar__sign-out" type="button" onClick={() => onSignOut()} aria-label={`Sign out ${authUser?.username || ""}`}>
           <Icon className="nav-link__icon" name="logout" size={15} />Sign out
         </button>
-        <span className="sidebar__note">{authUser?.demo ? "Local preview · data is saved in this browser only" : `Signed in as ${authUser?.role || "Staff"}`}</span>
+        <span className="sidebar__note">Signed in as {authUser?.role || "Workspace user"}</span>
       </div>
     </aside>
   );
@@ -320,7 +299,7 @@ function PageHeader({ screen, authUser }) {
       {adminHome && (
         <div className="dashboard-header__actions">
           <ScreenLink className="button button--outline" screen={screens.find((item) => item.id === "2.7-csv-import")}>
-            <Icon name="file" size={14} /> Import CSV
+            <Icon name="file" size={14} /> Export CSV
           </ScreenLink>
           <ScreenLink className="button button--outline" screen={screens.find((item) => item.id === "6-sales-inventory-reports")}>
             <Icon name="chart" size={14} /> Export report
@@ -336,7 +315,7 @@ function PageHeader({ screen, authUser }) {
   );
 }
 
-function EmptyTable({ screen, overview, authUser, onRecordsChanged }) {
+function EmptyTable({ screen, overview }) {
   const kind = screenDatasets[screen.id];
   if (kind) {
     const rows = screen.id === "4.2-low-stock-alerts" ? overview?.lowStock : overview?.records?.[kind];
@@ -344,9 +323,7 @@ function EmptyTable({ screen, overview, authUser, onRecordsChanged }) {
       kind={kind}
       rows={rows}
       title={screen.title}
-      authUser={authUser}
-      canEdit={authUser?.demo && authUser.role === "Admin"}
-      onRecordUpdated={onRecordsChanged}
+      canEdit={false}
     />;
   }
   const columns = tableColumns[screen.id] || ["Name", "Details", "Status", "Action"];
@@ -371,22 +348,11 @@ function EmptyTable({ screen, overview, authUser, onRecordsChanged }) {
   );
 }
 
-function WorkspaceSyncStatus({ overviewState, onRefresh }) {
-  if (overviewState.error) {
-    return (
-      <p className="sync-status sync-status--error" role="alert">
-        Could not load workspace data. {overviewState.error}
-        <button className="sync-status__retry" type="button" onClick={onRefresh}>Retry</button>
-      </p>
-    );
-  }
+function WorkspaceSyncStatus({ overviewState }) {
   return (
-    <div className="sync-status">
-      <span>{overviewState.status === "loading" ? "Loading workspace data…" : overviewState.status === "local" ? `Browser-only data · last import ${formatUpdatedAt(overviewState.data?.updatedAt)}` : `Last synced ${formatUpdatedAt(overviewState.data?.updatedAt)}`}</span>
-      <button className="sync-status__refresh" type="button" onClick={onRefresh} disabled={overviewState.status === "loading"} aria-label="Refresh shared workspace data">
-        <Icon name="refresh" size={14} />Refresh
-      </button>
-    </div>
+    <p className="sync-status" role="status">
+      {overviewState.error || "Workspace data endpoints are not included in the Phase 1 backend."}
+    </p>
   );
 }
 
@@ -427,7 +393,7 @@ function SalesChart({ overview, days }) {
   const salesSeries = getSalesSeries(overview, days);
   const chartMaximum = Math.max(1, ...salesSeries.map(([, value]) => value));
   if (!salesSeries.length) {
-    return <div className="dashboard-chart-empty">No sales recorded in this period. Import sales data to display trends.</div>;
+    return <div className="dashboard-chart-empty">Sales trends will appear when the reporting API is available.</div>;
   }
   return (
     <div className="dashboard-chart" style={{ gridTemplateColumns: `repeat(${salesSeries.length}, minmax(0, 1fr))` }} role="img" aria-label={`Sales by date for the last ${days} days: ${salesSeries.map(([day, value]) => `${day}: ${formatMoney(value)}`).join(", ")}`}>
@@ -446,13 +412,13 @@ function formatQueueCount(count, label = "item") {
   return `${count} ${count === 1 ? label : `${label}s`}`;
 }
 
-function Dashboard({ overviewState, onRefresh, search }) {
+function Dashboard({ overviewState, search }) {
   const [salesRange, setSalesRange] = useState(7);
   const queues = overviewState.data?.queues;
   const summary = overviewState.data?.metrics;
   const metrics = [
-    { label: "Gross sales", value: formatMoney(summary?.grossSales), detail: "All imported sales", icon: "bag", screenId: "2.8-sales" },
-    { label: "Total cost", value: formatMoney(summary?.totalCost), detail: "Recorded cost of imported sales", icon: "box", screenId: "6.1-sales-inventory-reports-v2" },
+    { label: "Gross sales", value: formatMoney(summary?.grossSales), detail: "Recorded sales", icon: "bag", screenId: "2.8-sales" },
+    { label: "Total cost", value: formatMoney(summary?.totalCost), detail: "Recorded cost of sales", icon: "box", screenId: "6.1-sales-inventory-reports-v2" },
     { label: "Profit", value: formatMoney(summary?.profit), detail: "Gross sales minus recorded cost", icon: "chart", screenId: "6.1-sales-inventory-reports-v2" },
     {
       label: "Access approvals",
@@ -470,8 +436,8 @@ function Dashboard({ overviewState, onRefresh, search }) {
     `${request.title} ${request.detail}`.toLowerCase().includes(search.toLowerCase()),
   );
   const orderStats = [
-    { label: "Orders placed", value: summary?.ordersPlaced ?? "—", detail: "All imported orders" },
-    { label: "Avg order value", value: formatMoney(summary?.averageOrderValue), detail: "Average imported order amount" },
+    { label: "Orders placed", value: summary?.ordersPlaced ?? "—", detail: "Recorded orders" },
+    { label: "Avg order value", value: formatMoney(summary?.averageOrderValue), detail: "Average recorded order amount" },
     { label: "Fulfillment rate", value: typeof summary?.fulfillmentRate === "number" ? `${summary.fulfillmentRate.toFixed(1)}%` : "—", detail: "Completed / non-cancelled orders" },
   ];
 
@@ -496,7 +462,7 @@ function Dashboard({ overviewState, onRefresh, search }) {
               <div><h2>Orders</h2><p>Transaction hub for revenue, cost, and profit</p></div>
               <div className="dashboard-chart-tools">
                 <SalesRangeControl value={salesRange} onChange={setSalesRange} />
-                <span className="quiet-tag">{overviewState.status === "local" ? "Imported data" : "Live overview"}</span>
+                <span className="quiet-tag">Workspace API pending</span>
               </div>
             </div>
             <div className="dashboard-order-stats">
@@ -544,7 +510,7 @@ function Dashboard({ overviewState, onRefresh, search }) {
             </div>
             <div className="dashboard-approval-summary">
               <strong>{typeof queues?.accessApprovals === "number" ? formatQueueCount(queues.accessApprovals, "access request") : "Access requests"}</strong>
-              <span>{overviewState.status === "error" ? "Workspace data could not be loaded." : overviewState.status === "local" ? "Account access approvals require a backend and are not available in browser-only mode." : "Open the approval queue to review staff access requests."}</span>
+              <span>Approval counts will appear when workspace data endpoints are implemented.</span>
               <ScreenLink className="button button--pink" screen={screens.find((item) => item.id === "2.2-access-approvals")}>Review approvals</ScreenLink>
             </div>
           </section>
@@ -557,7 +523,7 @@ function Dashboard({ overviewState, onRefresh, search }) {
             </div>
           </section>
           <div className="dashboard-sync">
-            <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />
+            <WorkspaceSyncStatus overviewState={overviewState} />
           </div>
         </aside>
       </div>
@@ -565,7 +531,7 @@ function Dashboard({ overviewState, onRefresh, search }) {
   );
 }
 
-function SalesDashboard({ overviewState, onRefresh, search }) {
+function SalesDashboard({ overviewState, search }) {
   const [salesRange, setSalesRange] = useState(7);
   const queues = overviewState.data?.queues;
   const summary = overviewState.data?.metrics;
@@ -576,10 +542,6 @@ function SalesDashboard({ overviewState, onRefresh, search }) {
     { label: "Active reservations", value: count(summary?.activeReservations), detail: "Unexpired holds awaiting action", icon: "calendar", screenId: "5-reservations" },
   ];
   const matches = (item) => `${item.title} ${item.detail}`.toLowerCase().includes(search.toLowerCase());
-  const tasks = (overviewState.data?.pendingOrders || []).map((order) => ({
-    title: order.order_no, detail: `${order.customer_code} · ${formatMoney(order.total_amount)}`,
-    status: order.status, screenId: "3.9-orders-status-tracking",
-  })).filter(matches);
   const reservations = (overviewState.data?.reservations || []).map((reservation) => ({
     title: reservation.reservation_no, detail: `${reservation.customer_code} · ${reservation.status} · expires ${reservation.expires_at}`,
   })).filter(matches);
@@ -619,9 +581,9 @@ function SalesDashboard({ overviewState, onRefresh, search }) {
               <div><h2>Orders to follow up</h2><p>Recorded sales orders that need fulfillment</p></div>
               <ScreenLink className="text-link" screen={screens.find((item) => item.id === "3.9-orders-status-tracking")}>View orders</ScreenLink>
             </div>
-            {(overviewState.status === "local" ? tasks : activity).length ? (
+            {activity.length ? (
               <div className="dashboard-request-list">
-                {(overviewState.status === "local" ? tasks : activity).map((task) => {
+                {activity.map((task) => {
                   const content = (
                     <>
                       <span className="dashboard-request__icon"><Icon name="file" size={14} /></span>
@@ -685,7 +647,7 @@ function SalesDashboard({ overviewState, onRefresh, search }) {
             </div>
           </section>
           <div className="dashboard-sync">
-            <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />
+            <WorkspaceSyncStatus overviewState={overviewState} />
           </div>
         </aside>
       </div>
@@ -693,7 +655,7 @@ function SalesDashboard({ overviewState, onRefresh, search }) {
   );
 }
 
-function InventoryDashboard({ overviewState, onRefresh }) {
+function InventoryDashboard({ overviewState }) {
   const products = overviewState.data?.records?.products;
   const lowStock = overviewState.data?.lowStock || [];
   const productCount = Array.isArray(products) ? products.length : "—";
@@ -738,8 +700,154 @@ function InventoryDashboard({ overviewState, onRefresh }) {
         )}
       </section>
       <div className="dashboard-sync">
-        <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />
+        <WorkspaceSyncStatus overviewState={overviewState} />
       </div>
+    </div>
+  );
+}
+
+function UserManagementPanel({ screen }) {
+  const approvalsOnly = screen.id === "2.2-access-approvals";
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [temporaryCredentials, setTemporaryCredentials] = useState(null);
+  const [formBusy, setFormBusy] = useState(false);
+
+  const refreshUsers = async (signal) => {
+    setLoading(true);
+    setError("");
+    try {
+      setUsers(await listUsers({ signal }));
+    } catch (requestError) {
+      if (requestError.name !== "AbortError") {
+        setError(requestError.message || "Unable to load accounts.");
+      }
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    refreshUsers(controller.signal);
+    return () => controller.abort();
+  }, []);
+
+  const performAction = async (user, action) => {
+    const labels = {
+      approve: "Approve this account?",
+      disable: "Disable this account? The user will lose access.",
+      enable: "Re-enable this account?",
+      reset: "Reset this user's password? They will need to change it at next sign-in.",
+    };
+    if (!window.confirm(labels[action])) return;
+    setBusyId(String(user.id));
+    setError("");
+    setMessage("");
+    setTemporaryCredentials(null);
+    try {
+      if (action === "approve") await approveUser(user.id);
+      if (action === "disable") await disableUser(user.id);
+      if (action === "enable") await enableUser(user.id);
+      if (action === "reset") {
+        const result = await resetUserPassword(user.id);
+        setTemporaryCredentials({ username: result.username, password: result.temporaryPassword });
+      }
+      setMessage(action === "reset" ? "Password reset. Deliver the temporary credential securely." : "Account updated.");
+      await refreshUsers();
+    } catch (requestError) {
+      setError(requestError.message || "Unable to update this account.");
+    } finally {
+      setBusyId("");
+    }
+  };
+
+  const createAccount = async (event) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const values = {
+      fullName: String(data.get("fullName") || "").trim(),
+      username: String(data.get("username") || "").trim(),
+      email: String(data.get("email") || "").trim(),
+      role: String(data.get("role") || ""),
+    };
+    const form = event.currentTarget;
+    setFormBusy(true);
+    setError("");
+    setMessage("");
+    setTemporaryCredentials(null);
+    try {
+      const result = await createUser(values);
+      setTemporaryCredentials({ username: result.username, password: result.temporaryPassword });
+      setMessage("Account created in Pending Approval status. Share the temporary password securely.");
+      form.reset();
+      await refreshUsers();
+    } catch (requestError) {
+      setError(requestError.message || "Unable to create the account.");
+    } finally {
+      setFormBusy(false);
+    }
+  };
+
+  const visibleUsers = approvalsOnly
+    ? users.filter((user) => user.status === "Pending Approval")
+    : users;
+
+  return (
+    <div className="account-management">
+      {!approvalsOnly && (
+        <form className="panel account-create" onSubmit={createAccount}>
+          <div className="panel__top"><div><h2>Create subaccount</h2><p>New accounts require Admin approval before sign-in.</p></div></div>
+          <div className="form-grid">
+            <label className="field"><span>Full name *</span><input name="fullName" required maxLength={100} /></label>
+            <label className="field"><span>Username *</span><input name="username" required minLength={3} maxLength={50} pattern={"[A-Za-z0-9._\\-]+"} /></label>
+            <label className="field"><span>Email (optional)</span><input name="email" type="email" /></label>
+            <label className="field"><span>Role *</span><select name="role" required defaultValue=""><option value="" disabled>Select role</option><option>Sales Management</option><option>Inventory Management</option></select></label>
+          </div>
+          <div className="form-actions">
+            <button type="submit" className="button button--primary" disabled={formBusy}>{formBusy ? "Creating…" : "Create account"}</button>
+          </div>
+        </form>
+      )}
+      {temporaryCredentials && (
+        <section className="panel temporary-credential" role="status">
+          <strong>Temporary password (shown once)</strong>
+          <p>Username: <code>{temporaryCredentials.username}</code></p>
+          <p>Password: <code>{temporaryCredentials.password}</code></p>
+          <span>Copy and deliver this securely. Do not send it through an unapproved channel.</span>
+        </section>
+      )}
+      {error && <p className="inline-error" role="alert">{error}</p>}
+      {message && <p className="form-note" role="status">{message}</p>}
+      <section className="panel table-panel">
+        <div className="panel__top">
+          <div><h2>{approvalsOnly ? "Pending access approvals" : "Workspace accounts"}</h2><p>Account status and available Admin actions come from the backend.</p></div>
+          <button type="button" className="button button--outline" onClick={() => refreshUsers()} disabled={loading}>Refresh</button>
+        </div>
+        {loading ? <p className="empty-cell">Loading accounts…</p> : visibleUsers.length ? (
+          <div className="table-scroll">
+            <table>
+              <thead><tr><th>Full name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                {visibleUsers.map((user) => (
+                  <tr key={user.id}>
+                    <td>{user.fullName}</td><td>{user.username}</td><td>{user.email || "—"}</td><td>{user.role}</td><td><span className="record-status">{user.status}</span></td>
+                    <td className="record-actions">
+                      {user.role !== "Admin" && user.status === "Pending Approval" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "approve")}>Approve</button>}
+                      {user.role !== "Admin" && user.status === "Active" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "disable")}>Disable</button>}
+                      {user.role !== "Admin" && user.status === "Disabled" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "enable")}>Enable</button>}
+                      {user.role !== "Admin" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "reset")}>Reset password</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="empty-cell">{approvalsOnly ? "There are no accounts awaiting approval." : "No accounts are available."}</p>}
+      </section>
     </div>
   );
 }
@@ -779,13 +887,12 @@ const formChoices = {
   "delivery status": ["Delivered", "Failed delivery", "Returned to sender"],
 };
 
-function FormPanel({ screen, authUser, onActionSaved }) {
+function FormPanel({ screen, authUser }) {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("status");
   const [errors, setErrors] = useState({});
   const [pendingValues, setPendingValues] = useState(null);
   const [confirming, setConfirming] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const fields = formFields[screen.id] || ["Customer", "Order reference", "Details"];
   const cancelScreenId = formCancelTargets[screen.id] || homeId(authUser);
   const submitForm = (event) => {
@@ -817,32 +924,10 @@ function FormPanel({ screen, authUser, onActionSaved }) {
     setPendingValues(values);
     setConfirming(true);
   };
-  const saveAction = async () => {
-    if (authUser?.demo) {
-      setMessage("Demo preview only. Nothing was saved.");
-      setMessageType("status");
-      setConfirming(false);
-      return;
-    }
-    setSubmitting(true);
-    setMessage("");
-    try {
-      await submitWorkspaceAction({
-        source: "web",
-        screenId: screen.id,
-        values: pendingValues,
-      });
-      setMessage("Saved to the shared workspace.");
-      setMessageType("status");
-      setConfirming(false);
-      onActionSaved();
-    } catch (error) {
-      setMessage(error.message || "Unable to save this workspace action.");
-      setMessageType("error");
-      setConfirming(false);
-    } finally {
-      setSubmitting(false);
-    }
+  const saveAction = () => {
+    setMessage("The details passed frontend validation, but this workflow cannot be saved until its backend API is implemented.");
+    setMessageType("status");
+    setConfirming(false);
   };
   const fieldInputType = (field) => {
     const normalized = field.toLowerCase();
@@ -902,7 +987,7 @@ function FormPanel({ screen, authUser, onActionSaved }) {
         <div className="form-actions">
           <ScreenLink className="button button--outline" screen={screens.find((item) => item.id === cancelScreenId)}>Cancel</ScreenLink>
           {message && <span className={messageType === "error" ? "inline-error form-feedback" : "form-note form-feedback"} role={messageType === "error" ? "alert" : "status"}>{message}</span>}
-          <button className="button button--primary" type="submit" disabled={submitting}>
+          <button className="button button--primary" type="submit">
             Review and save
           </button>
         </div>
@@ -912,11 +997,11 @@ function FormPanel({ screen, authUser, onActionSaved }) {
           <section className="form-confirm" role="alertdialog" aria-modal="true" aria-labelledby="form-confirm-title">
             <p className="eyebrow">CONFIRM ACTION</p>
             <h2 id="form-confirm-title">Review before saving</h2>
-            <p>{authUser?.demo ? "This is a demo preview. The action will not be saved." : "Confirm these details before submitting them to the shared workspace."}</p>
+            <p>This review checks the entered details only. The current backend does not yet save this workflow.</p>
             <dl>{Object.entries(pendingValues || {}).slice(0, 4).map(([field, value]) => <div key={field}><dt>{field}</dt><dd>{value || "—"}</dd></div>)}</dl>
             <div className="form-confirm__actions">
-              <button className="button button--outline" type="button" onClick={() => setConfirming(false)} disabled={submitting}>Continue editing</button>
-              <button className="button button--primary" type="button" onClick={saveAction} disabled={submitting}>{submitting ? "Saving…" : authUser?.demo ? "Confirm preview" : "Confirm and save"}</button>
+              <button className="button button--outline" type="button" onClick={() => setConfirming(false)}>Continue editing</button>
+              <button className="button button--primary" type="button" onClick={saveAction}>Finish review</button>
             </div>
           </section>
         </div>
@@ -940,30 +1025,59 @@ function DetailPanel({ screen, success = false }) {
   );
 }
 
+function passwordValidationMessage(password) {
+  if (password.length < 8 || password.length > 72) return "Password must be 8–72 characters.";
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    return "Include an uppercase letter, a lowercase letter, a number, and a symbol.";
+  }
+  return "";
+}
+
 function AuthScreen({ screen, onAuthenticated }) {
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [resetComplete, setResetComplete] = useState(false);
   const pending = screen.kind === "pending";
   const forgot = screen.kind === "auth-forgot";
+  const reset = screen.kind === "auth-reset";
   const showError = screen.kind === "auth-error";
+  const resetToken = new URLSearchParams(window.location.search).get("reset") || "";
   const handleSubmit = async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    if (forgot) {
-      setMessage("Password reset is not connected in this prototype.");
-      return;
-    }
     setSubmitting(true);
     setMessage("");
     try {
+      if (forgot) {
+        await requestPasswordReset(String(formData.get("identifier") || "").trim());
+        setMessage("If the account has an email on file, a reset link has been sent.");
+        return;
+      }
+      if (reset) {
+        const newPassword = String(formData.get("newPassword") || "");
+        const confirmation = String(formData.get("confirmPassword") || "");
+        const passwordError = passwordValidationMessage(newPassword);
+        if (passwordError) {
+          setMessage(passwordError);
+          return;
+        }
+        if (newPassword !== confirmation) {
+          setMessage("The passwords do not match.");
+          return;
+        }
+        await resetPassword({ token: resetToken, newPassword });
+        window.history.replaceState({}, "", window.location.pathname);
+        setResetComplete(true);
+        return;
+      }
       const result = await signIn({
         username: String(formData.get("username") || "").trim(),
         password: String(formData.get("password") || ""),
       });
       if (result.status === "authenticated") {
-        onAuthenticated(result.user, result.demo);
+        onAuthenticated(result.user);
         window.location.hash = `/${homeId(result.user)}`;
-      } else if (result.status === "pending") {
+      } else if (result.status === "inactive") {
         window.location.hash = "/1.2-access-awaiting-approval";
       } else {
         window.location.hash = "/1.1-sign-in-error";
@@ -986,38 +1100,48 @@ function AuthScreen({ screen, onAuthenticated }) {
         <span className="auth-art__foot">SECOND DAZE APPAREL</span>
       </div>
       <section className="auth-content">
-        {(forgot || showError) && (
+        {(forgot || reset || showError) && (
           <ScreenLink className="text-link auth-content__back" screen={screens.find((item) => item.id === "1-staff-sign-in")}>
-            {forgot ? "← Sign in" : "← Try again"}
+            {forgot || reset ? "← Sign in" : "← Try again"}
           </ScreenLink>
         )}
-        {pending ? (
+        {resetComplete ? (
+          <div className="auth-card">
+            <span className="detail-panel__icon"><Icon name="check" size={22} /></span>
+            <p className="eyebrow">ACCOUNT RECOVERY</p>
+            <h2>Password updated</h2>
+            <p>Your password has been reset. You can now sign in with the new password.</p>
+            <ScreenLink className="button button--primary" screen={screens.find((item) => item.id === "1-staff-sign-in")}>Return to sign in</ScreenLink>
+          </div>
+        ) : pending ? (
           <div className="auth-card">
             <span className="detail-panel__icon"><Icon name="users" size={22} /></span>
             <p className="eyebrow">ACCESS REQUEST</p>
-            <h2>Awaiting approval</h2>
-            <p>An Admin must approve your subaccount before you can enter the workspace.</p>
+            <h2>Account not active</h2>
+            <p>Your account may be awaiting approval or disabled. Contact an Admin for access.</p>
             <a className="button button--primary" href="#/1-staff-sign-in">Return to sign in</a>
           </div>
         ) : (
           <form className="auth-card" onSubmit={handleSubmit}>
-            <p className="eyebrow">{forgot ? "ACCOUNT RECOVERY" : "WELCOME BACK"}</p>
-            <h2>{forgot ? "Reset your password" : "Workspace sign-in"}</h2>
-            <p>{forgot ? "Request password-reset instructions for your staff account." : "Use your staff account to access the workspace."}</p>
-            {showError && <p className="inline-error" role="alert">Email or password was not recognized. Check your details and try again.</p>}
-            <label className="field"><span>Username</span><input name="username" type="text" autoComplete="username" required placeholder="Enter your username" /></label>
-            {!forgot && <label className="field"><span>Password</span><input name="password" type="password" required placeholder="Enter your password" /></label>}
+            <p className="eyebrow">{forgot || reset ? "ACCOUNT RECOVERY" : "WELCOME BACK"}</p>
+            <h2>{reset ? "Choose a new password" : forgot ? "Reset your password" : "Workspace sign-in"}</h2>
+            <p>{reset ? "Use a strong password you have not used before." : forgot ? "Enter your username or email to request a reset link." : "Use your workspace account to sign in."}</p>
+            {showError && <p className="inline-error" role="alert">Username or password was not recognized. Check your details and try again.</p>}
+            {!reset && <label className="field"><span>{forgot ? "Username or email" : "Username"}</span><input name={forgot ? "identifier" : "username"} type="text" autoComplete="username" required placeholder={forgot ? "Enter your username or email" : "Enter your username"} /></label>}
+            {!forgot && !reset && <label className="field"><span>Password</span><input name="password" type="password" autoComplete="current-password" required placeholder="Enter your password" /></label>}
+            {reset && (
+              <>
+                {!resetToken && <p className="inline-error" role="alert">This reset link is missing its token. Request a new reset link.</p>}
+                <label className="field"><span>New password</span><input name="newPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={72} /></label>
+                <label className="field"><span>Confirm new password</span><input name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={72} /></label>
+              </>
+            )}
             {message && <p className="form-note" role="status">{message}</p>}
-            <button type="submit" className="button button--primary" disabled={submitting}>
-              <Icon name={forgot ? "arrow" : "key"} size={15} />
-              {submitting ? "Signing in…" : forgot ? "Request reset" : "Sign in"}
+            <button type="submit" className="button button--primary" disabled={submitting || (reset && !resetToken)}>
+              <Icon name={forgot || reset ? "arrow" : "key"} size={15} />
+              {submitting ? "Please wait…" : reset ? "Set new password" : forgot ? "Request reset" : "Sign in"}
             </button>
-            {!forgot && <ScreenLink className="text-link auth-card__link" screen={screens.find((item) => item.id === "1.3-forgot-password")}>Forgot password?</ScreenLink>}
-            <p className="auth-card__hint">
-              {demoLoginEnabled
-                ? <>Role previews: <code>admin</code> / <code>admin</code>, <code>sales</code> / <code>sales</code>, or <code>inventory</code> / <code>inventory</code>. Business data starts empty and stays in this browser. Use <code>pending@demo.local</code> with any password to preview approval.</>
-                : "Sign-in is handled by the configured backend."}
-            </p>
+            {!forgot && !reset && <ScreenLink className="text-link auth-card__link" screen={screens.find((item) => item.id === "1.3-forgot-password")}>Forgot password?</ScreenLink>}
           </form>
         )}
       </section>
@@ -1025,10 +1149,106 @@ function AuthScreen({ screen, onAuthenticated }) {
   );
 }
 
-function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewState, onRefresh }) {
+function ChangePasswordScreen({ authUser, onPasswordChanged }) {
+  const forced = authUser.mustChangePassword;
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const newPassword = String(data.get("newPassword") || "");
+    const confirmation = String(data.get("confirmPassword") || "");
+    if (newPassword !== confirmation) {
+      setMessage("The passwords do not match.");
+      return;
+    }
+    const passwordError = passwordValidationMessage(newPassword);
+    if (passwordError) {
+      setMessage(passwordError);
+      return;
+    }
+    setSubmitting(true);
+    setMessage("");
+    try {
+      await changePassword({
+        currentPassword: String(data.get("currentPassword") || ""),
+        newPassword,
+      });
+      await onPasswordChanged();
+    } catch (error) {
+      setMessage(error.message || "Unable to change the password.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <main className="auth-page">
+      <div className="auth-art">
+        <Brand to={`#/${homeId(authUser)}`} />
+        <div className="auth-art__copy"><p className="eyebrow">ACCOUNT SECURITY</p><h1>Secure your<br /><em>account.</em></h1><p>Choose a strong password before continuing.</p></div>
+        <span className="auth-art__foot">SECOND DAZE APPAREL</span>
+      </div>
+      <section className="auth-content">
+        <form className="auth-card" onSubmit={handleSubmit}>
+          <p className="eyebrow">{forced ? "PASSWORD UPDATE REQUIRED" : "ACCOUNT SECURITY"}</p>
+          <h2>Change your password</h2>
+          <p>{forced ? "Your Admin provided a temporary password. Replace it to continue." : "Use at least 8 characters with uppercase, lowercase, a number, and a symbol."}</p>
+          <label className="field"><span>{forced ? "Temporary password" : "Current password"}</span><input name="currentPassword" type="password" autoComplete="current-password" required /></label>
+          <label className="field"><span>New password</span><input name="newPassword" type="password" autoComplete="new-password" minLength={8} maxLength={72} required /></label>
+          <label className="field"><span>Confirm new password</span><input name="confirmPassword" type="password" autoComplete="new-password" minLength={8} maxLength={72} required /></label>
+          {message && <p className="inline-error" role="alert">{message}</p>}
+          <button type="submit" className="button button--primary" disabled={submitting}>{submitting ? "Saving…" : "Update password"}</button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function DataExportPanel() {
+  const [table, setTable] = useState(exportableTables[0]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const handleExport = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await downloadTableExport(table);
+      setMessage(`${table}.csv download started.`);
+    } catch (requestError) {
+      setError(requestError.message || "Unable to export this table.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="panel data-export">
+      <div className="panel__top"><div><h2>Export workspace data</h2><p>Download an authorized database table as CSV.</p></div></div>
+      <form className="data-export__content" onSubmit={handleExport}>
+        <label className="field" htmlFor="export-table">
+          <span>Data to export</span>
+          <select id="export-table" value={table} onChange={(event) => setTable(event.target.value)}>
+            {exportableTables.map((name) => <option value={name} key={name}>{name.replace(/_/g, " ")}</option>)}
+          </select>
+        </label>
+        <p className="form-note">The backend checks Admin access and records the export in its audit log.</p>
+        {error && <p className="inline-error" role="alert">{error}</p>}
+        {message && <p className="form-note" role="status">{message}</p>}
+        <button className="button button--primary" type="submit" disabled={busy}>{busy ? "Preparing export…" : "Download CSV"}</button>
+      </form>
+    </section>
+  );
+}
+
+function MainPreview({ screen, authUser, onAuthenticated, onSignOut, onPasswordChanged, overviewState }) {
   const [dashboardSearch, setDashboardSearch] = useState("");
   if (screen.kind.startsWith("auth") || screen.kind === "pending") {
     return <AuthScreen key={screen.id} screen={screen} onAuthenticated={onAuthenticated} />;
+  }
+  if (screen.kind === "change-password") {
+    return <ChangePasswordScreen authUser={authUser} onPasswordChanged={onPasswordChanged} />;
   }
   const isDashboard = ["dashboard", "sales-dashboard", "inventory-dashboard"].includes(screen.kind);
   return (
@@ -1038,24 +1258,19 @@ function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewSta
       <main className="workspace">
         <PageHeader screen={screen} authUser={authUser} />
         <div className="workspace__body">
-          {authUser?.demo && <p className="data-notice">Local preview: records are saved only in this browser, not shared with other devices. No sample business data is loaded.</p>}
-          {overviewState.error && !isDashboard && <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />}
-          {screen.kind === "dashboard" && <Dashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
-          {screen.kind === "sales-dashboard" && <SalesDashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
-          {screen.kind === "inventory-dashboard" && <InventoryDashboard overviewState={overviewState} onRefresh={onRefresh} />}
-          {screen.kind === "csv-import" && (authUser?.demo
-            ? <CsvImportPanel authUser={authUser} onImported={onRefresh} />
-            : <p role="alert">Browser CSV import is available only in local preview mode. Shared backend import is not configured.</p>)}
-          {screen.kind === "table" && <EmptyTable screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
+          {overviewState.error && !isDashboard && <WorkspaceSyncStatus overviewState={overviewState} />}
+          {screen.kind === "dashboard" && <Dashboard overviewState={overviewState} search={dashboardSearch} />}
+          {screen.kind === "sales-dashboard" && <SalesDashboard overviewState={overviewState} search={dashboardSearch} />}
+          {screen.kind === "inventory-dashboard" && <InventoryDashboard overviewState={overviewState} />}
+          {screen.kind === "data-export" && <DataExportPanel />}
+          {(screen.kind === "user-management" || screen.kind === "user-approvals") && <UserManagementPanel key={screen.id} screen={screen} />}
+          {screen.kind === "table" && <EmptyTable screen={screen} overview={overviewState.data} />}
           {screen.kind === "catalog" && <RecordsTable
             kind="products"
             rows={overviewState.data?.records?.products}
             title="Product catalog"
-            authUser={authUser}
-            canEdit={authUser?.demo && authUser.role === "Admin"}
-            onRecordUpdated={onRefresh}
           />}
-          {screen.kind === "form" && <FormPanel key={screen.id} screen={screen} authUser={authUser} onActionSaved={onRefresh} />}
+          {screen.kind === "form" && <FormPanel key={screen.id} screen={screen} authUser={authUser} />}
           {screen.kind === "detail" && <DetailPanel screen={screen} />}
           {screen.kind === "success" && <DetailPanel screen={screen} success />}
           {screen.kind === "reports" && <DataReports overview={overviewState.data} />}
@@ -1069,85 +1284,50 @@ function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewSta
 }
 
 export default function App() {
-  const [authUser, setAuthUser] = useState(readAuthUser);
+  const [authUser, setAuthUser] = useState(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [currentId, setCurrentId] = useState(() => routeId());
   const [authError, setAuthError] = useState("");
   const [overviewState, setOverviewState] = useState({ status: "loading", data: null, error: "" });
-  const [overviewRefresh, setOverviewRefresh] = useState(0);
   useEffect(() => {
     const updateRoute = () => setCurrentId(routeId());
     window.addEventListener("hashchange", updateRoute);
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
   useEffect(() => {
-    const syncAuth = (event) => {
-      if (event.key === STORAGE_KEY || event.key === null) setOverviewRefresh((previous) => previous + 1);
-      if (event.key !== STORAGE_KEY) setAuthUser(readAuthUser());
-    };
-    window.addEventListener("storage", syncAuth);
-    return () => window.removeEventListener("storage", syncAuth);
+    const controller = new AbortController();
+    getCurrentUser({ signal: controller.signal }).then((user) => {
+      setAuthUser({ ...user, role: normalizeRole(user.role) });
+    }).catch((error) => {
+      if (error.name !== "AbortError" && error.status !== 401) {
+        setAuthError(error.status === 404
+          ? "Phase 1 API is unavailable. Start the integrated app with `npx vercel dev`."
+          : error.message || "Unable to check the current session.");
+      }
+    }).finally(() => {
+      if (!controller.signal.aborted) setSessionLoading(false);
+    });
+    return () => controller.abort();
   }, []);
   useEffect(() => {
-    if (!authUser) {
-      setOverviewState({ status: "idle", data: null, error: "" });
-      return undefined;
-    }
-    if (authUser.demo) {
-      const refreshLocal = () => {
-        try {
-          setOverviewState({ status: "local", data: buildOverview(readWorkspace()), error: "" });
-        } catch (error) {
-          setOverviewState({ status: "error", data: null, error: error.message || "Unable to load saved browser data." });
-        }
-      };
-      refreshLocal();
-      const intervalId = window.setInterval(refreshLocal, 30000);
-      return () => window.clearInterval(intervalId);
-    }
+    setOverviewState({
+      status: authUser ? "unavailable" : "idle",
+      data: null,
+      error: authUser ? "The Phase 1 backend does not include workspace data APIs yet." : "",
+    });
+  }, [authUser]);
 
-    const controller = new AbortController();
-    setOverviewState({ status: "loading", data: null, error: "" });
-    const refresh = async () => {
-      setOverviewState((previous) => ({
-        ...previous,
-        status: previous.data ? "refreshing" : "loading",
-        error: "",
-      }));
-      try {
-        const data = await getWorkspaceOverview({ signal: controller.signal });
-        setOverviewState({ status: "ready", data, error: "" });
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          setOverviewState((previous) => ({
-            ...previous,
-            status: previous.data ? "ready" : "error",
-            error: error.message || "Unable to load shared workspace data.",
-          }));
-        }
-      }
-    };
-
-    refresh();
-    const intervalId = window.setInterval(refresh, 30000);
-    return () => {
-      controller.abort();
-      window.clearInterval(intervalId);
-    };
-  }, [authUser?.demo, authUser?.username, overviewRefresh]);
-
-  const authenticateUser = (user, demo) => {
-    const normalizedUser = { ...user, role: normalizeRole(user.role || "Sales Management"), demo };
-    saveAuthUser(normalizedUser);
-    setAuthUser(normalizedUser);
+  const authenticateUser = (user) => {
+    setAuthUser({ ...user, role: normalizeRole(user.role) });
+    setSessionLoading(false);
     setAuthError("");
   };
-  const handleSignOut = async (returnTo = "1-staff-sign-in") => {
+  const handleSignOut = async () => {
     try {
-      await signOut(authUser || { demo: true });
-      clearAuthUser();
+      await signOut();
       setAuthUser(null);
       setAuthError("");
-      window.location.hash = `/${returnTo}`;
+      window.location.hash = "/1-staff-sign-in";
     } catch (error) {
       setAuthError(error.message || "Unable to sign out.");
     }
@@ -1163,9 +1343,15 @@ export default function App() {
     || screens.find((item) => item.id === "1-staff-sign-in");
   const wrongRole = authUser && requestedScreen.group === "Main system"
     && !canAccessScreen(authUser.role, requestedScreen.id);
+  const passwordChangeRequired = authUser?.mustChangePassword && requestedScreen.id !== "1.5-change-password";
   const publicScreen = requestedScreen.kind.startsWith("auth") || requestedScreen.kind === "pending";
-  const requiresAuthentication = !publicScreen;
+  const requiresAuthentication = !publicScreen && requestedScreen.id !== "1.5-change-password";
   useEffect(() => {
+    if (sessionLoading) return;
+    if (passwordChangeRequired) {
+      window.location.hash = "/1.5-change-password";
+      return;
+    }
     if (authUser && requestedScreen.id === "1-staff-sign-in") {
       window.location.hash = `/${homeId(authUser)}`;
       return;
@@ -1175,11 +1361,17 @@ export default function App() {
       return;
     }
     if (!authUser && requiresAuthentication) window.location.hash = "/1-staff-sign-in";
-  }, [authUser, requestedId, requestedScreen.id, requiresAuthentication, wrongRole]);
+  }, [authUser, requestedId, requestedScreen.id, requiresAuthentication, wrongRole, sessionLoading, passwordChangeRequired]);
 
-  const screen = !authUser && requiresAuthentication
+  const screen = passwordChangeRequired
+    ? screens.find((item) => item.id === "1.5-change-password")
+    : !authUser && requiresAuthentication
     ? screens.find((item) => item.id === "1-staff-sign-in")
     : wrongRole ? screens.find((item) => item.id === homeId(authUser)) : requestedScreen;
+
+  if (sessionLoading) {
+    return <main className="session-loading" role="status">Checking your session…</main>;
+  }
 
   return (
     <>
@@ -1189,8 +1381,12 @@ export default function App() {
         authUser={authUser}
         onAuthenticated={authenticateUser}
         onSignOut={handleSignOut}
+        onPasswordChanged={async () => {
+          const user = await getCurrentUser();
+          setAuthUser({ ...user, role: normalizeRole(user.role) });
+          window.location.hash = `/${homeId(user)}`;
+        }}
         overviewState={overviewState}
-        onRefresh={() => setOverviewRefresh((current) => current + 1)}
       />
     </>
   );

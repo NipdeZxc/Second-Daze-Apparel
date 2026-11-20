@@ -2,76 +2,58 @@ import { apiRequest } from "./client.js";
 
 const supportedRoles = new Set(["Admin", "Sales Management", "Inventory Management"]);
 
-export const demoLoginEnabled =
-  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_LOGIN === "true";
+function validateUser(user) {
+  if (
+    !user
+    || typeof user.username !== "string"
+    || !supportedRoles.has(user.role)
+    || typeof user.mustChangePassword !== "boolean"
+  ) {
+    throw new Error("The authentication API returned an invalid user.");
+  }
+  return user;
+}
 
 export async function signIn({ username, password }) {
-  if (demoLoginEnabled) {
-    const demoUsername = username.trim().toLowerCase();
-    if (demoUsername === "admin" && password === "admin") {
-      return {
-        status: "authenticated",
-        user: { username: "admin", role: "Admin" },
-        demo: true,
-      };
-    }
-
-    if (demoUsername === "staff" && password === "staff") {
-      return {
-        status: "authenticated",
-        user: { username: "staff", role: "Sales Management" },
-        demo: true,
-      };
-    }
-
-    if (demoUsername === "sales" && password === "sales") {
-      return {
-        status: "authenticated",
-        user: { username: "sales", role: "Sales Management" },
-        demo: true,
-      };
-    }
-
-    if (demoUsername === "inventory" && password === "inventory") {
-      return {
-        status: "authenticated",
-        user: { username: "inventory", role: "Inventory Management" },
-        demo: true,
-      };
-    }
-
-    if (demoUsername === "pending@demo.local" && password) {
-      return { status: "pending" };
-    }
-
-    return { status: "invalid" };
-  }
-
   try {
-    const response = await apiRequest("/api/auth/login/", {
+    const response = await apiRequest("/api/login", {
       method: "POST",
       body: { username, password },
     });
-
-    if (typeof response?.user?.username !== "string") {
-      throw new Error("The authentication API response must include a user with a username.");
-    }
-    if (!supportedRoles.has(response.user.role)) {
-      throw new Error("The authentication API response must include a supported workspace role.");
-    }
-
-    return { status: "authenticated", user: response.user, demo: false };
+    return { status: "authenticated", user: validateUser(response?.user) };
   } catch (error) {
     if (error.status === 401) return { status: "invalid" };
-    if (error.status === 403 && error.data?.code === "access_pending") {
-      return { status: "pending" };
-    }
+    if (error.status === 403) return { status: "inactive", message: error.message };
     throw error;
   }
 }
 
-export async function signOut({ demo }) {
-  if (!demo) {
-    await apiRequest("/api/auth/logout/", { method: "POST" });
-  }
+export async function getCurrentUser({ signal } = {}) {
+  const response = await apiRequest("/api/me", { signal });
+  return validateUser(response?.user);
+}
+
+export async function signOut() {
+  await apiRequest("/api/logout", { method: "POST" });
+}
+
+export async function changePassword({ currentPassword, newPassword }) {
+  return apiRequest("/api/change-password", {
+    method: "POST",
+    body: { currentPassword, newPassword },
+  });
+}
+
+export async function requestPasswordReset(identifier) {
+  return apiRequest("/api/forgot-password", {
+    method: "POST",
+    body: { identifier },
+  });
+}
+
+export async function resetPassword({ token, newPassword }) {
+  return apiRequest("/api/reset-password", {
+    method: "POST",
+    body: { token, newPassword },
+  });
 }

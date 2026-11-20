@@ -172,6 +172,15 @@ td { border-top: 1px solid #f1e7ee; padding: 14px; font-size: 10px; }
 .auth-card__hint code { border-radius: 4px; padding: 2px 4px; background: #f8e9f2; }
 .inline-error { border: 1px solid #e8c1d9; border-radius: 8px; padding: 10px; color: #8b3769; background: #fff5fb; font-size: 10px; line-height: 1.5; }
 .global-error { position: fixed; z-index: 20; top: 12px; left: 50%; max-width: calc(100% - 24px); margin: 0; transform: translateX(-50%); border: 1px solid #e8c1d9; border-radius: 8px; padding: 10px 14px; color: #8b3769; background: #fff5fb; box-shadow: 0 5px 20px rgba(58,31,51,.1); font-size: 11px; }
+.session-loading { display: grid; min-height: 100vh; place-items: center; color: var(--muted); font-size: 12px; }
+.account-management { display: grid; gap: 14px; }
+.account-create { padding-bottom: 15px; }
+.temporary-credential { padding: 16px 18px; border-color: #e4c69a; background: #fffaf0; }
+.temporary-credential strong { font-size: 11px; }
+.temporary-credential p { margin: 8px 0 0; font-size: 10px; }
+.temporary-credential code { border-radius: 4px; padding: 2px 5px; background: #f5ead6; }
+.temporary-credential span { display: block; margin-top: 8px; color: var(--muted); font-size: 9px; }
+.data-export__content { display: grid; gap: 14px; }
 
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 218px minmax(0, 1fr); }
