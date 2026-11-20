@@ -14,6 +14,14 @@ export async function signIn({ username, password }) {
       };
     }
 
+    if (demoUsername === "staff" && password === "staff") {
+      return {
+        status: "authenticated",
+        user: { username: "staff", role: "Staff" },
+        demo: true,
+      };
+    }
+
     if (demoUsername === "pending@demo.local" && password) {
       return { status: "pending" };
     }

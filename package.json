@@ -1,0 +1,9 @@
+{
+  "name": "second-daze-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix react_frontend run dev",
+    "build": "npm --prefix react_frontend run build",
+    "preview": "npm --prefix react_frontend run preview"
+  }
+}

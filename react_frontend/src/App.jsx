@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formFields, screens, tableColumns } from "./screens.js";
 import { demoLoginEnabled, signIn, signOut } from "./api/auth.js";
 import { getWorkspaceOverview, submitWorkspaceAction } from "./api/workspace.js";
+import { buildOverview, readWorkspace, STORAGE_KEY } from "./data/workspace.js";
+import { CsvImportPanel, DataReports, formatMoney, RecordsTable, screenDatasets } from "./DataPanels.jsx";
 
 const mainScreens = screens.filter((screen) => screen.group === "Main system");
 const mobileScreens = screens.filter((screen) => screen.group === "Mobile companion");
@@ -22,6 +24,10 @@ const iconPaths = {
   chart: <><path d="M4 19V5M4 19h17" /><path d="m7 15 4-4 3 2 6-7" /></>,
   smartphone: <><rect x="6" y="2" width="12" height="20" rx="2" /><path d="M11 18h2" /></>,
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></>,
+  search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></>,
+  file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h8" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  close: <><circle cx="12" cy="12" r="9" /><path d="m9 9 6 6m0-6-6 6" /></>,
   key: <><circle cx="8" cy="15" r="5" /><path d="m11.5 11.5 8-8 2 2-2 2 2 2-3 3-2-2-3.5 3.5" /></>,
   plus: <><path d="M12 5v14M5 12h14" /></>,
   arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
@@ -49,8 +55,94 @@ function Icon({ name, size = 16, className = "" }) {
   );
 }
 
+const adminOnlyIds = new Set(["2-admin-dashboard", "2.1-subaccounts", "2.2-access-approvals", "2.6-reports", "2.7-csv-import", "2.8-sales", "4.3-edit-product-admin-only", "7-staff-accounts"]);
+
+function isAdmin(user) {
+  return user?.role === "Admin";
+}
+
+function homeId(user) {
+  return isAdmin(user) ? "2-admin-dashboard" : "2s-staff-dashboard";
+}
+
+function DashboardTopbar({ authUser, search, onSearch, onSignOut }) {
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
+  const profileButtonRef = useRef(null);
+  useEffect(() => {
+    if (!profileOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!profileRef.current?.contains(event.target)) setProfileOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") {
+        setProfileOpen(false);
+        profileButtonRef.current?.focus();
+      }
+    };
+    const closeOnNavigation = () => setProfileOpen(false);
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("hashchange", closeOnNavigation);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("hashchange", closeOnNavigation);
+    };
+  }, [profileOpen]);
+  const admin = isAdmin(authUser);
+  const displayName = authUser?.username || "Staff";
+  const initials = displayName.split(/[ .@_-]/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
+  return (
+    <header className="dashboard-topbar">
+      <Brand compact to={`#/${homeId(authUser)}`} />
+      {onSearch && (
+        <label className="dashboard-search">
+          <Icon name="search" size={15} />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder={admin ? "Search orders, requests, reports" : "Search tasks, orders, reservations"}
+            aria-label="Search dashboard"
+          />
+        </label>
+      )}
+      <ScreenLink className="dashboard-notifications" screen={screens.find((item) => item.id === (admin ? "9-overlay-notifications-admin" : "9.1-overlay-notifications-sales"))} aria-label="Open notifications">
+        <Icon name="bell" size={17} />
+      </ScreenLink>
+      <div className="dashboard-profile-menu" ref={profileRef} onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setProfileOpen(false);
+      }}>
+        <button
+          className="dashboard-profile"
+          type="button"
+          ref={profileButtonRef}
+          aria-label={`Account options for ${displayName}`}
+          aria-expanded={profileOpen}
+          aria-controls="profile-actions"
+          onClick={() => setProfileOpen((open) => !open)}
+        >
+          <span className="dashboard-profile__avatar">{initials || "S"}</span>
+          <span><strong>{displayName}</strong><small>{authUser?.role || "Staff"}</small></span>
+        </button>
+        {profileOpen && (
+          <div className="dashboard-profile-menu__actions" id="profile-actions">
+            <button type="button" onClick={() => {
+              setProfileOpen(false);
+              onSignOut();
+            }}>
+              <Icon name="logout" size={15} /> Log out
+            </button>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
 function screenIcon(screen) {
-  if (screen.id === "2-admin-dashboard") return "home";
+  if (screen.id === "2-admin-dashboard" || screen.id === "2s-staff-dashboard") return "home";
   if (screen.group === "Mobile companion") return "smartphone";
   if (screen.group === "Mobile overlays") return "bell";
   if (screen.id === "2.4-refunds" || screen.id.startsWith("2.3-")) return "bag";
@@ -106,44 +198,37 @@ function Brand({ compact = false, to = "#/1-staff-sign-in" }) {
 }
 
 function Sidebar({ active, authUser, onSignOut }) {
-  const navGroups = [
-    { title: "Overview", icon: "home", ids: ["2-admin-dashboard"] },
-    { title: "Administration", icon: "users", ids: ["2.1-subaccounts", "2.2-access-approvals"] },
-    { title: "Sales", icon: "bag", ids: ["3-sales-catalog", "3.3-sales-documents", "2.4-refunds", "3.9-orders-status-tracking", "3.11-customers"] },
-    { title: "Inventory", icon: "box", ids: ["4-inventory-workspace", "4.2-low-stock-alerts"] },
-    { title: "Reservations", icon: "calendar", ids: ["5-reservations"] },
-    { title: "Reports", icon: "chart", ids: ["2.6-reports"] },
-    { title: "Staff", icon: "users", ids: ["7-staff-accounts"] },
-  ].map((group) => ({
-    title: group.title,
-    items: group.ids.map((id) => mainScreens.find((screen) => screen.id === id)),
-  }));
+  const admin = isAdmin(authUser);
+  const dashboardNavIds = admin
+    ? ["2-admin-dashboard", "2.7-csv-import", "2.8-sales", "2.1-subaccounts", "2.2-access-approvals", "2.3-sales-documents", "2.4-refunds", "2.5-reservations", "2.6-reports", "3-sales-catalog", "3.9-orders-status-tracking", "3.11-customers", "4-inventory-workspace", "4.2-low-stock-alerts", "7-staff-accounts"]
+    : ["2s-staff-dashboard", "3-sales-catalog", "3.9-orders-status-tracking", "3.11-customers", "3.3-sales-documents", "4-inventory-workspace", "4.2-low-stock-alerts", "5-reservations"];
 
   return (
-    <aside className="sidebar">
-      <Brand compact to="#/2-admin-dashboard" />
-      <nav aria-label="Workspace navigation">
-        {navGroups.map((group) => (
-          <div className="nav-group" key={group.title}>
-            <p className="nav-group__title">{group.title}</p>
-            {group.items.map((screen) => (
-              <ScreenLink
-                key={screen.id}
-                screen={screen}
-                className={`nav-link ${active === screen.id ? "is-active" : ""}`}
-              >
-                <Icon className="nav-link__icon" name={group.icon} size={15} />
-                {screen.title}
-              </ScreenLink>
-            ))}
-          </div>
-        ))}
+    <aside className="sidebar sidebar--dashboard">
+      <div className="dashboard-sidebar__workspace">
+        <span>{admin ? "Workspace" : "Staff workspace"}</span>
+        <strong>Second Daze Apparel</strong>
+      </div>
+      <nav className="dashboard-sidebar__nav" aria-label="Workspace navigation">
+        {dashboardNavIds.map((id) => {
+          const screen = mainScreens.find((item) => item.id === id);
+          return (
+            <ScreenLink key={id} screen={screen} className={`nav-link ${active === id ? "is-active" : ""}`} aria-current={active === id ? "page" : undefined}>
+              <Icon className="nav-link__icon" name={screenIcon(screen)} size={15} />
+              {screen.id === "3-sales-catalog" ? "Sales catalog" : screen.title}
+            </ScreenLink>
+          );
+        })}
       </nav>
+      <div className="dashboard-sidebar__focus">
+        <strong>Today's focus</strong>
+        <span>{admin ? "Review pending approvals and the sales and inventory summary." : "Complete pending orders, restock low items, and confirm today's reservations."}</span>
+      </div>
       <div className="sidebar__bottom">
         <button className="nav-link sidebar__sign-out" type="button" onClick={() => onSignOut()} aria-label={`Sign out ${authUser?.username || ""}`}>
           <Icon className="nav-link__icon" name="logout" size={15} />Sign out
         </button>
-        <span className="sidebar__note">{authUser?.demo ? "Demo preview · no data is saved" : `Signed in as ${authUser?.role || "Staff"}`}</span>
+        <span className="sidebar__note">{authUser?.demo ? "Local preview · data is saved in this browser only" : `Signed in as ${authUser?.role || "Staff"}`}</span>
       </div>
     </aside>
   );
@@ -212,22 +297,54 @@ function WorkflowLinks({ screenId, mobile = false }) {
   );
 }
 
-function PageHeader({ screen }) {
+function PageHeader({ screen, authUser }) {
+  const staffHome = screen.kind === "staff-dashboard";
+  const adminHome = screen.kind === "dashboard";
   return (
     <header className="page-header">
       <div>
-        <p className="eyebrow">SECOND DAZE / WORKSPACE</p>
+        <p className="eyebrow">{adminHome ? "WORKSPACE OVERVIEW" : staffHome ? "MY WORKSPACE" : "SECOND DAZE / WORKSPACE"}</p>
         <div className="page-header__title-row">
           <span className="page-header__icon"><Icon name={screenIcon(screen)} size={19} /></span>
-          <h1>{screen.title}</h1>
+          <h1>{adminHome ? "Admin dashboard" : staffHome ? "Staff dashboard" : screen.title}</h1>
         </div>
-        <p>{screen.description}</p>
+        <p>{adminHome ? "Approvals, reporting, and operational oversight for Second Daze Apparel." : screen.description}</p>
       </div>
+      {staffHome && (
+        <div className="dashboard-header__actions">
+          <ScreenLink className="button button--outline" screen={screens.find((item) => item.id === "5.1-new-reservation")}>
+            <Icon name="calendar" size={14} /> New reservation
+          </ScreenLink>
+          <ScreenLink className="button button--pink" screen={screens.find((item) => item.id === "3-sales-catalog")}>
+            <Icon name="plus" size={14} /> New sale
+          </ScreenLink>
+        </div>
+      )}
+      {adminHome && (
+        <div className="dashboard-header__actions">
+          <ScreenLink className="button button--outline" screen={screens.find((item) => item.id === "2.7-csv-import")}>
+            <Icon name="file" size={14} /> Import CSV
+          </ScreenLink>
+          <ScreenLink className="button button--outline" screen={screens.find((item) => item.id === "6-sales-inventory-reports")}>
+            <Icon name="chart" size={14} /> Export report
+          </ScreenLink>
+          {authUser?.role === "Admin" && (
+            <ScreenLink className="button button--pink" screen={screens.find((item) => item.id === "7-staff-accounts")}>
+              <Icon name="plus" size={14} /> Create subaccount
+            </ScreenLink>
+          )}
+        </div>
+      )}
     </header>
   );
 }
 
-function EmptyTable({ screen }) {
+function EmptyTable({ screen, overview }) {
+  const kind = screenDatasets[screen.id];
+  if (kind) {
+    const rows = screen.id === "4.2-low-stock-alerts" ? overview?.lowStock : overview?.records?.[kind];
+    return <RecordsTable kind={kind} rows={rows} title={screen.title} />;
+  }
   const columns = tableColumns[screen.id] || ["Name", "Details", "Status", "Action"];
   return (
     <div className="panel table-panel">
@@ -251,20 +368,17 @@ function EmptyTable({ screen }) {
 }
 
 function WorkspaceSyncStatus({ overviewState, onRefresh }) {
-  if (overviewState.status === "demo") {
-    return <p className="sync-status">Demo preview · shared records appear when connected to the workspace API.</p>;
-  }
   if (overviewState.error) {
     return (
       <p className="sync-status sync-status--error" role="alert">
-        Could not refresh shared workspace data. {overviewState.error}
+        Could not load workspace data. {overviewState.error}
         <button className="sync-status__retry" type="button" onClick={onRefresh}>Retry</button>
       </p>
     );
   }
   return (
     <div className="sync-status">
-      <span>{overviewState.status === "loading" ? "Loading shared workspace data…" : `Last synced ${formatUpdatedAt(overviewState.data?.updatedAt)}`}</span>
+      <span>{overviewState.status === "loading" ? "Loading workspace data…" : overviewState.status === "local" ? `Browser-only data · last import ${formatUpdatedAt(overviewState.data?.updatedAt)}` : `Last synced ${formatUpdatedAt(overviewState.data?.updatedAt)}`}</span>
       <button className="sync-status__refresh" type="button" onClick={onRefresh} disabled={overviewState.status === "loading"} aria-label="Refresh shared workspace data">
         <Icon name="refresh" size={14} />Refresh
       </button>
@@ -283,72 +397,257 @@ function formatQueueCount(count, label = "item") {
   return `${count} ${count === 1 ? label : `${label}s`}`;
 }
 
-function Dashboard({ overviewState, onRefresh }) {
-  const queues = [
-    { title: "Access approvals", description: "Staff access requests waiting for review.", screenId: "2.2-access-approvals", count: overviewState.data?.queues.accessApprovals },
-    { title: "Orders to fulfill", description: "Orders requiring payment or delivery follow-up.", screenId: "3.9-orders-status-tracking", count: overviewState.data?.queues.ordersToFulfill },
-    { title: "Low-stock items", description: "Inventory below its restock threshold.", screenId: "4.2-low-stock-alerts", count: overviewState.data?.queues.lowStockItems },
+function Dashboard({ overviewState, onRefresh, search }) {
+  const queues = overviewState.data?.queues;
+  const summary = overviewState.data?.metrics;
+  const metrics = [
+    { label: "Gross sales", value: formatMoney(summary?.grossSales), detail: "All imported sales", icon: "bag" },
+    { label: "Total cost", value: formatMoney(summary?.totalCost), detail: "Recorded cost of imported sales", icon: "box" },
+    { label: "Profit", value: formatMoney(summary?.profit), detail: "Gross sales minus recorded cost", icon: "chart" },
+    {
+      label: "Access approvals",
+      value: typeof queues?.accessApprovals === "number" ? queues.accessApprovals : "—",
+      detail: "Staff access requests awaiting review",
+      icon: "calendar",
+    },
   ];
-  const actions = [
-    { title: "Create purchase order", screenId: "3.13-create-purchase-order" },
-    { title: "New reservation", screenId: "5.1-new-reservation" },
-    { title: "Record a refund", screenId: "3.4-new-refund-request" },
+  const weeklySales = overviewState.data?.dailySales || [];
+  const chartMaximum = Math.max(1, ...weeklySales.map(([, value]) => value));
+  const requests = (overviewState.data?.recentActivity || []).map((activity) => ({
+    title: activity.message,
+    detail: formatUpdatedAt(activity.createdAt),
+  }));
+  const filteredRequests = requests.filter((request) =>
+    `${request.title} ${request.detail}`.toLowerCase().includes(search.toLowerCase()),
+  );
+  const orderStats = [
+    { label: "Orders placed", value: summary?.ordersPlaced ?? "—", detail: "All imported orders" },
+    { label: "Avg order value", value: formatMoney(summary?.averageOrderValue), detail: "Average imported order amount" },
+    { label: "Fulfillment rate", value: typeof summary?.fulfillmentRate === "number" ? `${summary.fulfillmentRate.toFixed(1)}%` : "—", detail: "Completed / non-cancelled orders" },
   ];
+
   return (
     <div className="dashboard-workspace">
-      <section className="dashboard-quick-actions" aria-labelledby="quick-actions-title">
-        <div className="dashboard-section-heading">
-          <div><h2 id="quick-actions-title">Quick actions</h2><p>Start a common workflow.</p></div>
-        </div>
-        <div className="dashboard-action-list">
-          {actions.map((action) => (
-            <ScreenLink className="dashboard-action-link" screen={screens.find((screen) => screen.id === action.screenId)} key={action.screenId}>
-              <span className="dashboard-action-icon"><Icon name="plus" size={15} /></span>
-              <span>{action.title}</span>
-              <Icon className="dashboard-action-arrow" name="arrow" size={15} />
-            </ScreenLink>
-          ))}
-        </div>
-      </section>
-      <section className="dashboard-queues" aria-labelledby="queues-title">
-        <div className="dashboard-section-heading">
-          <div><h2 id="queues-title">Work queues</h2><p>Items requiring action across the workspace.</p></div>
-          <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />
-        </div>
-        <div className="dashboard-queue-grid">
-          {queues.map((queue) => (
-            <article className="panel dashboard-queue" key={queue.screenId}>
-              <div className="dashboard-queue__heading">
-                <h3>{queue.title}</h3>
-                <ScreenLink className="text-link" screen={screens.find((screen) => screen.id === queue.screenId)}>Open queue</ScreenLink>
+      <div className="dashboard-metrics">
+        {metrics.map((metric) => (
+          <article className="panel dashboard-metric" key={metric.label}>
+            <div className="dashboard-metric__top">
+              <span>{metric.label}</span>
+              <span className="dashboard-metric__icon"><Icon name={metric.icon} size={15} /></span>
+            </div>
+            <strong>{metric.value}</strong>
+            <p>{metric.detail}</p>
+          </article>
+        ))}
+      </div>
+      <div className="dashboard-overview-grid">
+        <div className="dashboard-overview-main">
+          <section className="panel dashboard-orders">
+            <div className="panel__top">
+              <div><h2>Orders</h2><p>Transaction hub for revenue, cost, and profit</p></div>
+              <span className="quiet-tag">{overviewState.status === "local" ? "Imported data" : "Live overview"}</span>
+            </div>
+            <div className="dashboard-order-stats">
+              {orderStats.map((stat) => (
+                <div className="dashboard-order-stat" key={stat.label}>
+                  <span>{stat.label}</span>
+                  <strong>{stat.value}</strong>
+                  <small>{stat.detail}</small>
+                </div>
+              ))}
+            </div>
+            {weeklySales.length ? (
+              <div className="dashboard-chart" role="img" aria-label={`Sales by date: ${weeklySales.map(([day, value]) => `${day}: ${formatMoney(value)}`).join(", ")}`}>
+                {weeklySales.map(([day, value]) => (
+                  <div className="dashboard-chart__day" key={day}>
+                    <span className="dashboard-chart__amount" title={formatMoney(value)}>{formatMoney(value)}</span>
+                    <span className="dashboard-chart__bar" style={{ height: `${(value / chartMaximum) * 100}%` }} />
+                    <span className="dashboard-chart__label" title={day}>{day.slice(5)}</span>
+                  </div>
+                ))}
               </div>
-              <p>{queue.description}</p>
-              <div className="dashboard-queue__empty">
-                {typeof queue.count === "number"
-                  ? `${formatQueueCount(queue.count)} currently ${queue.count === 1 ? "requires" : "require"} attention.`
-                  : "Queue data will appear when connected."}
+            ) : (
+              <div className="dashboard-chart-empty">
+                No sales recorded. Import sales data to display trends.
               </div>
-            </article>
-          ))}
+            )}
+          </section>
+          <section className="panel dashboard-requests">
+            <div className="panel__top">
+              <div><h2>Recent activity</h2><p>Latest recorded workspace activity</p></div>
+              <ScreenLink className="text-link" screen={screens.find((item) => item.id === "2.6-reports")}>View reports</ScreenLink>
+            </div>
+            {filteredRequests.length ? (
+              <div className="dashboard-request-list">
+                {filteredRequests.map((request, index) => {
+                  const content = (
+                    <>
+                      <span className="dashboard-request__icon"><Icon name={index === 0 ? "file" : index === 1 ? "refresh" : "calendar"} size={14} /></span>
+                      <span className="dashboard-request__copy"><strong>{request.title}</strong><small>{request.detail}</small></span>
+                    </>
+                  );
+                  return request.screenId ? (
+                    <ScreenLink className="dashboard-request" screen={screens.find((item) => item.id === request.screenId)} key={`${request.title}-${index}`}>{content}</ScreenLink>
+                  ) : (
+                    <div className="dashboard-request" key={`${request.title}-${index}`}>{content}</div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="dashboard-empty">{search ? "No activity matches your search." : "No recent activity is available."}</div>
+            )}
+          </section>
         </div>
-      </section>
-      <section className="panel activity-panel">
-        <div className="panel__top">
-          <div><h2>Recent activity</h2><p>Latest changes recorded in the workspace.</p></div>
-          <span className="quiet-tag">Activity log</span>
-        </div>
-        {overviewState.data?.recentActivity?.length ? (
-          <ul className="activity-list">
-            {overviewState.data.recentActivity.map((activity) => (
-              <li key={activity.id}><span>{activity.message}</span><time dateTime={activity.createdAt}>{formatUpdatedAt(activity.createdAt)}</time></li>
-            ))}
-          </ul>
-        ) : (
-          <div className="activity-empty">
-            {overviewState.data ? "No recent activity." : "Activity will appear when records are available."}
+        <aside className="dashboard-overview-side">
+          <section className="panel dashboard-approvals">
+            <div className="panel__top">
+              <div><h2>Approvals</h2><p>Requests that need admin review</p></div>
+              <span className="quiet-tag">{`${queues?.accessApprovals ?? "—"} pending`}</span>
+            </div>
+            <div className="dashboard-approval-summary">
+              <strong>{typeof queues?.accessApprovals === "number" ? formatQueueCount(queues.accessApprovals, "access request") : "Access requests"}</strong>
+              <span>{overviewState.status === "error" ? "Workspace data could not be loaded." : overviewState.status === "local" ? "Account access approvals require a backend and are not available in browser-only mode." : "Open the approval queue to review staff access requests."}</span>
+              <ScreenLink className="button button--pink" screen={screens.find((item) => item.id === "2.2-access-approvals")}>Review approvals</ScreenLink>
+            </div>
+          </section>
+          <section className="panel dashboard-status">
+            <div className="panel__top"><div><h2>Status clarity</h2><p>Unambiguous states for every request</p></div></div>
+            <div className="dashboard-status-list">
+              <div><span className="dashboard-status__icon"><Icon name="clock" size={14} /></span><span><strong>Pending</strong><small>Needs admin review before release</small></span></div>
+              <div><span className="dashboard-status__icon"><Icon name="check" size={14} /></span><span><strong>Approved</strong><small>Released to the next operational step</small></span></div>
+              <div><span className="dashboard-status__icon"><Icon name="close" size={14} /></span><span><strong>Rejected</strong><small>Blocked with reason and follow-up note</small></span></div>
+            </div>
+          </section>
+          <div className="dashboard-sync">
+            <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />
           </div>
-        )}
-      </section>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function StaffDashboard({ overviewState, onRefresh, search }) {
+  const queues = overviewState.data?.queues;
+  const summary = overviewState.data?.metrics;
+  const count = (value) => (typeof value === "number" ? value : "—");
+  const metrics = [
+    { label: "Orders to fulfill", value: count(queues?.ordersToFulfill), detail: "Awaiting packing or dispatch", icon: "bag" },
+    { label: "Today's sales", value: formatMoney(summary?.todaysSales), detail: "Sales recorded today", icon: "chart" },
+    { label: "Low stock items", value: count(queues?.lowStockItems), detail: "At or below threshold", icon: "box" },
+    { label: "Active reservations", value: count(summary?.activeReservations), detail: "Unexpired holds awaiting action", icon: "calendar" },
+  ];
+  const matches = (item) => `${item.title} ${item.detail}`.toLowerCase().includes(search.toLowerCase());
+  const tasks = (overviewState.data?.pendingOrders || []).map((order) => ({
+    title: order.order_no, detail: `${order.customer_code} · ${formatMoney(order.total_amount)}`,
+    status: order.status, screenId: "3.9-orders-status-tracking",
+  })).filter(matches);
+  const lowStock = (overviewState.data?.lowStock || []).map((product) => ({
+    title: product.product_name, detail: `${product.sku} · ${product.qty_available} left · threshold ${product.low_stock_threshold}`,
+  })).filter(matches);
+  const reservations = (overviewState.data?.reservations || []).map((reservation) => ({
+    title: reservation.reservation_no, detail: `${reservation.customer_code} · ${reservation.status} · expires ${reservation.expires_at}`,
+  })).filter(matches);
+  const activity = (overviewState.data?.recentActivity || []).map((item) => ({ title: item.message, detail: formatUpdatedAt(item.createdAt) })).filter(matches);
+  const quickActions = [
+    ["3-sales-catalog", "Start a sale", "bag"],
+    ["3.4-new-refund-request", "New refund request", "refresh"],
+    ["3.12-new-customer-validation", "Add customer", "users"],
+    ["4-inventory-workspace", "View inventory", "box"],
+  ];
+
+  return (
+    <div className="dashboard-workspace">
+      <div className="dashboard-metrics">
+        {metrics.map((metric) => (
+          <article className="panel dashboard-metric" key={metric.label}>
+            <div className="dashboard-metric__top">
+              <span>{metric.label}</span>
+              <span className="dashboard-metric__icon"><Icon name={metric.icon} size={15} /></span>
+            </div>
+            <strong>{metric.value}</strong>
+            <p>{metric.detail}</p>
+          </article>
+        ))}
+      </div>
+      <div className="dashboard-overview-grid">
+        <div className="dashboard-overview-main">
+          <section className="panel dashboard-requests">
+            <div className="panel__top">
+              <div><h2>Orders to follow up</h2><p>Recorded orders that need fulfillment</p></div>
+              <ScreenLink className="text-link" screen={screens.find((item) => item.id === "3.9-orders-status-tracking")}>View orders</ScreenLink>
+            </div>
+            {(overviewState.status === "local" ? tasks : activity).length ? (
+              <div className="dashboard-request-list">
+                {(overviewState.status === "local" ? tasks : activity).map((task) => {
+                  const content = (
+                    <>
+                      <span className="dashboard-request__icon"><Icon name="file" size={14} /></span>
+                      <span className="dashboard-request__copy"><strong>{task.title}</strong><small>{task.detail}</small></span>
+                      {task.status && <span className="dashboard-request__status">{task.status}</span>}
+                    </>
+                  );
+                  return task.screenId ? (
+                    <ScreenLink className="dashboard-request" screen={screens.find((item) => item.id === task.screenId)} key={task.title}>{content}</ScreenLink>
+                  ) : (
+                    <div className="dashboard-request" key={`${task.title}-${task.detail}`}>{content}</div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="dashboard-empty">{search ? "No tasks match your search." : overviewState.data ? "No recorded orders need follow-up." : "Order data is not available."}</div>
+            )}
+          </section>
+          <section className="panel dashboard-requests">
+            <div className="panel__top">
+              <div><h2>Low stock</h2><p>Restock these items before they sell out</p></div>
+              <ScreenLink className="text-link" screen={screens.find((item) => item.id === "4.2-low-stock-alerts")}>View all</ScreenLink>
+            </div>
+            {lowStock.length ? (
+              <div className="dashboard-request-list">
+                {lowStock.map((item) => (
+                  <div className="dashboard-request" key={item.title}>
+                    <span className="dashboard-request__icon"><Icon name="box" size={14} /></span>
+                    <span className="dashboard-request__copy"><strong>{item.title}</strong><small>{item.detail}</small></span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="dashboard-empty">{search ? "No low-stock items match your search." : overviewState.status === "local" ? "No imported items are below their threshold." : "Open Low stock to view available inventory data."}</div>
+            )}
+          </section>
+        </div>
+        <aside className="dashboard-overview-side">
+          <section className="panel dashboard-approvals">
+            <div className="panel__top"><div><h2>Quick actions</h2><p>Common sales and inventory tasks</p></div></div>
+            <div className="dashboard-approval-list">
+              {quickActions.map(([id, label, icon]) => (
+                <ScreenLink className="dashboard-approval" screen={screens.find((item) => item.id === id)} key={id}>
+                  <span className="dashboard-approval__icon"><Icon name={icon} size={14} /></span>
+                  <span><strong>{label}</strong></span>
+                </ScreenLink>
+              ))}
+            </div>
+          </section>
+          <section className="panel dashboard-status">
+            <div className="panel__top">
+              <div><h2>Reservations</h2><p>Holds that need follow-up</p></div>
+              <ScreenLink className="text-link" screen={screens.find((item) => item.id === "5-reservations")}>View</ScreenLink>
+            </div>
+            <div className="dashboard-status-list">
+              {reservations.length ? reservations.map((item) => (
+                <div key={item.title}>
+                  <span className="dashboard-status__icon"><Icon name="clock" size={14} /></span>
+                  <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+                </div>
+              )) : <div className="dashboard-empty">{search ? "No reservations match your search." : overviewState.data ? "No recorded active reservations." : "Reservation data is not available."}</div>}
+            </div>
+          </section>
+          <div className="dashboard-sync">
+            <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
@@ -423,33 +722,6 @@ function DetailPanel({ screen, success = false }) {
   );
 }
 
-function ReportsPanel() {
-  return (
-    <section className="report-grid">
-      {["Sales performance", "Inventory distribution", "Fulfillment activity", "Reporting period"].map((item) => (
-        <article className="panel report-card" key={item}>
-          <span className="eyebrow">REPORT</span>
-          <h2>{item}</h2>
-          <p>Connect recorded data to populate this report.</p>
-          <div className="report-card__empty">No data available</div>
-        </article>
-      ))}
-    </section>
-  );
-}
-
-function CatalogPanel() {
-  return (
-    <section className="panel catalog-panel">
-      <div className="panel__top">
-        <div><h2>Product catalog</h2><p>Product images and stock levels will be supplied by live inventory data.</p></div>
-        <span className="quiet-tag">Catalog empty</span>
-      </div>
-      <div className="empty-message"><span className="empty-message__icon">⌕</span><p>No products to display yet.</p></div>
-    </section>
-  );
-}
-
 function AuthScreen({ screen, onAuthenticated }) {
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -472,7 +744,7 @@ function AuthScreen({ screen, onAuthenticated }) {
       });
       if (result.status === "authenticated") {
         onAuthenticated(result.user, result.demo);
-        window.location.hash = "/2-admin-dashboard";
+        window.location.hash = `/${homeId(result.user)}`;
       } else if (result.status === "pending") {
         window.location.hash = "/1.2-access-awaiting-approval";
       } else {
@@ -525,7 +797,7 @@ function AuthScreen({ screen, onAuthenticated }) {
             {!forgot && <ScreenLink className="text-link auth-card__link" screen={screens.find((item) => item.id === "1.3-forgot-password")}>Forgot password?</ScreenLink>}
             <p className="auth-card__hint">
               {demoLoginEnabled
-                ? <>Demo login: <code>admin</code> / <code>admin</code>. Use <code>pending@demo.local</code> with any password to preview approval.</>
+                ? <>Demo login: <code>admin</code> / <code>admin</code> or <code>staff</code> / <code>staff</code>. Business data starts empty and stays in this browser. Use <code>pending@demo.local</code> with any password to preview approval.</>
                 : "Sign-in is handled by the configured backend."}
             </p>
           </form>
@@ -584,6 +856,11 @@ function MobileContent({ screen, onAuthenticated, overviewState, onRefresh, auth
     return <MobileLogin onAuthenticated={onAuthenticated} />;
   }
   if (screen.kind === "mobile-list" || screen.kind === "mobile-stock") {
+    if (overviewState.status === "local" && screen.id !== "8.2-mobile-approvals") {
+      const kind = screen.kind === "mobile-stock" ? "products" : "orders";
+      const rows = kind === "products" ? overviewState.data.lowStock : overviewState.data.records.orders;
+      return <RecordsTable kind={kind} rows={rows} />;
+    }
     const count = screen.id === "8.2-mobile-approvals"
       ? overviewState.data?.queues.accessApprovals
       : screen.id === "8.4-mobile-orders"
@@ -597,7 +874,7 @@ function MobileContent({ screen, onAuthenticated, overviewState, onRefresh, auth
         </div>
         <div className="mobile-empty">
           <strong>{typeof count === "number" ? formatQueueCount(count) : "No records to display"}</strong>
-          <span>{typeof count === "number" ? "This queue is shared with the operations workspace." : "Connect the workspace data source to load this queue."}</span>
+          <span>{overviewState.status === "local" ? "Account access approvals require a backend." : typeof count === "number" ? "This queue is shared with the operations workspace." : "Connect the workspace data source to load this queue."}</span>
         </div>
       </section>
     );
@@ -614,7 +891,7 @@ function MobileContent({ screen, onAuthenticated, overviewState, onRefresh, auth
           <strong>{typeof overviewState.data?.queues.accessApprovals === "number"
             ? formatQueueCount(overviewState.data.queues.accessApprovals, "access request")
             : "— access requests"}</strong>
-          <span>{overviewState.data ? "Shared workspace data, refreshed automatically." : "Connect the workspace data source to load assigned items."}</span>
+          <span>{overviewState.status === "local" ? "Account access approvals are not available in browser-only mode." : overviewState.data ? "Shared workspace data, refreshed automatically." : "Connect the workspace data source to load assigned items."}</span>
         </div>
       </section>
       <section className="mobile-quick-actions">
@@ -625,7 +902,7 @@ function MobileContent({ screen, onAuthenticated, overviewState, onRefresh, auth
       <section className="mobile-worklist">
         <div className="mobile-worklist__heading"><h2>Orders</h2><ScreenLink className="text-link" screen={mobileScreens.find((item) => item.id === "8.4-mobile-orders")}>View orders</ScreenLink></div>
         <p className="mobile-inline-empty">{overviewState.data
-          ? `${formatQueueCount(overviewState.data.queues.ordersToFulfill, "order")} ${overviewState.data.queues.ordersToFulfill === 1 ? "needs" : "need"} follow-up in the shared workspace.`
+          ? `${formatQueueCount(overviewState.data.queues.ordersToFulfill, "order")} ${overviewState.data.queues.ordersToFulfill === 1 ? "needs" : "need"} follow-up in the ${overviewState.status === "local" ? "browser-only" : "shared"} workspace.`
           : "Order data will appear here when available."}</p>
       </section>
     </div>
@@ -729,22 +1006,31 @@ function MobilePreview({ screen, onAuthenticated, authUser, onSignOut, overviewS
 }
 
 function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewState, onRefresh }) {
+  const [dashboardSearch, setDashboardSearch] = useState("");
   if (screen.kind.startsWith("auth") || screen.kind === "pending") {
     return <AuthScreen key={screen.id} screen={screen} onAuthenticated={onAuthenticated} />;
   }
+  const isDashboard = screen.kind === "dashboard" || screen.kind === "staff-dashboard";
   return (
-    <div className="app-shell">
+    <div className="app-shell app-shell--dashboard">
+      <DashboardTopbar authUser={authUser} search={dashboardSearch} onSearch={isDashboard ? setDashboardSearch : undefined} onSignOut={onSignOut} />
       <Sidebar active={screen.id} authUser={authUser} onSignOut={onSignOut} />
       <main className="workspace">
-        <PageHeader screen={screen} />
+        <PageHeader screen={screen} authUser={authUser} />
         <div className="workspace__body">
-          {screen.kind === "dashboard" && <Dashboard overviewState={overviewState} onRefresh={onRefresh} />}
-          {screen.kind === "table" && <EmptyTable screen={screen} />}
-          {screen.kind === "catalog" && <CatalogPanel />}
+          {authUser?.demo && <p className="data-notice">Local preview: records are saved only in this browser, not shared with other devices. No sample business data is loaded.</p>}
+          {overviewState.error && !isDashboard && <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />}
+          {screen.kind === "dashboard" && <Dashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
+          {screen.kind === "staff-dashboard" && <StaffDashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
+          {screen.kind === "csv-import" && (authUser?.demo
+            ? <CsvImportPanel authUser={authUser} onImported={onRefresh} />
+            : <p role="alert">Browser CSV import is available only in local preview mode. Shared backend import is not configured.</p>)}
+          {screen.kind === "table" && <EmptyTable screen={screen} overview={overviewState.data} />}
+          {screen.kind === "catalog" && <RecordsTable kind="products" rows={overviewState.data?.records?.products} title="Product catalog" />}
           {screen.kind === "form" && <FormPanel key={screen.id} screen={screen} authUser={authUser} onActionSaved={onRefresh} />}
           {screen.kind === "detail" && <DetailPanel screen={screen} />}
           {screen.kind === "success" && <DetailPanel screen={screen} success />}
-          {screen.kind === "reports" && <ReportsPanel />}
+          {screen.kind === "reports" && <DataReports overview={overviewState.data} />}
           <WorkflowLinks screenId={screen.id} />
         </div>
         <footer className="workspace__footer"><span>Second Daze Apparel</span><span>Operations workspace</span></footer>
@@ -757,7 +1043,7 @@ export default function App() {
   const [authUser, setAuthUser] = useState(readAuthUser);
   const [currentId, setCurrentId] = useState(() => routeId());
   const [authError, setAuthError] = useState("");
-  const [overviewState, setOverviewState] = useState({ status: "demo", data: null, error: "" });
+  const [overviewState, setOverviewState] = useState({ status: "loading", data: null, error: "" });
   const [overviewRefresh, setOverviewRefresh] = useState(0);
   useEffect(() => {
     const updateRoute = () => setCurrentId(routeId());
@@ -765,14 +1051,29 @@ export default function App() {
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
   useEffect(() => {
-    const syncAuth = () => setAuthUser(readAuthUser());
+    const syncAuth = (event) => {
+      if (event.key === STORAGE_KEY || event.key === null) setOverviewRefresh((previous) => previous + 1);
+      if (event.key !== STORAGE_KEY) setAuthUser(readAuthUser());
+    };
     window.addEventListener("storage", syncAuth);
     return () => window.removeEventListener("storage", syncAuth);
   }, []);
   useEffect(() => {
-    if (!authUser || authUser.demo) {
-      setOverviewState({ status: "demo", data: null, error: "" });
+    if (!authUser) {
+      setOverviewState({ status: "idle", data: null, error: "" });
       return undefined;
+    }
+    if (authUser.demo) {
+      const refreshLocal = () => {
+        try {
+          setOverviewState({ status: "local", data: buildOverview(readWorkspace()), error: "" });
+        } catch (error) {
+          setOverviewState({ status: "error", data: null, error: error.message || "Unable to load saved browser data." });
+        }
+      };
+      refreshLocal();
+      const intervalId = window.setInterval(refreshLocal, 30000);
+      return () => window.clearInterval(intervalId);
     }
 
     const controller = new AbortController();
@@ -824,10 +1125,14 @@ export default function App() {
   };
 
   const requestedId = !currentId || currentId === "screens"
-    ? authUser ? "2-admin-dashboard" : "1-staff-sign-in"
+    ? authUser ? homeId(authUser) : "1-staff-sign-in"
     : currentId === "mobile" ? "8-mobile-sign-in" : currentId;
   const requestedScreen = screens.find((item) => item.id === requestedId)
     || screens.find((item) => item.id === "1-staff-sign-in");
+  const wrongRole = authUser && requestedScreen.group === "Main system" && (
+    (!isAdmin(authUser) && adminOnlyIds.has(requestedScreen.id))
+    || (isAdmin(authUser) && requestedScreen.id === "2s-staff-dashboard")
+  );
   const publicScreen = requestedScreen.kind.startsWith("auth") || requestedScreen.kind === "pending";
   const mobileScreen = requestedScreen.group !== "Main system";
   const signInRoute = mobileScreen ? "8-mobile-sign-in" : "1-staff-sign-in";
@@ -838,17 +1143,21 @@ export default function App() {
       return;
     }
     if (authUser && requestedScreen.id === "1-staff-sign-in") {
-      window.location.hash = "/2-admin-dashboard";
+      window.location.hash = `/${homeId(authUser)}`;
+      return;
+    }
+    if (wrongRole) {
+      window.location.hash = `/${homeId(authUser)}`;
       return;
     }
     if (!authUser && requiresAuthentication) {
       window.location.hash = `/${signInRoute}`;
     }
-  }, [authUser, requestedId, requestedScreen.id, requiresAuthentication, signInRoute]);
+  }, [authUser, requestedId, requestedScreen.id, requiresAuthentication, signInRoute, wrongRole]);
 
   const screen = !authUser && requiresAuthentication
     ? screens.find((item) => item.id === signInRoute)
-    : requestedScreen;
+    : wrongRole ? screens.find((item) => item.id === homeId(authUser)) : requestedScreen;
 
   if (screen.group !== "Main system") {
     return (

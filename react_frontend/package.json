@@ -4,14 +4,16 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "vite",
     "build": "vite build",
+    "test": "node --test src/data/workspace.test.js",
     "preview": "vite preview --host 127.0.0.1"
   },
   "engines": {
     "node": ">=20.19.0"
   },
   "dependencies": {
+    "papaparse": "^5.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

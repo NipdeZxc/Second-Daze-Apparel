@@ -33,11 +33,16 @@ npm run dev
 ```
 
 Open the Vite URL printed in the terminal (usually `http://127.0.0.1:5173/`).
-The app opens on staff sign-in. In development, use `admin` / `admin` to enter
-the dashboard preview, or `pending@demo.local` with any non-empty password to
+The app opens on staff sign-in. In development, use `admin` / `admin` for the
+admin dashboard or `staff` / `staff` for the staff dashboard.
+Use `pending@demo.local` with any non-empty password to
 view the pending-approval screen. These demo credentials are not real
 authentication and must not be used to protect production data.
 
+Admin and staff menus share the same header, sidebar, typography, and responsive
+layout across dashboards, orders, customers, and other workspace modules.
+Click the name (or avatar on small screens) in the top-right corner and choose
+**Log out** to return to sign-in.
 Use the sidebar to move between workspace modules. Dashboard queues,
 quick actions, and each page's related-workflow links connect common tasks—for
 example, a refund request leads to item review and approval, while order details
@@ -47,11 +52,55 @@ its own sign-in, Home/Approvals/Orders/Inventory navigation, notifications, and
 sign-out. There is no link between the two app shells. Sign in with the same
 backend account on either surface to use the same workspace.
 
-Both surfaces read the shared `GET /api/workspace/overview/` endpoint. They
+When connected to a backend, both surfaces read the shared
+`GET /api/workspace/overview/` endpoint. They
 refresh it when opened, on demand, and every 30 seconds; changes persisted by a
 connected backend can therefore appear in both dashboards without either app
 linking directly to the other. When using the local demo login, this API is not
-called and no data is synchronized.
+called. Instead, both surfaces display imported records from the current
+browser's storage. No sample products, customers, orders, sales, reservations,
+names, notifications, or dashboard figures are seeded.
+
+## Import CSV data (temporary local mode)
+
+Sign in as `admin` / `admin`, then select **Import CSV** in the sidebar or
+admin dashboard. Choose a data type and download its header-only template:
+
+- **Products and inventory:** `sku`, `product_name`, `cost_price`,
+  `selling_price`, `qty_available`, `low_stock_threshold`. Optional:
+  `category`, `size`, `color`.
+- **Customers:** `customer_code`, `full_name`, `contact_number`. Optional:
+  `email`, `address`, `city`.
+- **Orders:** `order_no`, `customer_code`, `total_amount`, `status`, `ordered_at`.
+- **Sales:** `sale_no`, `order_no`, `amount`, `cost`, `sold_at`.
+- **Reservations:** `reservation_no`, `customer_code`, `status`, `expires_at`.
+
+Import customers before orders/reservations, and orders before sales.
+Dates accept `YYYY-MM-DD` or ISO timestamps with a timezone. Prices must be
+non-negative plain numbers with at most two decimal places. Quantities must
+be non-negative whole numbers. Supported statuses are shown beside the import
+form. Each file may contain up to 5,000 data rows and must be 2 MB or smaller.
+
+Select **Preview CSV**, review the first ten rows, then **Import records** to
+save. Invalid rows, missing references, duplicate identifiers (case-insensitive,
+within the file or existing data), and storage errors reject the entire import.
+Imports only add records; they do not overwrite existing records. Inventory
+quantities are snapshots: importing sales or orders does not change stock.
+Sales metrics use imported sales and their recorded costs; order metrics use
+imported orders. Empty datasets display zero counts or unavailable/empty states,
+not made-up values. Lists, dashboards, reports, and the product catalog read
+the saved records; other unimplemented workflows remain explicitly unavailable.
+
+Data persists across reloads and sign-out on the **same browser and origin**
+and is available to the staff preview there. Other tabs refresh after an import.
+It is **not a database**, is not shared across browsers/devices, and can be lost
+when site data is cleared. Keep original CSV files as backups. Demo roles only
+hide/disable UI; they are not a security boundary. Do not import sensitive or
+production data. A shared, authenticated backend can replace this temporary mode
+later; none is required or started for CSV imports.
+
+Run the CSV validation, persistence, and dashboard aggregation tests with
+`npm --prefix react_frontend test` from the repository root.
 
 ## Deploy to Vercel
 
@@ -65,9 +114,10 @@ Create a Vercel project connected to this repository and set:
 
 The app uses hash-based routes, so direct navigation to a screen does not need
 extra Vercel rewrite rules. The Vercel rewrite serves the SPA at `/mobile`.
-Do not enable `VITE_ENABLE_DEMO_LOGIN` on a
-production deployment. It is false by default in production builds; local Vite
-development enables the preview flow.
+The current Vercel configurations enable `VITE_ENABLE_DEMO_LOGIN=true` for a
+temporary, browser-only preview. Before handling production data, remove that
+setting, disable demo login, and configure a real authenticated backend.
+Local Vite development also enables the preview flow.
 
 ## Backend integration
 
