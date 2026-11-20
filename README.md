@@ -91,6 +91,13 @@ imported orders. Empty datasets display zero counts or unavailable/empty states,
 not made-up values. Lists, dashboards, reports, and the product catalog read
 the saved records; other unimplemented workflows remain explicitly unavailable.
 
+Data tables include search, sortable columns, status filters where supported,
+pagination, and View actions. Admin demo users can edit imported records; edits
+are validated and saved only in the current browser. Dashboard KPI cards and
+work queues navigate to their related screens, and the sales chart can show the
+last 7 or 30 days. Workflow forms show field errors and a review confirmation;
+demo actions explicitly state that they are not saved.
+
 Data persists across reloads and sign-out on the **same browser and origin**
 and is available to the staff preview there. Other tabs refresh after an import.
 It is **not a database**, is not shared across browsers/devices, and can be lost

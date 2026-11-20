@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test src/data/workspace.test.js",
+    "test": "node --test",
     "preview": "vite preview --host 127.0.0.1"
   },
   "engines": {

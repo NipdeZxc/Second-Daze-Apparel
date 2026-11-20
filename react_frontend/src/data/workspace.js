@@ -182,6 +182,37 @@ export function saveImport(kind, records, user, storage = localStorage) {
   return next;
 }
 
+export function updateRecord(kind, identifier, values, user, storage = localStorage) {
+  if (user?.role !== "Admin") throw new Error("Only an Admin can edit imported records.");
+  const definition = definitionFor(kind);
+  const workspace = readWorkspace(storage);
+  const existing = workspace[kind].find((record) => record[definition.key] === identifier);
+  if (!existing) throw new Error("The selected record no longer exists.");
+
+  const recordsWithoutCurrent = workspace[kind].filter((record) => record[definition.key] !== identifier);
+  const [updatedRecord] = validateRecords(kind, [{ ...existing, ...values }], {
+    ...workspace,
+    [kind]: recordsWithoutCurrent,
+  });
+  const updatedAt = new Date().toISOString();
+  const next = {
+    ...workspace,
+    [kind]: workspace[kind].map((record) => record[definition.key] === identifier ? updatedRecord : record),
+    updatedAt,
+    recentActivity: [{
+      id: crypto.randomUUID(),
+      message: `Updated ${datasets[kind].label.toLowerCase()} record ${identifier} by ${user.username}.`,
+      createdAt: updatedAt,
+    }, ...workspace.recentActivity].slice(0, 100),
+  };
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch (error) {
+    throw new Error(`Record was not updated. Browser storage may be full or unavailable. ${error.message}`);
+  }
+  return next;
+}
+
 const cents = (value) => Math.round(value * 100);
 export function buildOverview(records, now = new Date()) {
   const total = (key) => records.sales.reduce((sum, sale) => sum + cents(sale[key]), 0) / 100;
@@ -209,7 +240,7 @@ export function buildOverview(records, now = new Date()) {
       activeReservations: reservations.length,
     },
     queues: { accessApprovals: null, ordersToFulfill: pendingOrders.length, lowStockItems: lowStock.length },
-    dailySales: [...dailySales].sort(([a], [b]) => a.localeCompare(b)).slice(-7).map(([day, amount]) => [day, amount / 100]),
+    dailySales: [...dailySales].sort(([a], [b]) => a.localeCompare(b)).slice(-30).map(([day, amount]) => [day, amount / 100]),
     recentActivity: records.recentActivity,
     updatedAt: records.updatedAt,
   };
