@@ -41,7 +41,7 @@ const main = [
 
 const mobile = [
   ["8-mobile-sign-in", "Sign in", "Apparel access portal.", "mobile-auth"],
-  ["8.1-mobile-admin-dashboard", "Dashboard", "Admin workspace.", "mobile-dashboard"],
+  ["8.1-mobile-admin-dashboard", "Dashboard", "Your operational queues and tasks.", "mobile-dashboard"],
   ["8.2-mobile-approvals", "Approvals", "Review access, payment, refund, and reservation requests.", "mobile-list"],
   ["8.3-mobile-checkout-gcash", "Checkout", "Record GCash payment for Admin verification.", "mobile-form"],
   ["8.4-mobile-orders", "Orders", "Track customer orders and fulfillment status.", "mobile-list"],

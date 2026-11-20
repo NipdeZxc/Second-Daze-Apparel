@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { formFields, screens, tableColumns } from "./screens.js";
 import { demoLoginEnabled, signIn, signOut } from "./api/auth.js";
+import { getWorkspaceOverview, submitWorkspaceAction } from "./api/workspace.js";
 
 const mainScreens = screens.filter((screen) => screen.group === "Main system");
 const mobileScreens = screens.filter((screen) => screen.group === "Mobile companion");
@@ -26,6 +27,7 @@ const iconPaths = {
   arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
   logout: <><path d="M10 17l5-5-5-5M15 12H3" /><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7" /></>,
   check: <><path d="m5 12 4 4L19 6" /></>,
+  refresh: <><path d="M20 7v5h-5M4 17v-5h5" /><path d="M5.5 9A7 7 0 0 1 18 6l2 6M4 12l2 6a7 7 0 0 0 12.5-3" /></>,
 };
 
 function Icon({ name, size = 16, className = "" }) {
@@ -59,29 +61,31 @@ function screenIcon(screen) {
 }
 
 function readAuthUser() {
-  const username = sessionStorage.getItem("second-daze-username");
+  const username = localStorage.getItem("second-daze-username");
   if (!username) return null;
   return {
     username,
-    role: sessionStorage.getItem("second-daze-role") || "Staff",
-    demo: sessionStorage.getItem("second-daze-demo") === "true",
+    role: localStorage.getItem("second-daze-role") || "Staff",
+    demo: localStorage.getItem("second-daze-demo") === "true",
   };
 }
 
 function saveAuthUser(user) {
-  sessionStorage.setItem("second-daze-username", user.username);
-  sessionStorage.setItem("second-daze-role", user.role || "Staff");
-  sessionStorage.setItem("second-daze-demo", String(user.demo));
+  localStorage.setItem("second-daze-username", user.username);
+  localStorage.setItem("second-daze-role", user.role || "Staff");
+  localStorage.setItem("second-daze-demo", String(user.demo));
 }
 
 function clearAuthUser() {
-  sessionStorage.removeItem("second-daze-username");
-  sessionStorage.removeItem("second-daze-role");
-  sessionStorage.removeItem("second-daze-demo");
+  localStorage.removeItem("second-daze-username");
+  localStorage.removeItem("second-daze-role");
+  localStorage.removeItem("second-daze-demo");
 }
 
 function routeId() {
-  return decodeURIComponent(window.location.hash.replace(/^#\/?/, "").split("?")[0]);
+  const hashRoute = decodeURIComponent(window.location.hash.replace(/^#\/?/, "").split("?")[0]);
+  if (hashRoute) return hashRoute;
+  return window.location.pathname.replace(/\/+$/, "") === "/mobile" ? "mobile" : "";
 }
 
 function ScreenLink({ screen, children, className = "", ...linkProps }) {
@@ -118,8 +122,7 @@ function Sidebar({ active, authUser, onSignOut }) {
   return (
     <aside className="sidebar">
       <Brand compact to="#/2-admin-dashboard" />
-      <p className="sidebar__label">MAIN SYSTEM</p>
-      <nav aria-label="Main system screens">
+      <nav aria-label="Workspace navigation">
         {navGroups.map((group) => (
           <div className="nav-group" key={group.title}>
             <p className="nav-group__title">{group.title}</p>
@@ -137,10 +140,7 @@ function Sidebar({ active, authUser, onSignOut }) {
         ))}
       </nav>
       <div className="sidebar__bottom">
-        <ScreenLink screen={mobileScreens[1]} className="nav-link">
-          <Icon className="nav-link__icon" name="smartphone" size={15} />Mobile companion
-        </ScreenLink>
-        <button className="nav-link sidebar__sign-out" type="button" onClick={onSignOut} aria-label={`Sign out ${authUser?.username || ""}`}>
+        <button className="nav-link sidebar__sign-out" type="button" onClick={() => onSignOut()} aria-label={`Sign out ${authUser?.username || ""}`}>
           <Icon className="nav-link__icon" name="logout" size={15} />Sign out
         </button>
         <span className="sidebar__note">{authUser?.demo ? "Demo preview · no data is saved" : `Signed in as ${authUser?.role || "Staff"}`}</span>
@@ -216,22 +216,15 @@ function PageHeader({ screen }) {
   return (
     <header className="page-header">
       <div>
-        <p className="eyebrow">SECOND DAZE / {screen.group.toUpperCase()}</p>
+        <p className="eyebrow">SECOND DAZE / WORKSPACE</p>
         <div className="page-header__title-row">
           <span className="page-header__icon"><Icon name={screenIcon(screen)} size={19} /></span>
           <h1>{screen.title}</h1>
         </div>
         <p>{screen.description}</p>
       </div>
-      <span className="prototype-tag">{authLabel(screen)}</span>
     </header>
   );
-}
-
-function authLabel(screen) {
-  return screen.group === "Mobile companion" || screen.group === "Mobile overlays"
-    ? "Mobile companion"
-    : "Main system";
 }
 
 function EmptyTable({ screen }) {
@@ -257,11 +250,44 @@ function EmptyTable({ screen }) {
   );
 }
 
-function Dashboard() {
+function WorkspaceSyncStatus({ overviewState, onRefresh }) {
+  if (overviewState.status === "demo") {
+    return <p className="sync-status">Demo preview · shared records appear when connected to the workspace API.</p>;
+  }
+  if (overviewState.error) {
+    return (
+      <p className="sync-status sync-status--error" role="alert">
+        Could not refresh shared workspace data. {overviewState.error}
+        <button className="sync-status__retry" type="button" onClick={onRefresh}>Retry</button>
+      </p>
+    );
+  }
+  return (
+    <div className="sync-status">
+      <span>{overviewState.status === "loading" ? "Loading shared workspace data…" : `Last synced ${formatUpdatedAt(overviewState.data?.updatedAt)}`}</span>
+      <button className="sync-status__refresh" type="button" onClick={onRefresh} disabled={overviewState.status === "loading"} aria-label="Refresh shared workspace data">
+        <Icon name="refresh" size={14} />Refresh
+      </button>
+    </div>
+  );
+}
+
+function formatUpdatedAt(value) {
+  if (!value) return "not yet";
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) return "not yet";
+  return timestamp.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function formatQueueCount(count, label = "item") {
+  return `${count} ${count === 1 ? label : `${label}s`}`;
+}
+
+function Dashboard({ overviewState, onRefresh }) {
   const queues = [
-    { title: "Access approvals", description: "Staff access requests waiting for review.", screenId: "2.2-access-approvals" },
-    { title: "Orders to fulfill", description: "Orders requiring payment or delivery follow-up.", screenId: "3.9-orders-status-tracking" },
-    { title: "Low-stock items", description: "Inventory below its restock threshold.", screenId: "4.2-low-stock-alerts" },
+    { title: "Access approvals", description: "Staff access requests waiting for review.", screenId: "2.2-access-approvals", count: overviewState.data?.queues.accessApprovals },
+    { title: "Orders to fulfill", description: "Orders requiring payment or delivery follow-up.", screenId: "3.9-orders-status-tracking", count: overviewState.data?.queues.ordersToFulfill },
+    { title: "Low-stock items", description: "Inventory below its restock threshold.", screenId: "4.2-low-stock-alerts", count: overviewState.data?.queues.lowStockItems },
   ];
   const actions = [
     { title: "Create purchase order", screenId: "3.13-create-purchase-order" },
@@ -287,6 +313,7 @@ function Dashboard() {
       <section className="dashboard-queues" aria-labelledby="queues-title">
         <div className="dashboard-section-heading">
           <div><h2 id="queues-title">Work queues</h2><p>Items requiring action across the workspace.</p></div>
+          <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />
         </div>
         <div className="dashboard-queue-grid">
           {queues.map((queue) => (
@@ -296,7 +323,11 @@ function Dashboard() {
                 <ScreenLink className="text-link" screen={screens.find((screen) => screen.id === queue.screenId)}>Open queue</ScreenLink>
               </div>
               <p>{queue.description}</p>
-              <div className="dashboard-queue__empty">Queue data will appear when connected.</div>
+              <div className="dashboard-queue__empty">
+                {typeof queue.count === "number"
+                  ? `${formatQueueCount(queue.count)} currently ${queue.count === 1 ? "requires" : "require"} attention.`
+                  : "Queue data will appear when connected."}
+              </div>
             </article>
           ))}
         </div>
@@ -306,19 +337,50 @@ function Dashboard() {
           <div><h2>Recent activity</h2><p>Latest changes recorded in the workspace.</p></div>
           <span className="quiet-tag">Activity log</span>
         </div>
-        <div className="activity-empty">Activity will appear when records are available.</div>
+        {overviewState.data?.recentActivity?.length ? (
+          <ul className="activity-list">
+            {overviewState.data.recentActivity.map((activity) => (
+              <li key={activity.id}><span>{activity.message}</span><time dateTime={activity.createdAt}>{formatUpdatedAt(activity.createdAt)}</time></li>
+            ))}
+          </ul>
+        ) : (
+          <div className="activity-empty">
+            {overviewState.data ? "No recent activity." : "Activity will appear when records are available."}
+          </div>
+        )}
       </section>
     </div>
   );
 }
 
-function FormPanel({ screen, mobile = false }) {
+function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const fields = formFields[screen.id] || ["Customer", "Order reference", "Details"];
   return (
-    <form className={`panel form-panel ${mobile ? "form-panel--mobile" : ""}`} onSubmit={(event) => {
+    <form className={`panel form-panel ${mobile ? "form-panel--mobile" : ""}`} onSubmit={async (event) => {
       event.preventDefault();
-      setMessage("This preview does not save or send data.");
+      if (authUser?.demo) {
+        setMessage("Demo preview only. This action was not saved.");
+        return;
+      }
+
+      const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+      setSubmitting(true);
+      setMessage("");
+      try {
+        await submitWorkspaceAction({
+          source: mobile ? "mobile" : "admin",
+          screenId: screen.id,
+          values,
+        });
+        setMessage("Saved to the shared workspace.");
+        onActionSaved();
+      } catch (error) {
+        setMessage(error.message || "Unable to save this workspace action.");
+      } finally {
+        setSubmitting(false);
+      }
     }}>
       <div className="panel__top">
         <div><h2>{screen.title}</h2><p>Complete the fields below to preview this workflow.</p></div>
@@ -329,16 +391,18 @@ function FormPanel({ screen, mobile = false }) {
           <label className={field.toLowerCase().includes("note") || field.toLowerCase().includes("address") ? "field field--wide" : "field"} key={field}>
             <span>{field}</span>
             {field.toLowerCase().includes("note") || field.toLowerCase().includes("address") || field.toLowerCase().includes("reason") ? (
-              <textarea rows="3" placeholder={`Enter ${field.toLowerCase()}`} />
+              <textarea name={field} rows="3" placeholder={`Enter ${field.toLowerCase()}`} />
             ) : (
-              <input type={field.toLowerCase().includes("date") ? "date" : "text"} placeholder={`Enter ${field.toLowerCase()}`} />
+              <input name={field} type={field.toLowerCase().includes("date") ? "date" : "text"} placeholder={`Enter ${field.toLowerCase()}`} />
             )}
           </label>
         ))}
       </div>
       <div className="form-actions">
         {message && <span className="form-note" role="status">{message}</span>}
-        <button className="button button--primary" type="submit">{mobile ? "Continue" : "Save preview"}</button>
+        <button className="button button--primary" type="submit" disabled={submitting}>
+          {submitting ? "Saving…" : mobile ? "Continue" : authUser?.demo ? "Save preview" : "Save"}
+        </button>
       </div>
     </form>
   );
@@ -489,7 +553,7 @@ function MobileLogin({ onAuthenticated }) {
           onAuthenticated(result.user, result.demo);
           window.location.hash = "/8.1-mobile-admin-dashboard";
         } else if (result.status === "pending") {
-          window.location.hash = "/1.2-access-awaiting-approval";
+          setMessage("Your access request is awaiting approval from an Admin.");
         } else {
           setMessage("Username or password was not recognized.");
         }
@@ -512,12 +576,19 @@ function MobileLogin({ onAuthenticated }) {
   );
 }
 
-function MobileContent({ screen, onAuthenticated }) {
-  if (screen.kind === "mobile-form") return <FormPanel key={screen.id} screen={screen} mobile />;
+function MobileContent({ screen, onAuthenticated, overviewState, onRefresh, authUser }) {
+  if (screen.kind === "mobile-form") {
+    return <FormPanel key={screen.id} screen={screen} mobile authUser={authUser} onActionSaved={onRefresh} />;
+  }
   if (screen.kind === "mobile-auth") {
     return <MobileLogin onAuthenticated={onAuthenticated} />;
   }
   if (screen.kind === "mobile-list" || screen.kind === "mobile-stock") {
+    const count = screen.id === "8.2-mobile-approvals"
+      ? overviewState.data?.queues.accessApprovals
+      : screen.id === "8.4-mobile-orders"
+        ? overviewState.data?.queues.ordersToFulfill
+        : overviewState.data?.queues.lowStockItems;
     return (
       <section className="mobile-worklist">
         <div className="mobile-worklist__heading">
@@ -525,22 +596,25 @@ function MobileContent({ screen, onAuthenticated }) {
           <span className="quiet-tag">All items</span>
         </div>
         <div className="mobile-empty">
-          <strong>No records to display</strong>
-          <span>Connect the workspace data source to load this queue.</span>
+          <strong>{typeof count === "number" ? formatQueueCount(count) : "No records to display"}</strong>
+          <span>{typeof count === "number" ? "This queue is shared with the operations workspace." : "Connect the workspace data source to load this queue."}</span>
         </div>
       </section>
     );
   }
   return (
     <div className="mobile-dashboard">
+      <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />
       <section className="mobile-worklist">
         <div className="mobile-worklist__heading">
           <h2>Needs attention</h2>
           <ScreenLink className="text-link" screen={mobileScreens.find((item) => item.id === "8.2-mobile-approvals")}>View approvals</ScreenLink>
         </div>
         <div className="mobile-empty">
-          <strong>Work queue is unavailable</strong>
-          <span>Connect the workspace data source to load assigned items.</span>
+          <strong>{typeof overviewState.data?.queues.accessApprovals === "number"
+            ? formatQueueCount(overviewState.data.queues.accessApprovals, "access request")
+            : "— access requests"}</strong>
+          <span>{overviewState.data ? "Shared workspace data, refreshed automatically." : "Connect the workspace data source to load assigned items."}</span>
         </div>
       </section>
       <section className="mobile-quick-actions">
@@ -550,13 +624,15 @@ function MobileContent({ screen, onAuthenticated }) {
       </section>
       <section className="mobile-worklist">
         <div className="mobile-worklist__heading"><h2>Orders</h2><ScreenLink className="text-link" screen={mobileScreens.find((item) => item.id === "8.4-mobile-orders")}>View orders</ScreenLink></div>
-        <p className="mobile-inline-empty">Order data will appear here when available.</p>
+        <p className="mobile-inline-empty">{overviewState.data
+          ? `${formatQueueCount(overviewState.data.queues.ordersToFulfill, "order")} ${overviewState.data.queues.ordersToFulfill === 1 ? "needs" : "need"} follow-up in the shared workspace.`
+          : "Order data will appear here when available."}</p>
       </section>
     </div>
   );
 }
 
-function MobilePreview({ screen, onAuthenticated, authUser, onSignOut }) {
+function MobilePreview({ screen, onAuthenticated, authUser, onSignOut, overviewState, onRefresh }) {
   const isOverlay = screen.group === "Mobile overlays";
   const confirm = screen.kind === "confirm";
   const returnScreenIds = {
@@ -581,19 +657,14 @@ function MobilePreview({ screen, onAuthenticated, authUser, onSignOut }) {
     <main className="mobile-app-view">
       <div className="mobile-app-shell" aria-hidden={isOverlay} inert={isOverlay}>
         <header className="mobile-app-header">
-          <Brand compact to={screen.kind === "mobile-auth" ? "#/1-staff-sign-in" : "#/8.1-mobile-admin-dashboard"} />
-          {screen.kind !== "mobile-auth" && (
-            <a className="mobile-admin-link" href="#/2-admin-dashboard" aria-label="Open main system">
-              <Icon name="home" size={15} /><span>Admin</span>
-            </a>
-          )}
+          <Brand compact to={authUser ? "#/8.1-mobile-admin-dashboard" : "#/8-mobile-sign-in"} />
           {screen.kind !== "mobile-auth" && (
             <ScreenLink className={`mobile-notifications ${isOverlay ? "is-current" : ""}`} screen={notificationScreen} aria-label="Notifications">
               <Icon name="bell" size={16} /><span className="mobile-notifications__label">Notifications</span>
             </ScreenLink>
           )}
           {screen.kind !== "mobile-auth" && (
-            <button className="mobile-avatar" type="button" onClick={onSignOut} aria-label={`Sign out ${authUser?.username || ""}`}>
+            <button className="mobile-avatar" type="button" onClick={() => onSignOut()} aria-label={`Sign out ${authUser?.username || ""}`}>
               <Icon name="logout" size={14} />
             </button>
           )}
@@ -605,7 +676,13 @@ function MobilePreview({ screen, onAuthenticated, authUser, onSignOut }) {
               <p>{underlayScreen.description}</p>
             </header>
           )}
-          <MobileContent screen={underlayScreen} onAuthenticated={onAuthenticated} />
+          <MobileContent
+            screen={underlayScreen}
+            onAuthenticated={onAuthenticated}
+            overviewState={overviewState}
+            onRefresh={onRefresh}
+            authUser={authUser}
+          />
           <WorkflowLinks screenId={underlayScreen.id} mobile />
         </section>
         {screen.kind !== "mobile-auth" && (
@@ -651,7 +728,7 @@ function MobilePreview({ screen, onAuthenticated, authUser, onSignOut }) {
   );
 }
 
-function MainPreview({ screen, authUser, onAuthenticated, onSignOut }) {
+function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewState, onRefresh }) {
   if (screen.kind.startsWith("auth") || screen.kind === "pending") {
     return <AuthScreen key={screen.id} screen={screen} onAuthenticated={onAuthenticated} />;
   }
@@ -661,16 +738,16 @@ function MainPreview({ screen, authUser, onAuthenticated, onSignOut }) {
       <main className="workspace">
         <PageHeader screen={screen} />
         <div className="workspace__body">
-          {screen.kind === "dashboard" && <Dashboard />}
+          {screen.kind === "dashboard" && <Dashboard overviewState={overviewState} onRefresh={onRefresh} />}
           {screen.kind === "table" && <EmptyTable screen={screen} />}
           {screen.kind === "catalog" && <CatalogPanel />}
-          {screen.kind === "form" && <FormPanel key={screen.id} screen={screen} />}
+          {screen.kind === "form" && <FormPanel key={screen.id} screen={screen} authUser={authUser} onActionSaved={onRefresh} />}
           {screen.kind === "detail" && <DetailPanel screen={screen} />}
           {screen.kind === "success" && <DetailPanel screen={screen} success />}
           {screen.kind === "reports" && <ReportsPanel />}
           <WorkflowLinks screenId={screen.id} />
         </div>
-        <footer className="workspace__footer"><span>Second Daze Apparel</span><span>Main system</span></footer>
+        <footer className="workspace__footer"><span>Second Daze Apparel</span><span>Operations workspace</span></footer>
       </main>
     </div>
   );
@@ -680,16 +757,53 @@ export default function App() {
   const [authUser, setAuthUser] = useState(readAuthUser);
   const [currentId, setCurrentId] = useState(() => routeId());
   const [authError, setAuthError] = useState("");
+  const [overviewState, setOverviewState] = useState({ status: "demo", data: null, error: "" });
+  const [overviewRefresh, setOverviewRefresh] = useState(0);
   useEffect(() => {
     const updateRoute = () => setCurrentId(routeId());
     window.addEventListener("hashchange", updateRoute);
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
   useEffect(() => {
-    if (currentId === "screens") {
-      window.location.hash = authUser ? "/2-admin-dashboard" : "/1-staff-sign-in";
+    const syncAuth = () => setAuthUser(readAuthUser());
+    window.addEventListener("storage", syncAuth);
+    return () => window.removeEventListener("storage", syncAuth);
+  }, []);
+  useEffect(() => {
+    if (!authUser || authUser.demo) {
+      setOverviewState({ status: "demo", data: null, error: "" });
+      return undefined;
     }
-  }, [authUser, currentId]);
+
+    const controller = new AbortController();
+    setOverviewState({ status: "loading", data: null, error: "" });
+    const refresh = async () => {
+      setOverviewState((previous) => ({
+        ...previous,
+        status: previous.data ? "refreshing" : "loading",
+        error: "",
+      }));
+      try {
+        const data = await getWorkspaceOverview({ signal: controller.signal });
+        setOverviewState({ status: "ready", data, error: "" });
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setOverviewState((previous) => ({
+            ...previous,
+            status: previous.data ? "ready" : "error",
+            error: error.message || "Unable to load shared workspace data.",
+          }));
+        }
+      }
+    };
+
+    refresh();
+    const intervalId = window.setInterval(refresh, 30000);
+    return () => {
+      controller.abort();
+      window.clearInterval(intervalId);
+    };
+  }, [authUser?.demo, authUser?.username, overviewRefresh]);
 
   const authenticateUser = (user, demo) => {
     const normalizedUser = { ...user, role: user.role || "Staff", demo };
@@ -697,13 +811,13 @@ export default function App() {
     setAuthUser(normalizedUser);
     setAuthError("");
   };
-  const handleSignOut = async () => {
+  const handleSignOut = async (returnTo = "1-staff-sign-in") => {
     try {
       await signOut(authUser || { demo: true });
       clearAuthUser();
       setAuthUser(null);
       setAuthError("");
-      window.location.hash = "/1-staff-sign-in";
+      window.location.hash = `/${returnTo}`;
     } catch (error) {
       setAuthError(error.message || "Unable to sign out.");
     }
@@ -711,19 +825,29 @@ export default function App() {
 
   const requestedId = !currentId || currentId === "screens"
     ? authUser ? "2-admin-dashboard" : "1-staff-sign-in"
-    : currentId;
+    : currentId === "mobile" ? "8-mobile-sign-in" : currentId;
   const requestedScreen = screens.find((item) => item.id === requestedId)
     || screens.find((item) => item.id === "1-staff-sign-in");
   const publicScreen = requestedScreen.kind.startsWith("auth") || requestedScreen.kind === "pending";
+  const mobileScreen = requestedScreen.group !== "Main system";
+  const signInRoute = mobileScreen ? "8-mobile-sign-in" : "1-staff-sign-in";
   const requiresAuthentication = !publicScreen && requestedScreen.id !== "8-mobile-sign-in";
   useEffect(() => {
-    if (!authUser && requiresAuthentication) {
-      window.location.hash = "/1-staff-sign-in";
+    if (authUser && requestedScreen.id === "8-mobile-sign-in") {
+      window.location.hash = "/8.1-mobile-admin-dashboard";
+      return;
     }
-  }, [authUser, requestedId, requiresAuthentication]);
+    if (authUser && requestedScreen.id === "1-staff-sign-in") {
+      window.location.hash = "/2-admin-dashboard";
+      return;
+    }
+    if (!authUser && requiresAuthentication) {
+      window.location.hash = `/${signInRoute}`;
+    }
+  }, [authUser, requestedId, requestedScreen.id, requiresAuthentication, signInRoute]);
 
   const screen = !authUser && requiresAuthentication
-    ? screens.find((item) => item.id === "1-staff-sign-in")
+    ? screens.find((item) => item.id === signInRoute)
     : requestedScreen;
 
   if (screen.group !== "Main system") {
@@ -735,7 +859,9 @@ export default function App() {
           screen={screen}
           onAuthenticated={authenticateUser}
           authUser={authUser}
-          onSignOut={handleSignOut}
+          onSignOut={() => handleSignOut("8-mobile-sign-in")}
+          overviewState={overviewState}
+          onRefresh={() => setOverviewRefresh((current) => current + 1)}
         />
       </>
     );
@@ -748,6 +874,8 @@ export default function App() {
         authUser={authUser}
         onAuthenticated={authenticateUser}
         onSignOut={handleSignOut}
+        overviewState={overviewState}
+        onRefresh={() => setOverviewRefresh((current) => current + 1)}
       />
     </>
   );

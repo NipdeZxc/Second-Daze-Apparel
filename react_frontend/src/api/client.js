@@ -1,6 +1,6 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
 
-export async function apiRequest(path, { method = "GET", body, headers = {} } = {}) {
+export async function apiRequest(path, { method = "GET", body, headers = {}, signal } = {}) {
   const endpoint = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
   const response = await fetch(endpoint, {
     method,
@@ -11,6 +11,7 @@ export async function apiRequest(path, { method = "GET", body, headers = {} } = 
       ...headers,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   });
   const contentType = response.headers.get("content-type") || "";
   const data = response.status === 204
