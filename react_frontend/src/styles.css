@@ -129,6 +129,11 @@ td { border-top: 1px solid #f1e7ee; padding: 14px; font-size: 10px; }
 .field { display: grid; gap: 6px; color: #675064; font-size: 10px; font-weight: 600; }
 .field--wide { grid-column: 1 / -1; }
 .field input, .field textarea, .field select { width: 100%; min-height: 39px; border: 1px solid #e8d8e3; border-radius: 8px; outline: 0; padding: 9px 11px; color: var(--text); background: #fffdfb; font-size: 10px; font-weight: 400; }
+.password-field { position: relative; }
+.password-field input { padding-right: 40px; }
+.password-visibility { position: absolute; top: 50%; right: 7px; display: grid; width: 30px; height: 30px; place-items: center; transform: translateY(-50%); border: 0; border-radius: 6px; padding: 0; color: var(--muted); background: transparent; cursor: pointer; }
+.password-visibility:hover { color: var(--primary); background: #f8e9f2; }
+.password-visibility:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .field textarea { resize: vertical; }
 .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(149,68,120,.09); }
 .field input::placeholder, .field textarea::placeholder { color: #b8a8b5; }

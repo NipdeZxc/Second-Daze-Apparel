@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { formFields, screens, tableColumns } from "./screens.js";
 import { demoLoginEnabled, signIn, signOut } from "./api/auth.js";
 import { getWorkspaceOverview, submitWorkspaceAction } from "./api/workspace.js";
@@ -34,6 +34,8 @@ const iconPaths = {
   logout: <><path d="M10 17l5-5-5-5M15 12H3" /><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7" /></>,
   check: <><path d="m5 12 4 4L19 6" /></>,
   refresh: <><path d="M20 7v5h-5M4 17v-5h5" /><path d="M5.5 9A7 7 0 0 1 18 6l2 6M4 12l2 6a7 7 0 0 0 12.5-3" /></>,
+  eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></>,
+  eyeOff: <><path d="m3 3 18 18" /><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" /><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a14.6 14.6 0 0 1-3.1 3.8M6.6 6.6C3.7 8.5 2 12 2 12s3.6 7 10 7a10.5 10.5 0 0 0 4.1-.8" /></>,
 };
 
 function Icon({ name, size = 16, className = "" }) {
@@ -52,6 +54,28 @@ function Icon({ name, size = 16, className = "" }) {
     >
       {iconPaths[name] || iconPaths.grid}
     </svg>
+  );
+}
+
+function PasswordField({ autoComplete = "current-password" }) {
+  const [visible, setVisible] = useState(false);
+  const inputId = useId();
+  return (
+    <div className="field">
+      <label htmlFor={inputId}>Password</label>
+      <div className="password-field">
+        <input id={inputId} name="password" type={visible ? "text" : "password"} autoComplete={autoComplete} required placeholder="Enter your password" />
+        <button
+          type="button"
+          className="password-visibility"
+          aria-label={visible ? "Hide password" : "Show password"}
+          aria-pressed={visible}
+          onClick={() => setVisible((current) => !current)}
+        >
+          <Icon name={visible ? "eyeOff" : "eye"} size={16} />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -944,7 +968,7 @@ function AuthScreen({ screen, onAuthenticated }) {
             <p>{forgot ? "Request password-reset instructions for your staff account." : "Use your staff account to access the workspace."}</p>
             {showError && <p className="inline-error" role="alert">Email or password was not recognized. Check your details and try again.</p>}
             <label className="field"><span>Username</span><input name="username" type="text" autoComplete="username" required placeholder="Enter your username" /></label>
-            {!forgot && <label className="field"><span>Password</span><input name="password" type="password" required placeholder="Enter your password" /></label>}
+            {!forgot && <PasswordField autoComplete="current-password" />}
             {message && <p className="form-note" role="status">{message}</p>}
             <button type="submit" className="button button--primary" disabled={submitting}>
               <Icon name={forgot ? "arrow" : "key"} size={15} />
@@ -995,7 +1019,7 @@ function MobileLogin({ onAuthenticated }) {
       <p>Use your staff account to access the workspace.</p>
       {demoLoginEnabled && <p className="form-note">Demo login: <strong>admin</strong> / <strong>admin</strong>.</p>}
       <label className="field"><span>Username</span><input name="username" type="text" autoComplete="username" placeholder="Enter your username" required /></label>
-      <label className="field"><span>Password</span><input name="password" type="password" autoComplete="current-password" placeholder="Enter your password" required /></label>
+      <PasswordField autoComplete="current-password" />
       {message && <span className="form-note" role="status">{message}</span>}
       <button type="submit" className="button button--primary" disabled={submitting}>
         <Icon name="key" size={15} />{submitting ? "Signing in…" : "Sign in"}
