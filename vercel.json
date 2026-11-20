@@ -1,7 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "installCommand": "npm --prefix react_frontend ci",
+  "regions": ["sin1"],
+  "installCommand": "npm ci && npm --prefix react_frontend ci",
   "buildCommand": "npm --prefix react_frontend run build",
   "outputDirectory": "react_frontend/dist",
   "build": {
