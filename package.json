@@ -1,6 +1,12 @@
 {
   "name": "second-daze-workspace",
   "private": true,
+  "type": "module",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "mysql2": "^3.24.6",
+    "nodemailer": "^10.6.1"
+  },
   "scripts": {
     "dev": "npm --prefix react_frontend run dev",
     "build": "npm --prefix react_frontend run build",
