@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { formFields, screens, tableColumns } from "./screens.js";
 import { demoLoginEnabled, signIn, signOut } from "./api/auth.js";
 import { getWorkspaceOverview, submitWorkspaceAction } from "./api/workspace.js";
@@ -34,6 +34,8 @@ const iconPaths = {
   logout: <><path d="M10 17l5-5-5-5M15 12H3" /><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7" /></>,
   check: <><path d="m5 12 4 4L19 6" /></>,
   refresh: <><path d="M20 7v5h-5M4 17v-5h5" /><path d="M5.5 9A7 7 0 0 1 18 6l2 6M4 12l2 6a7 7 0 0 0 12.5-3" /></>,
+  eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></>,
+  eyeOff: <><path d="m3 3 18 18" /><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" /><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a14.6 14.6 0 0 1-3.1 3.8M6.6 6.6C3.7 8.5 2 12 2 12s3.6 7 10 7a10.5 10.5 0 0 0 4.1-.8" /></>,
 };
 
 function Icon({ name, size = 16, className = "" }) {
@@ -52,6 +54,28 @@ function Icon({ name, size = 16, className = "" }) {
     >
       {iconPaths[name] || iconPaths.grid}
     </svg>
+  );
+}
+
+function PasswordField({ autoComplete = "current-password" }) {
+  const [visible, setVisible] = useState(false);
+  const inputId = useId();
+  return (
+    <div className="field">
+      <label htmlFor={inputId}>Password</label>
+      <div className="password-field">
+        <input id={inputId} name="password" type={visible ? "text" : "password"} autoComplete={autoComplete} required placeholder="Enter your password" />
+        <button
+          type="button"
+          className="password-visibility"
+          aria-label={visible ? "Hide password" : "Show password"}
+          aria-pressed={visible}
+          onClick={() => setVisible((current) => !current)}
+        >
+          <Icon name={visible ? "eyeOff" : "eye"} size={16} />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -339,11 +363,18 @@ function PageHeader({ screen, authUser }) {
   );
 }
 
-function EmptyTable({ screen, overview }) {
+function EmptyTable({ screen, overview, authUser, onRecordsChanged }) {
   const kind = screenDatasets[screen.id];
   if (kind) {
     const rows = screen.id === "4.2-low-stock-alerts" ? overview?.lowStock : overview?.records?.[kind];
-    return <RecordsTable kind={kind} rows={rows} title={screen.title} />;
+    return <RecordsTable
+      kind={kind}
+      rows={rows}
+      title={screen.title}
+      authUser={authUser}
+      canEdit={authUser?.demo && authUser.role === "Admin"}
+      onRecordUpdated={onRecordsChanged}
+    />;
   }
   const columns = tableColumns[screen.id] || ["Name", "Details", "Status", "Action"];
   return (
@@ -393,26 +424,71 @@ function formatUpdatedAt(value) {
   return timestamp.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getSalesSeries(overview, days) {
+  const endDate = new Date();
+  endDate.setHours(0, 0, 0, 0);
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - days + 1);
+  const startKey = dateKey(startDate);
+  const endKey = dateKey(endDate);
+  return (overview?.dailySales || []).filter(([day]) => day >= startKey && day <= endKey);
+}
+
+function SalesRangeControl({ value, onChange }) {
+  return (
+    <label className="dashboard-range">
+      <span>Date range</span>
+      <select value={value} onChange={(event) => onChange(Number(event.target.value))}>
+        <option value="7">Last 7 days</option>
+        <option value="30">Last 30 days</option>
+      </select>
+    </label>
+  );
+}
+
+function SalesChart({ overview, days }) {
+  const salesSeries = getSalesSeries(overview, days);
+  const chartMaximum = Math.max(1, ...salesSeries.map(([, value]) => value));
+  if (!salesSeries.length) {
+    return <div className="dashboard-chart-empty">No sales recorded in this period. Import sales data to display trends.</div>;
+  }
+  return (
+    <div className="dashboard-chart" style={{ gridTemplateColumns: `repeat(${salesSeries.length}, minmax(0, 1fr))` }} role="img" aria-label={`Sales by date for the last ${days} days: ${salesSeries.map(([day, value]) => `${day}: ${formatMoney(value)}`).join(", ")}`}>
+      {salesSeries.map(([day, value]) => (
+        <div className="dashboard-chart__day" key={day}>
+          <span className="dashboard-chart__amount" title={formatMoney(value)}>{formatMoney(value)}</span>
+          <span className="dashboard-chart__bar" style={{ height: `${(value / chartMaximum) * 100}%` }} />
+          <span className="dashboard-chart__label" title={day}>{day.slice(5)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function formatQueueCount(count, label = "item") {
   return `${count} ${count === 1 ? label : `${label}s`}`;
 }
 
 function Dashboard({ overviewState, onRefresh, search }) {
+  const [salesRange, setSalesRange] = useState(7);
   const queues = overviewState.data?.queues;
   const summary = overviewState.data?.metrics;
   const metrics = [
-    { label: "Gross sales", value: formatMoney(summary?.grossSales), detail: "All imported sales", icon: "bag" },
-    { label: "Total cost", value: formatMoney(summary?.totalCost), detail: "Recorded cost of imported sales", icon: "box" },
-    { label: "Profit", value: formatMoney(summary?.profit), detail: "Gross sales minus recorded cost", icon: "chart" },
+    { label: "Gross sales", value: formatMoney(summary?.grossSales), detail: "All imported sales", icon: "bag", screenId: "2.8-sales" },
+    { label: "Total cost", value: formatMoney(summary?.totalCost), detail: "Recorded cost of imported sales", icon: "box", screenId: "6.1-sales-inventory-reports-v2" },
+    { label: "Profit", value: formatMoney(summary?.profit), detail: "Gross sales minus recorded cost", icon: "chart", screenId: "6.1-sales-inventory-reports-v2" },
     {
       label: "Access approvals",
       value: typeof queues?.accessApprovals === "number" ? queues.accessApprovals : "—",
       detail: "Staff access requests awaiting review",
       icon: "calendar",
+      screenId: "2.2-access-approvals",
     },
   ];
-  const weeklySales = overviewState.data?.dailySales || [];
-  const chartMaximum = Math.max(1, ...weeklySales.map(([, value]) => value));
   const requests = (overviewState.data?.recentActivity || []).map((activity) => ({
     title: activity.message,
     detail: formatUpdatedAt(activity.createdAt),
@@ -430,14 +506,14 @@ function Dashboard({ overviewState, onRefresh, search }) {
     <div className="dashboard-workspace">
       <div className="dashboard-metrics">
         {metrics.map((metric) => (
-          <article className="panel dashboard-metric" key={metric.label}>
+          <ScreenLink className="panel dashboard-metric dashboard-metric--link" screen={screens.find((item) => item.id === metric.screenId)} key={metric.label}>
             <div className="dashboard-metric__top">
               <span>{metric.label}</span>
               <span className="dashboard-metric__icon"><Icon name={metric.icon} size={15} /></span>
             </div>
             <strong>{metric.value}</strong>
             <p>{metric.detail}</p>
-          </article>
+          </ScreenLink>
         ))}
       </div>
       <div className="dashboard-overview-grid">
@@ -445,7 +521,10 @@ function Dashboard({ overviewState, onRefresh, search }) {
           <section className="panel dashboard-orders">
             <div className="panel__top">
               <div><h2>Orders</h2><p>Transaction hub for revenue, cost, and profit</p></div>
-              <span className="quiet-tag">{overviewState.status === "local" ? "Imported data" : "Live overview"}</span>
+              <div className="dashboard-chart-tools">
+                <SalesRangeControl value={salesRange} onChange={setSalesRange} />
+                <span className="quiet-tag">{overviewState.status === "local" ? "Imported data" : "Live overview"}</span>
+              </div>
             </div>
             <div className="dashboard-order-stats">
               {orderStats.map((stat) => (
@@ -456,21 +535,7 @@ function Dashboard({ overviewState, onRefresh, search }) {
                 </div>
               ))}
             </div>
-            {weeklySales.length ? (
-              <div className="dashboard-chart" role="img" aria-label={`Sales by date: ${weeklySales.map(([day, value]) => `${day}: ${formatMoney(value)}`).join(", ")}`}>
-                {weeklySales.map(([day, value]) => (
-                  <div className="dashboard-chart__day" key={day}>
-                    <span className="dashboard-chart__amount" title={formatMoney(value)}>{formatMoney(value)}</span>
-                    <span className="dashboard-chart__bar" style={{ height: `${(value / chartMaximum) * 100}%` }} />
-                    <span className="dashboard-chart__label" title={day}>{day.slice(5)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="dashboard-chart-empty">
-                No sales recorded. Import sales data to display trends.
-              </div>
-            )}
+            <SalesChart overview={overviewState.data} days={salesRange} />
           </section>
           <section className="panel dashboard-requests">
             <div className="panel__top">
@@ -528,14 +593,15 @@ function Dashboard({ overviewState, onRefresh, search }) {
 }
 
 function StaffDashboard({ overviewState, onRefresh, search }) {
+  const [salesRange, setSalesRange] = useState(7);
   const queues = overviewState.data?.queues;
   const summary = overviewState.data?.metrics;
   const count = (value) => (typeof value === "number" ? value : "—");
   const metrics = [
-    { label: "Orders to fulfill", value: count(queues?.ordersToFulfill), detail: "Awaiting packing or dispatch", icon: "bag" },
-    { label: "Today's sales", value: formatMoney(summary?.todaysSales), detail: "Sales recorded today", icon: "chart" },
-    { label: "Low stock items", value: count(queues?.lowStockItems), detail: "At or below threshold", icon: "box" },
-    { label: "Active reservations", value: count(summary?.activeReservations), detail: "Unexpired holds awaiting action", icon: "calendar" },
+    { label: "Orders to fulfill", value: count(queues?.ordersToFulfill), detail: "Awaiting packing or dispatch", icon: "bag", screenId: "3.9-orders-status-tracking" },
+    { label: "Today's sales", value: formatMoney(summary?.todaysSales), detail: "Sales recorded today", icon: "chart", screenId: "3.9-orders-status-tracking" },
+    { label: "Low stock items", value: count(queues?.lowStockItems), detail: "At or below threshold", icon: "box", screenId: "4.2-low-stock-alerts" },
+    { label: "Active reservations", value: count(summary?.activeReservations), detail: "Unexpired holds awaiting action", icon: "calendar", screenId: "5-reservations" },
   ];
   const matches = (item) => `${item.title} ${item.detail}`.toLowerCase().includes(search.toLowerCase());
   const tasks = (overviewState.data?.pendingOrders || []).map((order) => ({
@@ -560,16 +626,23 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
     <div className="dashboard-workspace">
       <div className="dashboard-metrics">
         {metrics.map((metric) => (
-          <article className="panel dashboard-metric" key={metric.label}>
+          <ScreenLink className="panel dashboard-metric dashboard-metric--link" screen={screens.find((item) => item.id === metric.screenId)} key={metric.label}>
             <div className="dashboard-metric__top">
               <span>{metric.label}</span>
               <span className="dashboard-metric__icon"><Icon name={metric.icon} size={15} /></span>
             </div>
             <strong>{metric.value}</strong>
             <p>{metric.detail}</p>
-          </article>
+          </ScreenLink>
         ))}
       </div>
+      <section className="panel dashboard-orders">
+        <div className="panel__top">
+          <div><h2>Sales trend</h2><p>Recorded sales during the selected period</p></div>
+          <SalesRangeControl value={salesRange} onChange={setSalesRange} />
+        </div>
+        <SalesChart overview={overviewState.data} days={salesRange} />
+      </section>
       <div className="dashboard-overview-grid">
         <div className="dashboard-overview-main">
           <section className="panel dashboard-requests">
@@ -606,10 +679,10 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
             {lowStock.length ? (
               <div className="dashboard-request-list">
                 {lowStock.map((item) => (
-                  <div className="dashboard-request" key={item.title}>
+                  <ScreenLink className="dashboard-request" screen={screens.find((screen) => screen.id === "4.2-low-stock-alerts")} key={item.title}>
                     <span className="dashboard-request__icon"><Icon name="box" size={14} /></span>
                     <span className="dashboard-request__copy"><strong>{item.title}</strong><small>{item.detail}</small></span>
-                  </div>
+                  </ScreenLink>
                 ))}
               </div>
             ) : (
@@ -636,10 +709,10 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
             </div>
             <div className="dashboard-status-list">
               {reservations.length ? reservations.map((item) => (
-                <div key={item.title}>
+                <ScreenLink className="dashboard-status-link" screen={screens.find((screen) => screen.id === "5-reservations")} key={item.title}>
                   <span className="dashboard-status__icon"><Icon name="clock" size={14} /></span>
                   <span><strong>{item.title}</strong><small>{item.detail}</small></span>
-                </div>
+                </ScreenLink>
               )) : <div className="dashboard-empty">{search ? "No reservations match your search." : overviewState.data ? "No recorded active reservations." : "Reservation data is not available."}</div>}
             </div>
           </section>
@@ -652,58 +725,165 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
   );
 }
 
+const formCancelTargets = {
+  "3.4-new-refund-request": "2.4-refunds",
+  "3.5-refund-condition-review": "2.4-refunds",
+  "3.6-approval-request-detail": "2.4-refunds",
+  "3.12-new-customer-validation": "3.11-customers",
+  "3.13-create-purchase-order": "3.9-orders-status-tracking",
+  "3.14-confirm-delivery": "3.9-orders-status-tracking",
+  "4.3-edit-product-admin-only": "4-inventory-workspace",
+  "5.1-new-reservation": "5-reservations",
+};
+
+const formChoices = {
+  "item condition": ["New", "Good", "Damaged"],
+  "inspection result": ["Accepted", "Rejected", "Needs further review"],
+  "inventory disposition": ["Restock", "Defective", "Discard"],
+  decision: ["Approve", "Reject"],
+  "delivery status": ["Delivered", "Failed delivery", "Returned to sender"],
+};
+
 function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("status");
+  const [errors, setErrors] = useState({});
+  const [pendingValues, setPendingValues] = useState(null);
+  const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const fields = formFields[screen.id] || ["Customer", "Order reference", "Details"];
-  return (
-    <form className={`panel form-panel ${mobile ? "form-panel--mobile" : ""}`} onSubmit={async (event) => {
-      event.preventDefault();
-      if (authUser?.demo) {
-        setMessage("Demo preview only. This action was not saved.");
-        return;
+  const cancelScreenId = formCancelTargets[screen.id] || (mobile ? "8.1-mobile-admin-dashboard" : "2-admin-dashboard");
+  const submitForm = (event) => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const nextErrors = {};
+    for (const field of fields) {
+      const normalized = field.toLowerCase();
+      const value = String(values[field] || "").trim();
+      const optional = normalized.includes("note") || normalized === "social media handle" || normalized === "email";
+      if (!optional && !value) {
+        nextErrors[field] = `${field} is required.`;
+      } else if (normalized.includes("quantity") || normalized.includes("agreed days")) {
+        if (value && (!/^\d+$/.test(value) || Number(value) < 1)) nextErrors[field] = `${field} must be a whole number greater than zero.`;
+      } else if (normalized.includes("amount") || normalized.includes("price")) {
+        if (value && (!/^\d+(\.\d{1,2})?$/.test(value) || Number(value) < 0)) nextErrors[field] = `${field} must be a non-negative amount with up to two decimal places.`;
+      } else if (normalized === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        nextErrors[field] = "Enter a valid email address.";
+      } else if (normalized.includes("contact number") && value && value.replace(/\D/g, "").length < 7) {
+        nextErrors[field] = "Enter a valid contact number.";
       }
+    }
+    setErrors(nextErrors);
+    setMessage("");
+    if (Object.keys(nextErrors).length) return;
+    setPendingValues(values);
+    setConfirming(true);
+  };
+  const saveAction = async () => {
+    if (authUser?.demo) {
+      setMessage("Demo preview only. Nothing was saved.");
+      setMessageType("status");
+      setConfirming(false);
+      return;
+    }
+    setSubmitting(true);
+    setMessage("");
+    try {
+      await submitWorkspaceAction({
+        source: mobile ? "mobile" : "admin",
+        screenId: screen.id,
+        values: pendingValues,
+      });
+      setMessage("Saved to the shared workspace.");
+      setMessageType("status");
+      setConfirming(false);
+      onActionSaved();
+    } catch (error) {
+      setMessage(error.message || "Unable to save this workspace action.");
+      setMessageType("error");
+      setConfirming(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const fieldInputType = (field) => {
+    const normalized = field.toLowerCase();
+    if (normalized.includes("date and time")) return "datetime-local";
+    if (normalized.includes("date")) return "date";
+    if (normalized.includes("quantity") || normalized.includes("agreed days")) return "number";
+    if (normalized.includes("amount") || normalized.includes("price")) return "number";
+    if (normalized.includes("email")) return "email";
+    if (normalized.includes("contact number")) return "tel";
+    return "text";
+  };
+  const fieldId = (field) => `form-${screen.id}-${field}`.replace(/[^a-z0-9_-]/gi, "-");
 
-      const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-      setSubmitting(true);
-      setMessage("");
-      try {
-        await submitWorkspaceAction({
-          source: mobile ? "mobile" : "admin",
-          screenId: screen.id,
-          values,
-        });
-        setMessage("Saved to the shared workspace.");
-        onActionSaved();
-      } catch (error) {
-        setMessage(error.message || "Unable to save this workspace action.");
-      } finally {
-        setSubmitting(false);
-      }
-    }}>
-      <div className="panel__top">
-        <div><h2>{screen.title}</h2><p>Complete the fields below to preview this workflow.</p></div>
-        {!mobile && <span className="quiet-tag">Preview only</span>}
-      </div>
-      <div className="form-grid">
-        {fields.map((field, index) => (
-          <label className={field.toLowerCase().includes("note") || field.toLowerCase().includes("address") ? "field field--wide" : "field"} key={field}>
-            <span>{field}</span>
-            {field.toLowerCase().includes("note") || field.toLowerCase().includes("address") || field.toLowerCase().includes("reason") ? (
-              <textarea name={field} rows="3" placeholder={`Enter ${field.toLowerCase()}`} />
-            ) : (
-              <input name={field} type={field.toLowerCase().includes("date") ? "date" : "text"} placeholder={`Enter ${field.toLowerCase()}`} />
-            )}
-          </label>
-        ))}
-      </div>
-      <div className="form-actions">
-        {message && <span className="form-note" role="status">{message}</span>}
-        <button className="button button--primary" type="submit" disabled={submitting}>
-          {submitting ? "Saving…" : mobile ? "Continue" : authUser?.demo ? "Save preview" : "Save"}
-        </button>
-      </div>
-    </form>
+  return (
+    <>
+      <form className={`panel form-panel ${mobile ? "form-panel--mobile" : ""}`} onSubmit={submitForm} noValidate>
+        <div className="panel__top">
+          <div><h2>{screen.title}</h2><p>Complete the required fields, then review before saving.</p></div>
+          {!mobile && <span className="quiet-tag">Review before save</span>}
+        </div>
+        <div className="form-grid">
+          {fields.map((field) => {
+            const normalized = field.toLowerCase();
+            const choices = formChoices[normalized];
+            const optional = normalized.includes("note") || normalized === "social media handle" || normalized === "email";
+            const isLongText = normalized.includes("note") || normalized.includes("address") || normalized.includes("reason");
+            const id = fieldId(field);
+            return (
+              <label className={isLongText ? "field field--wide" : "field"} key={field} htmlFor={id}>
+                <span>{field}{optional ? " (optional)" : " *"}</span>
+                {choices ? (
+                  <select id={id} name={field} required={!optional} aria-invalid={Boolean(errors[field])} aria-describedby={errors[field] ? `${id}-error` : undefined} onChange={() => setErrors((previous) => ({ ...previous, [field]: "" }))}>
+                    <option value="">Choose {field.toLowerCase()}</option>
+                    {choices.map((choice) => <option value={choice} key={choice}>{choice}</option>)}
+                  </select>
+                ) : isLongText ? (
+                  <textarea id={id} name={field} rows="3" required={!optional} aria-invalid={Boolean(errors[field])} aria-describedby={errors[field] ? `${id}-error` : undefined} placeholder={`Enter ${field.toLowerCase()}`} onChange={() => setErrors((previous) => ({ ...previous, [field]: "" }))} />
+                ) : (
+                  <input
+                    id={id}
+                    name={field}
+                    type={fieldInputType(field)}
+                    required={!optional}
+                    min={fieldInputType(field) === "number" ? (normalized.includes("quantity") || normalized.includes("days") ? 1 : 0) : undefined}
+                    step={normalized.includes("amount") || normalized.includes("price") ? "0.01" : normalized.includes("quantity") || normalized.includes("days") ? "1" : undefined}
+                    aria-invalid={Boolean(errors[field])}
+                    aria-describedby={errors[field] ? `${id}-error` : undefined}
+                    placeholder={`Enter ${field.toLowerCase()}`}
+                    onChange={() => setErrors((previous) => ({ ...previous, [field]: "" }))}
+                  />
+                )}
+                {errors[field] && <small className="field-error" id={`${id}-error`}>{errors[field]}</small>}
+              </label>
+            );
+          })}
+        </div>
+        <div className="form-actions">
+          <ScreenLink className="button button--outline" screen={screens.find((item) => item.id === cancelScreenId)}>Cancel</ScreenLink>
+          {message && <span className={messageType === "error" ? "inline-error form-feedback" : "form-note form-feedback"} role={messageType === "error" ? "alert" : "status"}>{message}</span>}
+          <button className="button button--primary" type="submit" disabled={submitting}>
+            {mobile ? "Review and continue" : "Review and save"}
+          </button>
+        </div>
+      </form>
+      {confirming && (
+        <div className="form-confirm-backdrop">
+          <section className="form-confirm" role="alertdialog" aria-modal="true" aria-labelledby="form-confirm-title">
+            <p className="eyebrow">CONFIRM ACTION</p>
+            <h2 id="form-confirm-title">Review before saving</h2>
+            <p>{authUser?.demo ? "This is a demo preview. The action will not be saved." : "Confirm these details before submitting them to the shared workspace."}</p>
+            <dl>{Object.entries(pendingValues || {}).slice(0, 4).map(([field, value]) => <div key={field}><dt>{field}</dt><dd>{value || "—"}</dd></div>)}</dl>
+            <div className="form-confirm__actions">
+              <button className="button button--outline" type="button" onClick={() => setConfirming(false)} disabled={submitting}>Continue editing</button>
+              <button className="button button--primary" type="button" onClick={saveAction} disabled={submitting}>{submitting ? "Saving…" : authUser?.demo ? "Confirm preview" : "Confirm and save"}</button>
+            </div>
+          </section>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -788,7 +968,7 @@ function AuthScreen({ screen, onAuthenticated }) {
             <p>{forgot ? "Request password-reset instructions for your staff account." : "Use your staff account to access the workspace."}</p>
             {showError && <p className="inline-error" role="alert">Email or password was not recognized. Check your details and try again.</p>}
             <label className="field"><span>Username</span><input name="username" type="text" autoComplete="username" required placeholder="Enter your username" /></label>
-            {!forgot && <label className="field"><span>Password</span><input name="password" type="password" required placeholder="Enter your password" /></label>}
+            {!forgot && <PasswordField autoComplete="current-password" />}
             {message && <p className="form-note" role="status">{message}</p>}
             <button type="submit" className="button button--primary" disabled={submitting}>
               <Icon name={forgot ? "arrow" : "key"} size={15} />
@@ -839,7 +1019,7 @@ function MobileLogin({ onAuthenticated }) {
       <p>Use your staff account to access the workspace.</p>
       {demoLoginEnabled && <p className="form-note">Demo login: <strong>admin</strong> / <strong>admin</strong>.</p>}
       <label className="field"><span>Username</span><input name="username" type="text" autoComplete="username" placeholder="Enter your username" required /></label>
-      <label className="field"><span>Password</span><input name="password" type="password" autoComplete="current-password" placeholder="Enter your password" required /></label>
+      <PasswordField autoComplete="current-password" />
       {message && <span className="form-note" role="status">{message}</span>}
       <button type="submit" className="button button--primary" disabled={submitting}>
         <Icon name="key" size={15} />{submitting ? "Signing in…" : "Sign in"}
@@ -1025,8 +1205,15 @@ function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewSta
           {screen.kind === "csv-import" && (authUser?.demo
             ? <CsvImportPanel authUser={authUser} onImported={onRefresh} />
             : <p role="alert">Browser CSV import is available only in local preview mode. Shared backend import is not configured.</p>)}
-          {screen.kind === "table" && <EmptyTable screen={screen} overview={overviewState.data} />}
-          {screen.kind === "catalog" && <RecordsTable kind="products" rows={overviewState.data?.records?.products} title="Product catalog" />}
+          {screen.kind === "table" && <EmptyTable screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
+          {screen.kind === "catalog" && <RecordsTable
+            kind="products"
+            rows={overviewState.data?.records?.products}
+            title="Product catalog"
+            authUser={authUser}
+            canEdit={authUser?.demo && authUser.role === "Admin"}
+            onRecordUpdated={onRefresh}
+          />}
           {screen.kind === "form" && <FormPanel key={screen.id} screen={screen} authUser={authUser} onActionSaved={onRefresh} />}
           {screen.kind === "detail" && <DetailPanel screen={screen} />}
           {screen.kind === "success" && <DetailPanel screen={screen} success />}
