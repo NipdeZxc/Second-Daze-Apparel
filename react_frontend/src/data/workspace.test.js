@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildOverview, csvTemplate, emptyRecords, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
+import Papa from "papaparse";
+import { strFromU8, unzipSync } from "fflate";
+import { buildOverview, csvTemplate, datasets, emptyRecords, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
+import { createWorkspaceExcel, serializeWorkspaceCsv } from "./export.js";
 
 const productCsv = `${csvTemplate("products")}TEST-1,"Shirt, ""Blue""",Tops,M,100.10,200.20,2,3`;
 const customerCsv = `${csvTemplate("customers")}Test Customer,09123456789,"Line one
@@ -98,4 +101,49 @@ test("overview nets approved refunds, counts low stock and open orders", () => {
   assert.equal(overview.metrics.ordersPlaced, 3);
   assert.equal(overview.metrics.activeReservations, 1);
   assert.deepEqual(overview.queues, { accessApprovals: 2, ordersToFulfill: 1, lowStockItems: 1 });
+});
+
+test("CSV export includes every dataset and safely escapes spreadsheet formulas", () => {
+  const workspace = emptyRecords();
+  workspace.products.push({ product_code: "SKU-1", product_name: '=HYPERLINK("https://example.invalid")' });
+  workspace.customers.push({ customer_id: 1, full_name: "Customer, One" });
+  workspace.orders.push({ order_number: "ORD-1" });
+  workspace.sales.push({ sale_no: "SALE-1" });
+  workspace.reservations.push({ reservation_number: "RES-1" });
+  workspace.refunds.push({ refund_number: "REF-1" });
+  workspace.documents.push({ doc_number: "DOC-1" });
+  workspace.accounts.push({ username: "staff-1" });
+
+  const csv = serializeWorkspaceCsv(workspace);
+  assert.ok(csv.startsWith('\uFEFF"record_type","product_code"'));
+  const [headers, ...rows] = Papa.parse(csv.replace(/^\uFEFF/, ""), { skipEmptyLines: true }).data;
+  const product = Object.fromEntries(headers.map((header, index) => [header, rows[0][index]]));
+  const customer = Object.fromEntries(headers.map((header, index) => [header, rows[1][index]]));
+  assert.equal(product.record_type, "products");
+  assert.equal(product.product_code, "SKU-1");
+  assert.equal(product.product_name, `'=HYPERLINK("https://example.invalid")`);
+  assert.equal(customer.record_type, "customers");
+  assert.equal(customer.full_name, "Customer, One");
+  assert.deepEqual(rows.map((row) => row[headers.indexOf("record_type")]), [
+    ...Object.keys(datasets),
+  ]);
+});
+
+test("Excel export writes one sheet per dataset with all stored rows", async () => {
+  const workspace = emptyRecords();
+  workspace.orders.push({ order_number: "ORD-1", total_amount: 250 });
+  const output = createWorkspaceExcel(workspace);
+  const files = unzipSync(output);
+  const workbookXml = strFromU8(files["xl/workbook.xml"]);
+  const orderSheetIndex = Object.keys(datasets).indexOf("orders") + 1;
+  const orderSheet = strFromU8(files[`xl/worksheets/sheet${orderSheetIndex}.xml`]);
+
+  for (const dataset of Object.values(datasets)) {
+    assert.ok(workbookXml.includes(`name="${dataset.label}"`));
+  }
+  const orderNumberColumn = datasets.orders.columns.findIndex((column) => column.key === "order_number");
+  const amountColumn = datasets.orders.columns.findIndex((column) => column.key === "total_amount");
+  const columnName = (index) => String.fromCharCode(65 + index);
+  assert.match(orderSheet, new RegExp(`<c r="${columnName(orderNumberColumn)}2" t="inlineStr"><is><t xml:space="preserve">ORD-1<\\/t><\\/is><\\/c>`));
+  assert.match(orderSheet, new RegExp(`<c r="${columnName(amountColumn)}2"><v>250<\\/v><\\/c>`));
 });

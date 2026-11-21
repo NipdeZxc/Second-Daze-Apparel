@@ -107,6 +107,16 @@ customers.
 Run the CSV validation and dashboard aggregation tests with
 `npm --prefix react_frontend test` from the repository root.
 
+## Export records
+
+Sign in as an Admin, then choose **Export records** from the sidebar or
+dashboard. **Download CSV** creates one UTF-8 CSV containing the shared
+workspace records; its `record_type` column identifies each row.
+**Download Excel** creates an `.xlsx` workbook with a separate sheet for each
+record type. Exports include products, customers, orders, sales, reservations,
+refunds, sales documents, and staff accounts. Exported columns match the
+workspace record lists. Staff accounts cannot access this screen.
+
 ## Deploy to Vercel
 
 Create a Vercel project connected to this repository and set:
