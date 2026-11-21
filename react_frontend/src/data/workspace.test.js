@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import Papa from "papaparse";
+import { strFromU8, unzipSync } from "fflate";
 import { buildOverview, csvTemplate, emptyWorkspace, MAX_CSV_BYTES, parseImport, readWorkspace, saveImport, STORAGE_KEY } from "./workspace.js";
+import { createWorkspaceExcel, serializeWorkspaceCsv } from "./export.js";
 
 const admin = { username: "test-admin", role: "Admin" };
 const productCsv = `${csvTemplate("products")}TEST-1,"Shirt, ""Blue""",Tops,M,Blue,100.10,200.20,2,3`;
@@ -131,4 +134,53 @@ test("file size and row count limits are enforced at their actual boundaries", (
   const rows = Array.from({ length: 5000 }, (_, index) => `TEST-${index},Item,,,,1,2,3,4`);
   assert.equal(parseImport("products", csvTemplate("products") + rows.join("\n"), emptyWorkspace()).length, 5000);
   assert.throws(() => parseImport("products", csvTemplate("products") + [...rows, "EXTRA,Item,,,,1,2,3,4"].join("\n"), emptyWorkspace()), /between 1 and 5000/);
+});
+
+test("CSV export includes every dataset and safely escapes spreadsheet formulas", () => {
+  const workspace = emptyWorkspace();
+  workspace.products.push({
+    sku: "SKU-1", product_name: '=HYPERLINK("https://example.invalid")', category: "Tops",
+    size: "M", color: "", cost_price: 10, selling_price: 20, qty_available: 2, low_stock_threshold: 3,
+  });
+  workspace.customers.push({
+    customer_code: "C-1", full_name: "Customer, One", contact_number: "09123456789",
+    email: "", address: "", city: "",
+  });
+  workspace.orders.push({ order_no: "ORD-1", customer_code: "C-1", total_amount: 20, status: "Processing", ordered_at: "2026-11-20" });
+  workspace.sales.push({ sale_no: "SALE-1", order_no: "ORD-1", amount: 20, cost: 10, sold_at: "2026-11-20" });
+  workspace.reservations.push({ reservation_no: "RES-1", customer_code: "C-1", status: "Approved", expires_at: "2026-11-25" });
+
+  const csv = serializeWorkspaceCsv(workspace);
+  assert.ok(csv.startsWith('\uFEFF"record_type","sku"'));
+  const [headers, ...rows] = Papa.parse(csv.replace(/^\uFEFF/, ""), { skipEmptyLines: true }).data;
+  const product = Object.fromEntries(headers.map((header, index) => [header, rows[0][index]]));
+  const customer = Object.fromEntries(headers.map((header, index) => [header, rows[1][index]]));
+  assert.equal(product.record_type, "products");
+  assert.equal(product.sku, "SKU-1");
+  assert.equal(product.product_name, `'=HYPERLINK("https://example.invalid")`);
+  assert.equal(customer.record_type, "customers");
+  assert.equal(customer.full_name, "Customer, One");
+  assert.deepEqual(rows.map((row) => row[headers.indexOf("record_type")]), [
+    "products", "customers", "orders", "sales", "reservations",
+  ]);
+});
+
+test("Excel export writes one sheet per dataset with all stored rows", async () => {
+  const workspace = emptyWorkspace();
+  workspace.orders.push({
+    order_no: "ORD-1", customer_code: "C-1", total_amount: 250,
+    status: "Processing", ordered_at: "2026-11-20",
+  });
+  const output = createWorkspaceExcel(workspace);
+  const files = unzipSync(output);
+  const workbookXml = strFromU8(files["xl/workbook.xml"]);
+  const orderSheet = strFromU8(files["xl/worksheets/sheet3.xml"]);
+
+  assert.match(workbookXml, /name="Products and inventory"/);
+  assert.match(workbookXml, /name="Customers"/);
+  assert.match(workbookXml, /name="Orders"/);
+  assert.match(workbookXml, /name="Sales"/);
+  assert.match(workbookXml, /name="Reservations"/);
+  assert.match(orderSheet, /<c r="A2" t="inlineStr"><is><t xml:space="preserve">ORD-1<\/t><\/is><\/c>/);
+  assert.match(orderSheet, /<c r="C2"><v>250<\/v><\/c>/);
 });

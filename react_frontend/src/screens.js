@@ -13,6 +13,7 @@ const main = [
   ["2.6-reports", "Reports & Analytics", "Review performance using recorded sales and inventory data.", "reports"],
   ["2.7-csv-import", "Import CSV", "Add products, customers, orders, sales, and reservations from CSV files.", "csv-import"],
   ["2.8-sales", "Sales", "Recorded sales imported into this browser.", "table"],
+  ["2.9-data-export", "Export records", "Download all available records as CSV or Excel.", "data-export"],
   ["3-sales-catalog", "Find their next favorite.", "Browse the catalog, build an order, then continue to checkout.", "catalog"],
   ["3.1-checkout-pending-payment", "Checkout", "Finalize payment and issue the receipt.", "detail"],
   ["3.2-sale-completed", "Sale completed", "Payment verification and order recording are complete.", "success"],

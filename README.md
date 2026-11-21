@@ -102,6 +102,16 @@ later; none is required or started for CSV imports.
 Run the CSV validation, persistence, and dashboard aggregation tests with
 `npm --prefix react_frontend test` from the repository root.
 
+## Export records
+
+Sign in as `admin` / `admin`, then choose **Export records** from the sidebar or
+admin dashboard. **Download CSV** creates one UTF-8 CSV containing all locally
+imported products, customers, orders, sales, and reservations; its
+`record_type` column identifies each row. **Download Excel** creates an `.xlsx`
+workbook with a separate sheet for each data type. Exports include only
+browser-local demo data, not backend records, and are not available to staff
+accounts. Shared backend export is not connected to this screen.
+
 ## Deploy to Vercel
 
 Create a Vercel project connected to this repository and set:

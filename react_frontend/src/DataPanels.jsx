@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { csvTemplate, datasets, MAX_CSV_BYTES, parseImport, readWorkspace, saveImport } from "./data/workspace.js";
+import { createWorkspaceExcel, serializeWorkspaceCsv } from "./data/export.js";
 
 export const screenDatasets = {
   "3.9-orders-status-tracking": "orders",
@@ -146,6 +147,79 @@ export function CsvImportPanel({ authUser, onImported }) {
             }}>Import {preview.length} records</button>
           </div>
         )}
+      </div>
+    </section>
+  );
+}
+
+function downloadFile(contents, mimeType, filename) {
+  const url = URL.createObjectURL(new Blob([contents], { type: mimeType }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function DataExportPanel({ authUser }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  if (authUser?.role !== "Admin") return <p role="alert">Only an Admin can export workspace data.</p>;
+
+  if (!authUser.demo) {
+    return (
+      <p className="data-notice" role="status">
+        Full CSV and Excel exports are currently available for browser-only demo records.
+        Exporting shared backend records is not configured in this workspace.
+      </p>
+    );
+  }
+
+  const filename = `second-daze-records-${new Date().toISOString().slice(0, 10)}`;
+  const runExport = async (format) => {
+    setError("");
+    setMessage("");
+    setBusy(true);
+    try {
+      const workspace = readWorkspace();
+      if (format === "csv") {
+        downloadFile(serializeWorkspaceCsv(workspace), "text/csv;charset=utf-8", `${filename}.csv`);
+      } else {
+        const workbook = await createWorkspaceExcel(workspace);
+        downloadFile(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `${filename}.xlsx`);
+      }
+      const count = Object.keys(datasets).reduce((total, kind) => total + workspace[kind].length, 0);
+      setMessage(`Exported ${count} records.`);
+    } catch (exportError) {
+      setError(exportError.message || "Workspace records could not be exported.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="panel csv-import">
+      <div className="panel__top">
+        <div><h2>Export all records</h2><p>Download every imported record available in this browser.</p></div>
+      </div>
+      <div className="csv-import__content">
+        <p className="data-notice">
+          Exports products, customers, orders, sales, and reservations. CSV combines these records into one file with a
+          <code> record_type</code> column; Excel creates a workbook with a separate sheet for each record type.
+          Only records stored in this browser are included.
+        </p>
+        <div className="csv-import__actions">
+          <button type="button" className="button button--outline" disabled={busy} onClick={() => runExport("csv")}>
+            {busy ? "Preparing export…" : "Download CSV"}
+          </button>
+          <button type="button" className="button button--primary" disabled={busy} onClick={() => runExport("excel")}>
+            {busy ? "Preparing export…" : "Download Excel"}
+          </button>
+        </div>
+        {error && <p className="inline-error" role="alert">{error}</p>}
+        {message && <p className="form-note" role="status">{message}</p>}
       </div>
     </section>
   );
