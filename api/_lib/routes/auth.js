@@ -8,10 +8,30 @@ const LOCK_MINUTES = 15;
 
 const SELECT_USER = `SELECT u.*, r.role_name FROM users u JOIN roles r ON r.role_id = u.role_id`;
 
+// Testing only: with ENABLE_TEST_ACCOUNTS=true the weak admin/admin and staff/staff
+// logins are created in the database on first use. Leave it unset in production.
+const TEST_ACCOUNTS = {
+  admin: { role: "Admin", fullName: "Test Admin" },
+  staff: { role: "Sales Management", fullName: "Test Staff" },
+};
+
+async function ensureTestAccount(db, username, password) {
+  const account = Object.hasOwn(TEST_ACCOUNTS, username) ? TEST_ACCOUNTS[username] : null;
+  if (process.env.ENABLE_TEST_ACCOUNTS !== "true" || !account || password !== username) return;
+  const [existing] = await db.query(`SELECT 1 FROM users WHERE username = ?`, [username]);
+  if (existing.length) return;
+  await db.query(
+    `INSERT INTO users (role_id, full_name, username, password_hash, must_change_password, account_status, approved_at)
+     VALUES ((SELECT role_id FROM roles WHERE role_name = ?), ?, ?, ?, 0, 'Active', ?)`,
+    [account.role, account.fullName, username, await hashPassword(password), new Date()]
+  );
+}
+
 export async function login(req, res) {
   requireFields(req.body, ["username", "password"]);
   const { username, password } = req.body;
   const db = getPool();
+  await ensureTestAccount(db, username.trim(), password);
   const [rows] = await db.query(`${SELECT_USER} WHERE u.username = ?`, [username.trim()]);
   const user = rows[0];
 

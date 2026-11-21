@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { csvTemplate, datasets, MAX_CSV_BYTES, parseImport, readWorkspace, saveImport, updateRecord } from "./data/workspace.js";
+import { csvTemplate, datasets, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./data/workspace.js";
+import { importRecords, runRowAction, updateRecord } from "./api/workspace.js";
 
 export const screenDatasets = {
   "3.9-orders-status-tracking": "orders",
@@ -9,6 +10,12 @@ export const screenDatasets = {
   "2.5-reservations": "reservations",
   "5-reservations": "reservations",
   "2.8-sales": "sales",
+  "2.1-subaccounts": "accounts",
+  "7-staff-accounts": "accounts",
+  "2.2-access-approvals": "accounts",
+  "2.3-sales-documents": "documents",
+  "3.3-sales-documents": "documents",
+  "2.4-refunds": "refunds",
 };
 
 export function formatMoney(value) {
@@ -18,8 +25,69 @@ export function formatMoney(value) {
 }
 
 function displayValue(value, column) {
-  if (column.type === "money") return formatMoney(value);
+  if (column.type === "money") return formatMoney(Number(value));
+  if (column.type === "date" && value) {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  }
   return value === "" || value == null ? "—" : String(value);
+}
+
+// Buttons for the server-approved actions of one record (approve, verify payment, ship, ...).
+export function RowActions({ actions = [], onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!actions.length) return null;
+  const run = async (action) => {
+    let value;
+    if (action.prompt) {
+      value = window.prompt(action.prompt);
+      if (value === null) return;
+      if (!value.trim() && !action.optional) { setError(`${action.prompt} is required.`); return; }
+    } else if (!window.confirm(`${action.label}?`)) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await runRowAction(action.path, value);
+      onDone?.();
+    } catch (actionError) {
+      setError(actionError.message || "The action could not be completed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      {actions.map((action) => (
+        <button type="button" className="table-action" key={action.id} onClick={() => run(action)} disabled={busy}>{action.label}</button>
+      ))}
+      {error && <small className="inline-error" role="alert">{error}</small>}
+    </>
+  );
+}
+
+const APPROVAL_KINDS = ["accounts", "reservations", "orders", "refunds"];
+const APPROVAL_ACTIONS = ["approve", "reject", "verify-payment", "reject-payment", "disable"];
+
+// Everything that currently waits for an Admin decision.
+export function ApprovalQueue({ records, onChanged }) {
+  const items = APPROVAL_KINDS.flatMap((kind) => (records?.[kind] || [])
+    .map((record) => ({ kind, record, actions: record.actions.filter((action) => APPROVAL_ACTIONS.includes(action.id) && action.id !== "disable") }))
+    .filter((item) => item.actions.length));
+  if (!items.length) return <div className="mobile-empty"><strong>No pending approvals</strong><span>Requests waiting for a decision will appear here.</span></div>;
+  return (
+    <ul className="approval-queue">
+      {items.map(({ kind, record, actions }) => (
+        <li key={`${kind}-${record.id}`}>
+          <strong>{record[datasets[kind].key]}</strong>
+          <small>{datasets[kind].label} · {record.customer_name || record.full_name || record.order_number || ""} · {record.status}{record.payment_status === "Pending Verification" ? " · payment to verify" : ""}</small>
+          <div><RowActions actions={actions} onDone={onChanged} /></div>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function RecordRows({ columns, rows, rowKey }) {
@@ -32,7 +100,7 @@ function RecordRows({ columns, rows, rowKey }) {
             <tr key={row[rowKey]}>
               {columns.map((column) => <td key={column.key}>{displayValue(row[column.key], column)}</td>)}
             </tr>
-          )) : <tr><td className="empty-cell" colSpan={columns.length}>No records yet. An Admin can import a CSV to populate this list.</td></tr>}
+          )) : <tr><td className="empty-cell" colSpan={columns.length}>No records yet.</td></tr>}
         </tbody>
       </table>
     </div>
@@ -41,6 +109,8 @@ function RecordRows({ columns, rows, rowKey }) {
 
 export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false, onRecordUpdated }) {
   const definition = datasets[kind];
+  const editable = canEdit && definition.editable;
+  const editColumns = definition.columns.filter((column) => !column.readonly);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [sortKey, setSortKey] = useState(definition.key);
@@ -56,7 +126,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
   const recordStatus = (record) => {
     if (typeof record.status === "string" && record.status) return record.status;
     if (kind === "products") {
-      return Number(record.qty_available) <= Number(record.low_stock_threshold) ? "Low stock" : "In stock";
+      return Number(record.stock_quantity) <= Number(record.low_stock_threshold) ? "Low stock" : "In stock";
     }
     return "";
   };
@@ -125,9 +195,10 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
       setSortDirection("asc");
     }
   };
-  const saveEdit = () => {
+  const saveEdit = async () => {
     try {
-      updateRecord(kind, selectedRecord[definition.key], editValues, authUser);
+      const values = Object.fromEntries(editColumns.map((column) => [column.key, editValues[column.key]]));
+      await updateRecord(kind, selectedRecord[definition.key], values);
       setMessage(`${definition.label} record updated.`);
       closeDialog();
       window.setTimeout(() => setMessage(""), 5000);
@@ -141,7 +212,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
   return (
     <section className="panel table-panel">
       <div className="panel__top">
-        <div><h2>{title || definition.label}</h2><p>Imported records saved in this browser.</p></div>
+        <div><h2>{title || definition.label}</h2><p>Live records from the shared database.</p></div>
         <span className="quiet-tag">{filteredRows.length} of {rows.length} records</span>
       </div>
       {message && <p className="table-message" role="status">{message}</p>}
@@ -188,11 +259,12 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
                 {hasStatus && <td><span className="record-status">{recordStatus(record)}</span></td>}
                 <td className="record-actions">
                   <button type="button" className="table-action" onClick={() => { setSelectedRecord(record); setDialogMode("view"); }}>View</button>
-                  {canEdit && <button type="button" className="table-action" onClick={() => openEdit(record)}>Edit</button>}
+                  {editable && <button type="button" className="table-action" onClick={() => openEdit(record)}>Edit</button>}
+                  <RowActions actions={record.actions} onDone={onRecordUpdated} />
                 </td>
               </tr>
             )) : (
-              <tr><td className="empty-cell" colSpan={definition.columns.length + (hasStatus ? 2 : 1)}>{rows.length ? "No records match these filters." : "No records yet. An Admin can import a CSV to populate this list."}</td></tr>
+              <tr><td className="empty-cell" colSpan={definition.columns.length + (hasStatus ? 2 : 1)}>{rows.length ? "No records match these filters." :               "No records yet."}</td></tr>
             )}
           </tbody>
         </table>
@@ -225,7 +297,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
               </>
             ) : dialogMode === "confirm" ? (
               <>
-                <p className="record-dialog__copy">Save these changes to this browser’s imported data?</p>
+                <p className="record-dialog__copy">Save these changes to the database?</p>
                 <div className="record-dialog__actions">
                   <button type="button" className="button button--outline" onClick={() => setDialogMode("edit")}>Continue editing</button>
                   <button type="button" className="button button--primary" onClick={saveEdit}>Save changes</button>
@@ -233,7 +305,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
               </>
             ) : (
               <form className="record-edit-form" onSubmit={(event) => { event.preventDefault(); setDialogError(""); setDialogMode("confirm"); }}>
-                {definition.columns.map((column) => (
+                {editColumns.map((column) => (
                   <label className="field" key={column.key}>
                     <span>{column.label}{column.optional ? " (optional)" : ""}</span>
                     {column.values ? (
@@ -268,7 +340,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
   );
 }
 
-export function CsvImportPanel({ authUser, onImported }) {
+export function CsvImportPanel({ authUser, existingRecords, onImported }) {
   const [kind, setKind] = useState("products");
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -296,9 +368,7 @@ export function CsvImportPanel({ authUser, onImported }) {
         <div><h2>Import CSV data</h2><p>Preview and validate records before adding them.</p></div>
       </div>
       <div className="csv-import__content">
-        <p className="data-notice">Temporary browser storage only. These records are not uploaded or shared between devices.
-          Clearing this site's browser data removes them. Keep your original CSV files as backups.
-          Demo accounts are not secure authentication; do not import sensitive or production data.</p>
+        <p className="data-notice">Imported records are saved to the shared database. Keep your original CSV files as backups.</p>
         <form onSubmit={async (event) => {
           event.preventDefault();
           resetPreview();
@@ -307,7 +377,7 @@ export function CsvImportPanel({ authUser, onImported }) {
           if (file.size > MAX_CSV_BYTES) { setError("CSV files must be 2 MB or smaller."); return; }
           setBusy(true);
           try {
-            const records = parseImport(kind, await file.text(), readWorkspace());
+            const records = parseImport(kind, await file.text(), existingRecords?.[kind] || []);
             setPreview(records);
           } catch (validationError) {
             setError(validationError.message || "The CSV could not be read.");
@@ -319,7 +389,7 @@ export function CsvImportPanel({ authUser, onImported }) {
             <label className="field">
               <span>Data type</span>
               <select value={kind} onChange={(event) => { setKind(event.target.value); resetPreview(); }}>
-                {Object.entries(datasets).map(([id, dataset]) => <option value={id} key={id}>{dataset.label}</option>)}
+                {importKinds.map((id) => <option value={id} key={id}>{datasets[id].label}</option>)}
               </select>
             </label>
             <label className="field">
@@ -332,32 +402,31 @@ export function CsvImportPanel({ authUser, onImported }) {
             </div>
           </fieldset>
         </form>
-        <p className="form-note">Required columns: {definition.columns.filter((column) => !column.optional).map((column) => column.key).join(", ")}.</p>
-        {definition.columns.some((column) => column.optional) && (
-          <p className="form-note">Optional columns: {definition.columns.filter((column) => column.optional).map((column) => column.key).join(", ")}.</p>
+        <p className="form-note">Required columns: {importColumns(kind).filter((column) => !column.optional).map((column) => column.key).join(", ")}.</p>
+        {importColumns(kind).some((column) => column.optional) && (
+          <p className="form-note">Optional columns: {importColumns(kind).filter((column) => column.optional).map((column) => column.key).join(", ")}.</p>
         )}
-        {definition.columns.find((column) => column.values) && (
-          <p className="form-note">Allowed statuses: {definition.columns.find((column) => column.values).values.join(", ")}.</p>
-        )}
-        <p className="form-note">Use plain numbers without currency symbols or thousands separators, and YYYY-MM-DD dates or ISO timestamps with timezone.
-          Imports only add records; duplicate identifiers reject the entire file. Import customers before orders/reservations, and orders before sales.
-          Inventory quantities are imported snapshots; importing orders or sales does not alter stock.</p>
+        <p className="form-note">Use plain numbers without currency symbols or thousands separators.
+          Imports only add records; duplicate identifiers reject the entire file. Orders, reservations and sales are created through their workflows, not by import.</p>
         {error && <p className="inline-error" role="alert">{error}</p>}
         {message && <p className="form-note" role="status">{message}</p>}
         {preview && (
           <div className="csv-import__preview">
             <h3>{preview.length} valid records ready to import</h3>
             <p className="form-note">Showing the first {Math.min(preview.length, 10)} rows. Nothing is saved until you confirm.</p>
-            <RecordRows columns={definition.columns} rows={preview.slice(0, 10)} rowKey={definition.key} />
-            <button type="button" className="button button--pink" onClick={() => {
+            <RecordRows columns={importColumns(kind)} rows={preview.slice(0, 10)} rowKey={definition.importKey} />
+            <button type="button" className="button button--pink" disabled={busy} onClick={async () => {
               setError("");
+              setBusy(true);
               try {
-                saveImport(kind, preview, authUser);
-                setMessage(`Imported ${preview.length} ${definition.label.toLowerCase()} record(s) into this browser.`);
+                await importRecords({ kind, fileName: file?.name || "import.csv", records: preview });
+                setMessage(`Imported ${preview.length} ${definition.label.toLowerCase()} record(s) into the database.`);
                 setPreview(null);
-                onImported();
+                onImported?.();
               } catch (saveError) {
                 setError(saveError.message || "Import was not saved.");
+              } finally {
+                setBusy(false);
               }
             }}>Import {preview.length} records</button>
           </div>
@@ -379,8 +448,8 @@ export function DataReports({ overview }) {
     <section className="report-grid">
       {reports.map(([label, value]) => (
         <article className="panel report-card" key={label}>
-          <span className="eyebrow">IMPORTED DATA</span><h2>{label}</h2>
-          <p>{overview?.records ? "Calculated from records saved in this browser." : "No imported data is available."}</p>
+          <span className="eyebrow">LIVE DATA</span><h2>{label}</h2>
+          <p>{overview?.records ? "Calculated from records in the database." : "Data is not available."}</p>
           <div className="report-card__empty">{value}</div>
         </article>
       ))}

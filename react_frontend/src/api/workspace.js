@@ -1,34 +1,30 @@
 import { apiRequest } from "./client.js";
+import { emptyRecords } from "../data/workspace.js";
 
-export async function getWorkspaceOverview({ signal } = {}) {
-  const overview = await apiRequest("/api/workspace/overview/", { signal });
-  if (
-    !overview
-    || !overview.queues
-    || !Number.isInteger(overview.queues.accessApprovals)
-    || overview.queues.accessApprovals < 0
-    || !Number.isInteger(overview.queues.ordersToFulfill)
-    || overview.queues.ordersToFulfill < 0
-    || !Number.isInteger(overview.queues.lowStockItems)
-    || overview.queues.lowStockItems < 0
-    || !Array.isArray(overview.recentActivity)
-    || !overview.recentActivity.every((activity) =>
-      typeof activity?.id === "string"
-      && typeof activity.message === "string"
-      && typeof activity.createdAt === "string"
-      && !Number.isNaN(Date.parse(activity.createdAt)),
-    )
-    || typeof overview.updatedAt !== "string"
-    || Number.isNaN(Date.parse(overview.updatedAt))
-  ) {
-    throw new Error("The workspace overview response does not match the expected API format.");
+export async function getWorkspaceRecords({ signal } = {}) {
+  const records = await apiRequest("/api/data/records", { signal });
+  if (!records || !Array.isArray(records.products) || !Array.isArray(records.orders) || !Array.isArray(records.recentActivity)) {
+    throw new Error("The workspace response does not match the expected API format.");
   }
-  return overview;
+  return { ...emptyRecords(), ...records };
 }
 
-export async function submitWorkspaceAction({ source, screenId, values }) {
-  return apiRequest("/api/workspace/actions/", {
-    method: "POST",
-    body: { source, screenId, values },
-  });
+export function submitWorkspaceAction({ screenId, values }) {
+  return apiRequest("/api/data/actions", { method: "POST", body: { screenId, values } });
+}
+
+export function importRecords({ kind, fileName, records }) {
+  return apiRequest("/api/data/import", { method: "POST", body: { kind, fileName, records } });
+}
+
+export function updateRecord(kind, key, values) {
+  return apiRequest(`/api/data/${kind}/${encodeURIComponent(key)}`, { method: "PUT", body: values });
+}
+
+export function runRowAction(path, value) {
+  return apiRequest(`/api/${path}`, { method: "POST", body: value === undefined ? {} : { value } });
+}
+
+export function markNotificationsRead() {
+  return apiRequest("/api/data/notifications-read", { method: "POST" });
 }

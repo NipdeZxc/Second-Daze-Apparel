@@ -10,7 +10,7 @@ export function getPool() {
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      ssl: { minVersion: "TLSv1.2", rejectUnauthorized: true },
+      ssl: process.env.DB_SSL === "false" ? undefined : { minVersion: "TLSv1.2", rejectUnauthorized: true },
       waitForConnections: true,
       connectionLimit: 3,
       timezone: "Z",

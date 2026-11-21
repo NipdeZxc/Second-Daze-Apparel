@@ -5,11 +5,6 @@
   "installCommand": "npm ci && npm --prefix react_frontend ci",
   "buildCommand": "npm --prefix react_frontend run build",
   "outputDirectory": "react_frontend/dist",
-  "build": {
-    "env": {
-      "VITE_ENABLE_DEMO_LOGIN": "true"
-    }
-  },
   "rewrites": [
     { "source": "/mobile", "destination": "/index.html" },
     { "source": "/mobile/", "destination": "/index.html" }

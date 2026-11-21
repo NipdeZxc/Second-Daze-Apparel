@@ -52,61 +52,56 @@ its own sign-in, Home/Approvals/Orders/Inventory navigation, notifications, and
 sign-out. There is no link between the two app shells. Sign in with the same
 backend account on either surface to use the same workspace.
 
-When connected to a backend, both surfaces read the shared
-`GET /api/workspace/overview/` endpoint. They
-refresh it when opened, on demand, and every 30 seconds; changes persisted by a
-connected backend can therefore appear in both dashboards without either app
-linking directly to the other. When using the local demo login, this API is not
-called. Instead, both surfaces display imported records from the current
-browser's storage. No sample products, customers, orders, sales, reservations,
-names, notifications, or dashboard figures are seeded.
+Both surfaces read the same database-backed endpoint, `GET /api/data/records`.
+They refresh it when opened, on demand, and every 30 seconds, so changes made on
+one surface appear on the other. Nothing is stored in the browser except a
+username/role hint; the session is an HttpOnly cookie validated by `/api/me`.
 
-## Import CSV data (temporary local mode)
+## Database-backed features
 
-Sign in as `admin` / `admin`, then select **Import CSV** in the sidebar or
-admin dashboard. Choose a data type and download its header-only template:
+Every list, dashboard, report, form and approval reads or writes the TiDB/MySQL
+database (schema: `Team10/second_daze_schema_tidb.sql`) through the `/api`
+serverless function (`api/[...route].js`). The business rules (stock holds,
+payment verification, document numbering, expiry, role checks) are enforced
+server-side in `api/_lib/routes/data.js`.
 
-- **Products and inventory:** `sku`, `product_name`, `cost_price`,
-  `selling_price`, `qty_available`, `low_stock_threshold`. Optional:
-  `category`, `size`, `color`.
-- **Customers:** `customer_code`, `full_name`, `contact_number`. Optional:
-  `email`, `address`, `city`.
-- **Orders:** `order_no`, `customer_code`, `total_amount`, `status`, `ordered_at`.
-- **Sales:** `sale_no`, `order_no`, `amount`, `cost`, `sold_at`.
-- **Reservations:** `reservation_no`, `customer_code`, `status`, `expires_at`.
+Required environment variables on Vercel: `DB_HOST`, `DB_PORT`, `DB_USER`,
+`DB_PASSWORD`, `DB_NAME`, `SESSION_SECRET` (32+ characters). For the class
+test logins set `ENABLE_TEST_ACCOUNTS=true`: signing in as `admin` / `admin` or
+`staff` / `staff` then creates those accounts in the database on first use.
+These credentials are deliberately weak; **remove the flag before handling real
+data**.
 
-Import customers before orders/reservations, and orders before sales.
-Dates accept `YYYY-MM-DD` or ISO timestamps with a timezone. Prices must be
-non-negative plain numbers with at most two decimal places. Quantities must
-be non-negative whole numbers. Supported statuses are shown beside the import
-form. Each file may contain up to 5,000 data rows and must be 2 MB or smaller.
+Workflow notes:
 
-Select **Preview CSV**, review the first ten rows, then **Import records** to
-save. Invalid rows, missing references, duplicate identifiers (case-insensitive,
-within the file or existing data), and storage errors reject the entire import.
-Imports only add records; they do not overwrite existing records. Inventory
-quantities are snapshots: importing sales or orders does not change stock.
-Sales metrics use imported sales and their recorded costs; order metrics use
-imported orders. Empty datasets display zero counts or unavailable/empty states,
-not made-up values. Lists, dashboards, reports, and the product catalog read
-the saved records; other unimplemented workflows remain explicitly unavailable.
+- Orders, reservations, refunds and sales are created through their forms and
+  row actions (approve, record GCash payment, verify payment, pack, ship,
+  deliver, complete, cancel, refund), not by CSV import.
+- Products and customers can be bulk-added by an Admin through **Import CSV**.
+- Expired reservations are voided and their stock released whenever data is
+  read; there is no scheduled job.
 
-Data tables include search, sortable columns, status filters where supported,
-pagination, and View actions. Admin demo users can edit imported records; edits
-are validated and saved only in the current browser. Dashboard KPI cards and
-work queues navigate to their related screens, and the sales chart can show the
-last 7 or 30 days. Workflow forms show field errors and a review confirmation;
-demo actions explicitly state that they are not saved.
+## Import CSV data
 
-Data persists across reloads and sign-out on the **same browser and origin**
-and is available to the staff preview there. Other tabs refresh after an import.
-It is **not a database**, is not shared across browsers/devices, and can be lost
-when site data is cleared. Keep original CSV files as backups. Demo roles only
-hide/disable UI; they are not a security boundary. Do not import sensitive or
-production data. A shared, authenticated backend can replace this temporary mode
-later; none is required or started for CSV imports.
+Sign in as an Admin, then select **Import CSV**. Choose a data type and
+download its header-only template:
 
-Run the CSV validation, persistence, and dashboard aggregation tests with
+- **Products:** `product_code`, `product_name`, `cost_price`, `selling_price`,
+  `stock_quantity`, `low_stock_threshold`. Optional: `category`, `size`.
+- **Customers:** `full_name`, `contact_number`, `street_address`, `barangay`,
+  `city_municipality`, `province`.
+
+Prices must be non-negative plain numbers with at most two decimal places and
+quantities non-negative whole numbers. Each file may contain up to 5,000 data
+rows and must be 2 MB or smaller. Select **Preview CSV**, review the first ten
+rows, then **Import records**. Invalid rows and duplicate identifiers reject the
+entire import; imports only add records and never overwrite existing ones.
+
+Data tables include search, sortable columns, status filters, pagination, View,
+and the row actions allowed for the signed-in role. Admins can edit products and
+customers.
+
+Run the CSV validation and dashboard aggregation tests with
 `npm --prefix react_frontend test` from the repository root.
 
 ## Deploy to Vercel
@@ -121,63 +116,19 @@ Create a Vercel project connected to this repository and set:
 
 The app uses hash-based routes, so direct navigation to a screen does not need
 extra Vercel rewrite rules. The Vercel rewrite serves the SPA at `/mobile`.
-The current Vercel configurations enable `VITE_ENABLE_DEMO_LOGIN=true` for a
-temporary, browser-only preview. Before handling production data, remove that
-setting, disable demo login, and configure a real authenticated backend.
-Local Vite development also enables the preview flow.
 
-## Backend integration
+## Backend API
 
-The frontend API helper is in [`react_frontend/src/api/client.js`](./react_frontend/src/api/client.js).
-Set `VITE_API_BASE_URL` to the backend origin (leave it empty to use the same
-origin). Vite environment variables are embedded at build time; set the value
-in the Vercel project's environment settings and redeploy after changing it.
+The frontend API helpers are in [`react_frontend/src/api/`](./react_frontend/src/api/).
+Leave `VITE_API_BASE_URL` empty to use the same origin.
 
-When demo login is disabled, the frontend expects:
+- `POST /api/login`, `POST /api/logout`, `GET /api/me`
+- `GET /api/data/records` – all business data for the signed-in role, with the
+  actions each row currently allows
+- `POST /api/data/actions` – form submissions `{ screenId, values }`
+- `POST /api/data/import`, `PUT /api/data/:kind/:id`
+- `POST /api/data/:kind/:id/:action` – row actions
+- `POST /api/data/notifications-read`
 
-- `POST /api/auth/login/` with JSON `{ "username": "...", "password": "..." }`
-- `200` with JSON containing `user: { "username": "...", "role": "..." }` on success
-- `401` for invalid credentials
-- `403` with `{ "code": "access_pending" }` for pending approval
-- `POST /api/auth/logout/` to end the backend session
-- `GET /api/workspace/overview/` to provide data shared by both interfaces:
-
-```json
-{
-  "queues": {
-    "accessApprovals": 0,
-    "ordersToFulfill": 0,
-    "lowStockItems": 0
-  },
-  "recentActivity": [
-    { "id": "event-id", "message": "Reservation updated", "createdAt": "2026-11-20T08:00:00Z" }
-  ],
-  "updatedAt": "2026-11-20T08:00:00Z"
-}
-```
-- `POST /api/workspace/actions/` with JSON containing the originating surface,
-  screen ID, and submitted form values:
-
-```json
-{
-  "source": "mobile",
-  "screenId": "8.6-mobile-new-reservation",
-  "values": {
-    "Customer": "Customer name",
-    "Product": "Product name",
-    "Quantity": "1"
-  }
-}
-```
-
-The backend must validate the current user's role and each screen's fields,
-persist the action, and update the overview/activity feed. Both interfaces
-submit to this same endpoint and refresh the shared overview after success.
-
-The API should use secure, HttpOnly session cookies. For a separate backend
-origin, configure the backend's CORS and cookie policies for the Vercel domain.
-The backend must enforce authentication and authorization on every protected
-data endpoint; client-side navigation and local UI state are UX only. The
-frontend is wired to the shared overview and action endpoints, but cross-surface
-data synchronization requires the backend to implement those contracts and
-persist the submitted actions.
+Every protected endpoint checks the session and role on the server;
+client-side navigation is UX only.

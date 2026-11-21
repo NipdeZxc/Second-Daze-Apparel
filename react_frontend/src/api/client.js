@@ -22,7 +22,7 @@ export async function apiRequest(path, { method = "GET", body, headers = {}, sig
 
   if (!response.ok) {
     const error = new Error(
-      data?.detail || data?.message || `Request failed with status ${response.status}.`,
+      data?.error || data?.detail || data?.message || `Request failed with status ${response.status}.`,
     );
     error.status = response.status;
     error.data = data;

@@ -1,56 +1,33 @@
 import { apiRequest } from "./client.js";
 
-export const demoLoginEnabled =
-  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_LOGIN === "true";
-
 export async function signIn({ username, password }) {
-  if (demoLoginEnabled) {
-    const demoUsername = username.trim().toLowerCase();
-    if (demoUsername === "admin" && password === "admin") {
-      return {
-        status: "authenticated",
-        user: { username: "admin", role: "Admin" },
-        demo: true,
-      };
-    }
-
-    if (demoUsername === "staff" && password === "staff") {
-      return {
-        status: "authenticated",
-        user: { username: "staff", role: "Staff" },
-        demo: true,
-      };
-    }
-
-    if (demoUsername === "pending@demo.local" && password) {
-      return { status: "pending" };
-    }
-
-    return { status: "invalid" };
-  }
-
   try {
-    const response = await apiRequest("/api/auth/login/", {
+    const response = await apiRequest("/api/login", {
       method: "POST",
-      body: { username, password },
+      body: { username: username.trim(), password },
     });
 
     if (typeof response?.user?.username !== "string") {
       throw new Error("The authentication API response must include a user with a username.");
     }
 
-    return { status: "authenticated", user: response.user, demo: false };
+    return { status: "authenticated", user: response.user };
   } catch (error) {
     if (error.status === 401) return { status: "invalid" };
-    if (error.status === 403 && error.data?.code === "access_pending") {
-      return { status: "pending" };
-    }
+    if (error.status === 403) return { status: "pending" };
     throw error;
   }
 }
 
-export async function signOut({ demo }) {
-  if (!demo) {
-    await apiRequest("/api/auth/logout/", { method: "POST" });
-  }
+export async function signOut() {
+  await apiRequest("/api/logout", { method: "POST" });
+}
+
+export async function getCurrentUser() {
+  const response = await apiRequest("/api/me");
+  return response?.user || null;
+}
+
+export function requestPasswordReset(identifier) {
+  return apiRequest("/api/forgot-password", { method: "POST", body: { identifier } });
 }

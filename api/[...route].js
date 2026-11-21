@@ -10,6 +10,14 @@ import {
 } from "./_lib/routes/users.js";
 import { exportTable } from "./_lib/routes/export.js";
 import { forgotPassword, resetPassword } from "./_lib/routes/reset.js";
+import {
+  getRecords,
+  importRecords,
+  markNotificationsRead,
+  runFormAction,
+  runRowAction,
+  updateRecord,
+} from "./_lib/routes/data.js";
 
 // One catch-all function keeps the project under Vercel's function limit.
 const routes = [
@@ -26,6 +34,12 @@ const routes = [
   ["POST", "users/:id/enable", enableUser],
   ["POST", "users/:id/reset-password", resetUserPassword],
   ["GET", "export/:name", exportTable],
+  ["GET", "data/records", getRecords],
+  ["POST", "data/import", importRecords],
+  ["POST", "data/actions", runFormAction],
+  ["POST", "data/notifications-read", markNotificationsRead],
+  ["PUT", "data/:kind/:id", updateRecord],
+  ["POST", "data/:kind/:id/:action", runRowAction],
 ];
 
 function match(method, segments) {
