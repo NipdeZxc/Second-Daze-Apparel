@@ -96,9 +96,12 @@ download its header-only template:
 
 Prices must be non-negative plain numbers with at most two decimal places and
 quantities non-negative whole numbers. Each file may contain up to 5,000 data
-rows and must be 2 MB or smaller. Select **Preview CSV**, review the first ten
-rows, then **Import records**. Invalid rows and duplicate identifiers reject the
-entire import; imports only add records and never overwrite existing ones.
+rows and must be 2 MB or smaller. Select **Preview CSV**, review the first ten rows, then **Import records**.
+Invalid rows and duplicate identifiers within the file reject the entire import.
+For products, a new product code creates a product with the CSV stock quantity;
+an existing product code adds that quantity to current stock and records a stock
+movement without changing the product details. Import each shipment only once.
+Existing customer contact numbers are rejected rather than overwritten.
 
 Data tables include search, sortable columns, status filters, pagination, View,
 and the row actions allowed for the signed-in role. Admins can edit products and

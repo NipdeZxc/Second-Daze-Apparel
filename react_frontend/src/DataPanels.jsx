@@ -429,7 +429,8 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
           <p className="form-note">Optional columns: {importColumns(kind).filter((column) => column.optional).map((column) => column.key).join(", ")}.</p>
         )}
         <p className="form-note">Use plain numbers without currency symbols or thousands separators.
-          Imports only add records; duplicate identifiers reject the entire file. Orders, reservations and sales are created through their workflows, not by import.</p>
+          For products, matching product codes add <code>stock_quantity</code> to available stock without changing product details; new codes create products with that initial stock. Import a shipment only once.
+          Duplicate identifiers within a file reject the entire import. Orders, reservations and sales are created through their workflows, not by import.</p>
         {error && <p className="inline-error" role="alert">{error}</p>}
         {message && <p className="form-note" role="status">{message}</p>}
         {preview && (
@@ -441,8 +442,10 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
               setError("");
               setBusy(true);
               try {
-                await importRecords({ kind, fileName: file?.name || "import.csv", records: preview });
-                setMessage(`Imported ${preview.length} ${definition.label.toLowerCase()} record(s) into the database.`);
+                const result = await importRecords({ kind, fileName: file?.name || "import.csv", records: preview });
+                setMessage(kind === "products"
+                  ? `Imported ${result.imported} product(s): ${result.created} new, ${result.imported - result.created} existing. Added ${result.stockAdded} unit(s) to stock.`
+                  : `Imported ${result.imported} ${definition.label.toLowerCase()} record(s) into the database.`);
                 setPreview(null);
                 onImported?.();
               } catch (saveError) {

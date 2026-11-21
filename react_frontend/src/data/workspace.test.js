@@ -47,10 +47,11 @@ test("numeric and contact validation reject invalid business data with row error
   assert.throws(() => parseImport("customers", customerCsv.replace("09123456789", "12345")), /contact_number/);
 });
 
-test("duplicates within a file or against existing records are rejected", () => {
+test("existing product codes can be restocked, but duplicates within a file and existing customers are rejected", () => {
   const existing = { ...emptyRecords(), products: [{ product_code: "TEST-1" }] };
-  assert.throws(() => parseImport("products", productCsv, existing), /Duplicate product_code/);
-  assert.throws(() => parseImport("products", productCsv.replace("TEST-1", "test-1"), existing), /Duplicate product_code/);
+  assert.equal(parseImport("products", productCsv, existing)[0].stock_quantity, 2);
+  const existingCustomer = { ...emptyRecords(), customers: [{ contact_number: "09123456789" }] };
+  assert.throws(() => parseImport("customers", customerCsv, existingCustomer), /Duplicate contact_number/);
   assert.throws(() => parseImport("products", `${productCsv}\n${productCsv.split("\n").at(-1)}`), /Data row 2: Duplicate product_code/);
 });
 
