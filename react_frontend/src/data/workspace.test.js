@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildOverview, csvTemplate, emptyRecords, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
+import { buildOverview, buildWeeklyReport, csvTemplate, emptyRecords, getFridayReviewWeek, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
 import { datasetImportFiles, parseDatasetFile } from "./datasetImport.js";
 
 const productCsv = `${csvTemplate("products")}TEST-1,"Shirt, ""Blue""",Tops,M,100.10,200.20,2,3`;
@@ -144,5 +144,13 @@ test("overview nets approved refunds, counts low stock and open orders", () => {
   assert.equal(overview.metrics.itemsForShipping, 4);
   assert.equal(overview.metrics.completedOrders, 1);
   assert.deepEqual(overview.queues, { accessApprovals: 2, ordersToFulfill: 1, lowStockItems: 1, unpaidReservations: 1 });
+});
+
+test("Friday review week returns Monday through the most recent Friday", () => {
+  const range = getFridayReviewWeek(new Date("2026-11-21T12:00:00Z"));
+  assert.equal(range.start.getUTCDay(), 1);
+  assert.equal(range.end.getUTCDay(), 5);
+  assert.equal(range.start.toISOString().slice(0, 10), "2026-11-16");
+  assert.equal(range.end.toISOString().slice(0, 10), "2026-11-20");
 });
 

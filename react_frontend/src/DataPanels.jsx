@@ -620,22 +620,47 @@ export function DataReports({ overview, authUser }) {
   const [exporting, setExporting] = useState("");
   const [exportError, setExportError] = useState("");
   const [exportMessage, setExportMessage] = useState("");
+  const [activeReport, setActiveReport] = useState("sales");
+  const [view, setView] = useState("weekly");
   const metrics = overview?.metrics;
-  const reports = [
-    ["Gross sales", formatMoney(metrics?.grossSales)],
-    ["Recorded cost of sales", formatMoney(metrics?.totalCost)],
-    ["Gross profit", formatMoney(metrics?.profit)],
-    ["Orders", metrics?.ordersPlaced ?? "—"],
-    ["Pending orders", metrics?.pendingOrders ?? "—"],
-    ["Unpaid reservations", metrics?.unpaidReservations ?? "—"],
-    ["Items for shipping", metrics?.itemsForShipping ?? "—"],
-    ["Completed orders", metrics?.completedOrders ?? "—"],
-    ["Low-stock products", overview?.queues?.lowStockItems ?? "—"],
-  ];
+  const weekly = view === "weekly";
+  const reports = {
+    sales: [
+      ["Weekly sales", formatMoney(metrics?.weeklySales)],
+      ["Weekly transactions", weekly ? metrics?.weeklyOrders ?? "—" : metrics?.ordersPlaced ?? "—"],
+      ["Today's sales", formatMoney(metrics?.todaysSales)],
+      ["Average order value", formatMoney(metrics?.averageOrderValue)],
+    ],
+    financial: [
+      ["Gross sales", formatMoney(weekly ? metrics?.weeklySales : metrics?.grossSales)],
+      ["Recorded cost", formatMoney(weekly ? metrics?.weeklyCost : metrics?.totalCost)],
+      ["Gross profit", formatMoney(weekly ? metrics?.weeklyProfit : metrics?.profit)],
+      ["Refunded sales", formatMoney(overview?.records?.refunds
+        ?.filter((refund) => refund.status === "Approved")
+        .reduce((sum, refund) => sum + Number(refund.amount || 0), 0))],
+    ],
+    orders: [
+      ["Orders in view", weekly ? metrics?.weeklyOrders ?? "—" : metrics?.ordersPlaced ?? "—"],
+      ["Pending orders", metrics?.pendingOrders ?? "—"],
+      ["Items for shipping", metrics?.itemsForShipping ?? "—"],
+      ["Completed orders", metrics?.completedOrders ?? "—"],
+    ],
+    stock: [
+      ["Low-stock products", overview?.queues?.lowStockItems ?? "—"],
+      ["Total products", overview?.records?.products?.length ?? "—"],
+      ["Reserved quantity", overview?.records?.products
+        ?.reduce((sum, product) => sum + Number(product.reserved_quantity || 0), 0) ?? "—"],
+      ["Defective quantity", overview?.records?.products
+        ?.reduce((sum, product) => sum + Number(product.defective_quantity || 0), 0) ?? "—"],
+    ],
+  };
   const exports = [
     ["v_weekly_sales", "Weekly sales"],
     ["v_order_totals", "Order totals"],
     ["products", "Inventory products"],
+    ["orders", "All orders"],
+    ["stock_movements", "Stock movements"],
+    ["refunds", "Financial refunds"],
   ];
   const downloadReport = async (name, label) => {
     setExporting(name);
@@ -658,8 +683,43 @@ export function DataReports({ overview, authUser }) {
   };
   return (
     <>
+      <section className="panel report-controls">
+        <div>
+          <div className="report-tabs" role="tablist" aria-label="Report type">
+            {[
+              ["sales", "Sales"],
+              ["financial", "Financial"],
+              ["orders", "Orders"],
+              ["stock", "Stock"],
+            ].map(([id, label]) => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeReport === id}
+                className={activeReport === id ? "report-tab report-tab--active" : "report-tab"}
+                key={id}
+                onClick={() => setActiveReport(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="report-view">
+          <span>View</span>
+          <select value={view} onChange={(event) => setView(event.target.value)}>
+            <option value="weekly">Friday review week</option>
+            <option value="all">All-time</option>
+          </select>
+        </label>
+      </section>
+      {view === "weekly" && overview?.fridayReview && (
+        <p className="report-period">
+          Friday review: {new Date(overview.fridayReview.start).toLocaleDateString()} – {new Date(overview.fridayReview.end).toLocaleDateString()}
+        </p>
+      )}
       <section className="report-grid">
-        {reports.map(([label, value]) => (
+        {reports[activeReport].map(([label, value]) => (
           <article className="panel report-card" key={label}>
             <span className="eyebrow">LIVE DATA</span><h2>{label}</h2>
             <p>{overview?.records ? "Calculated from records in the database." : "Data is not available."}</p>
