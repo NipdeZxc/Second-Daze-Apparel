@@ -10,8 +10,10 @@ import {
 } from "./_lib/routes/users.js";
 import { exportTable } from "./_lib/routes/export.js";
 import { forgotPassword, resetPassword } from "./_lib/routes/reset.js";
+import { importDatasetBatch } from "./_lib/routes/dataset-import.js";
 import {
   getRecords,
+  deleteRecord,
   importRecords,
   markNotificationsRead,
   runFormAction,
@@ -36,6 +38,8 @@ const routes = [
   ["GET", "export/:name", exportTable],
   ["GET", "data/records", getRecords],
   ["POST", "data/import", importRecords],
+  ["POST", "data/import-batch", importDatasetBatch],
+  ["DELETE", "data/:kind/:id", deleteRecord],
   ["POST", "data/actions", runFormAction],
   ["POST", "data/notifications-read", markNotificationsRead],
   ["PUT", "data/:kind/:id", updateRecord],

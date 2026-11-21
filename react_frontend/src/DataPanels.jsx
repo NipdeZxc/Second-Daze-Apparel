@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { csvTemplate, datasets, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./data/workspace.js";
-import { importRecords, runRowAction, updateRecord } from "./api/workspace.js";
+import {
+  datasetImportFiles,
+  MAX_DATASET_BATCH_BYTES,
+  MAX_DATASET_BATCH_ROWS,
+  MAX_DATASET_FILE_BYTES,
+  parseDatasetFile,
+} from "./data/datasetImport.js";
+import { deleteRecord, importDatasetBatch, importRecords, runRowAction, updateRecord } from "./api/workspace.js";
 
 export const screenDatasets = {
   "3.9-orders-status-tracking": "orders",
@@ -128,6 +135,7 @@ function printOrder(order) {
 export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false, onRecordUpdated }) {
   const definition = datasets[kind];
   const editable = canEdit && definition.editable;
+  const deletable = authUser?.role === "Admin" && ["products", "customers", "orders", "reservations", "refunds"].includes(kind);
   const editColumns = definition.columns.filter((column) => !column.readonly);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -140,6 +148,8 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
   const [editValues, setEditValues] = useState({});
   const [dialogError, setDialogError] = useState("");
   const [message, setMessage] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deletingId, setDeletingId] = useState("");
 
   const recordStatus = (record) => {
     if (typeof record.status === "string" && record.status) return record.status;
@@ -181,6 +191,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
     setSortDirection("asc");
     setPage(1);
     setMessage("");
+    setDeleteError("");
   }, [kind, definition.key]);
   const closeDialog = () => {
     setSelectedRecord(null);
@@ -195,6 +206,29 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
     ])));
     setDialogError("");
     setDialogMode("edit");
+  };
+  const removeRecord = async (record) => {
+    if (!deletable || record.id == null) return;
+    const recordId = String(record.id);
+    const identifier = record[definition.key] ?? recordId;
+    const singular = {
+      products: "product",
+      customers: "customer",
+      orders: "order",
+      reservations: "reservation",
+      refunds: "refund",
+    }[kind];
+    if (!window.confirm(`Permanently delete this ${singular}?\n\nRecord: ${identifier} (ID ${recordId})\n\nThis cannot be undone. Records with linked data cannot be deleted.`)) return;
+    setDeleteError("");
+    setDeletingId(recordId);
+    try {
+      await deleteRecord(kind, recordId);
+      onRecordUpdated?.();
+    } catch (deleteFailure) {
+      setDeleteError(deleteFailure.message || "The selected record could not be deleted.");
+    } finally {
+      setDeletingId("");
+    }
   };
   useEffect(() => {
     if (!selectedRecord) return undefined;
@@ -233,6 +267,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
         <div><h2>{title || definition.label}</h2><p>Live records from the shared database.</p></div>
         <span className="quiet-tag">{filteredRows.length} of {rows.length} records</span>
       </div>
+      {deletable && <p className="data-notice">Admins can permanently delete individual records. Linked records are protected and must be retained.</p>}
       {message && <p className="table-message" role="status">{message}</p>}
       <div className="table-tools">
         <label className="table-search">
@@ -278,6 +313,16 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
                 <td className="record-actions">
                   <button type="button" className="table-action" onClick={() => { setSelectedRecord(record); setDialogMode("view"); }}>View</button>
                   {editable && <button type="button" className="table-action" onClick={() => openEdit(record)}>Edit</button>}
+                  {deletable && (
+                    <button
+                      type="button"
+                      className="table-action table-action--danger"
+                      onClick={() => removeRecord(record)}
+                      disabled={deletingId !== ""}
+                    >
+                      {deletingId === String(record.id) ? "Deleting..." : "Delete"}
+                    </button>
+                  )}
                   <RowActions actions={record.actions} onDone={onRecordUpdated} />
                 </td>
               </tr>
@@ -287,6 +332,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
           </tbody>
         </table>
       </div>
+      {deleteError && <p className="inline-error" role="alert">{deleteError}</p>}
       <div className="table-pagination">
         <span>Showing {sortedRows.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, sortedRows.length)} of {sortedRows.length}</span>
         <div>
@@ -365,9 +411,14 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
   const [kind, setKind] = useState("products");
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [batchFiles, setBatchFiles] = useState([]);
+  const [batchPreview, setBatchPreview] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [batchError, setBatchError] = useState("");
+  const [batchMessage, setBatchMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
   const definition = datasets[kind];
   const resetPreview = () => {
     setPreview(null);
@@ -382,6 +433,67 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
     link.download = `${kind}-template.csv`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const reviewBatch = async (event) => {
+    event.preventDefault();
+    setBatchPreview(null);
+    setBatchError("");
+    setBatchMessage("");
+    if (!batchFiles.length) {
+      setBatchError("Choose one or more TiDB dataset CSV files.");
+      return;
+    }
+    const totalBytes = batchFiles.reduce((sum, item) => sum + item.size, 0);
+    if (batchFiles.some((item) => item.size > MAX_DATASET_FILE_BYTES)) {
+      setBatchError("Each dataset CSV must be 2 MB or smaller.");
+      return;
+    }
+    if (totalBytes > MAX_DATASET_BATCH_BYTES) {
+      setBatchError("The selected dataset files must total 3 MB or less.");
+      return;
+    }
+
+    setBatchBusy(true);
+    try {
+      const parsed = [];
+      const seen = new Set();
+      for (const item of batchFiles) {
+        const dataset = parseDatasetFile(item.name, await item.text());
+        if (seen.has(dataset.table)) throw new Error(`Select only one ${dataset.fileName} file.`);
+        seen.add(dataset.table);
+        parsed.push(dataset);
+      }
+      const rowCount = parsed.reduce((sum, item) => sum + item.records.length, 0);
+      if (rowCount > MAX_DATASET_BATCH_ROWS) {
+        throw new Error(`A dataset batch may contain at most ${MAX_DATASET_BATCH_ROWS} rows.`);
+      }
+      if (new TextEncoder().encode(JSON.stringify(parsed)).length > MAX_DATASET_BATCH_BYTES) {
+        throw new Error("The selected records are too large to send in one batch.");
+      }
+      setBatchPreview(parsed);
+    } catch (validationError) {
+      setBatchError(validationError.message || "The selected dataset files could not be read.");
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+  const saveBatch = async () => {
+    if (!batchPreview) return;
+    setBatchBusy(true);
+    setBatchError("");
+    setBatchMessage("");
+    try {
+      const result = await importDatasetBatch(batchPreview);
+      const importedTables = Object.keys(result.imported || {});
+      setBatchMessage(`Imported ${result.totalRows} rows across ${importedTables.length} tables.`);
+      setBatchPreview(null);
+      setBatchFiles([]);
+      onImported?.();
+    } catch (saveError) {
+      setBatchError(saveError.message || "The dataset batch was not saved.");
+    } finally {
+      setBatchBusy(false);
+    }
   };
   return (
     <section className="panel csv-import">
@@ -428,7 +540,7 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
           <p className="form-note">Optional columns: {importColumns(kind).filter((column) => column.optional).map((column) => column.key).join(", ")}.</p>
         )}
         <p className="form-note">Use plain numbers without currency symbols or thousands separators.
-          Imports only add records; duplicate identifiers reject the entire file. Orders, reservations and sales are created through their workflows, not by import.</p>
+          This importer only adds products and customers. Use the Admin-only batch importer below for the provided TiDB dataset files.</p>
         {error && <p className="inline-error" role="alert">{error}</p>}
         {message && <p className="form-note" role="status">{message}</p>}
         {preview && (
@@ -452,6 +564,53 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
             }}>Import {preview.length} records</button>
           </div>
         )}
+        <div className="csv-import__batch">
+          <h3>Import multiple TiDB dataset files</h3>
+          <p className="form-note">
+            Select one or more supported files from the dataset folder. Files are inserted in foreign-key order as one transaction;
+            include files referenced by the selected rows (usually the full dataset) so foreign keys map correctly. If any file fails, the entire batch rolls back.
+            Existing records are not overwritten.
+          </p>
+          <form onSubmit={reviewBatch}>
+            <label className="field">
+              <span>Dataset CSV files (up to 15 files, 2 MB each, 3 MB total)</span>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                multiple
+                disabled={batchBusy}
+                onChange={(event) => {
+                  setBatchFiles(Array.from(event.target.files || []));
+                  setBatchPreview(null);
+                  setBatchError("");
+                  setBatchMessage("");
+                }}
+              />
+            </label>
+            <button type="submit" className="button button--primary" disabled={batchBusy}>
+              {batchBusy ? "Validating..." : "Preview selected files"}
+            </button>
+          </form>
+          {batchError && <p className="inline-error" role="alert">{batchError}</p>}
+          {batchMessage && <p className="form-note" role="status">{batchMessage}</p>}
+          {batchPreview && (
+            <div className="csv-import__preview">
+              <h3>{batchPreview.reduce((sum, item) => sum + item.records.length, 0)} rows ready across {batchPreview.length} files</h3>
+              <p className="form-note">The import will not expose or preview password hashes. Confirm to import all selected files atomically.</p>
+              <ul>
+                {batchPreview.map((item) => (
+                  <li key={item.table}><strong>{item.table}</strong>: {item.fileName} ({item.records.length} rows)</li>
+                ))}
+              </ul>
+              <button type="button" className="button button--pink" disabled={batchBusy} onClick={saveBatch}>
+                {batchBusy ? "Importing..." : "Import all selected files"}
+              </button>
+            </div>
+          )}
+          <p className="form-note">
+            Supported files: {datasetImportFiles.map((item) => item.file).join(", ")}.
+          </p>
+        </div>
       </div>
     </section>
   );

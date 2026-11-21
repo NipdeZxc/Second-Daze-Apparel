@@ -1,5 +1,5 @@
 import { getPool } from "../../_db.js";
-import { HttpError, requireFields, sendJson } from "../http.js";
+import { HttpError, parseId, requireFields, sendJson } from "../http.js";
 import { audit, requireRole, requireUser } from "../auth.js";
 
 const ADMIN = "Admin";
@@ -12,7 +12,7 @@ const MAX_IMPORT_ROWS = 5000;
 const num = (value) => Number(value ?? 0);
 const text = (value) => (typeof value === "string" ? value.trim() : "");
 
-async function withTransaction(work) {
+export async function withTransaction(work) {
   const connection = await getPool().getConnection();
   try {
     await connection.beginTransaction();
@@ -456,6 +456,96 @@ export async function updateRecord(req, res, { kind, id }) {
   } else {
     throw new HttpError(400, "This record type cannot be edited.");
   }
+  sendJson(res, 200, { ok: true });
+}
+
+const deletableRecords = {
+  products: {
+    table: "products", primaryKey: "product_id", label: "product",
+    blockers: [
+      ["SELECT 1 FROM reservation_items WHERE product_id = ? LIMIT 1", "reservation items"],
+      ["SELECT 1 FROM order_items WHERE product_id = ? LIMIT 1", "order items"],
+      ["SELECT 1 FROM stock_movements WHERE product_id = ? LIMIT 1", "stock movement history"],
+      ["SELECT 1 FROM notifications WHERE reference_type = 'Product' AND reference_id = ? LIMIT 1", "notifications"],
+    ],
+  },
+  customers: {
+    table: "customers", primaryKey: "customer_id", label: "customer",
+    blockers: [
+      ["SELECT 1 FROM reservations WHERE customer_id = ? LIMIT 1", "reservations"],
+      ["SELECT 1 FROM orders WHERE customer_id = ? LIMIT 1", "orders"],
+      ["SELECT 1 FROM refunds WHERE customer_id = ? LIMIT 1", "refunds"],
+    ],
+  },
+  orders: {
+    table: "orders", primaryKey: "order_id", label: "order",
+    blockers: [
+      ["SELECT 1 FROM order_items WHERE order_id = ? LIMIT 1", "order items"],
+      ["SELECT 1 FROM payments WHERE order_id = ? LIMIT 1", "payments"],
+      ["SELECT 1 FROM shipments WHERE order_id = ? LIMIT 1", "shipments"],
+      ["SELECT 1 FROM purchase_orders WHERE order_id = ? LIMIT 1", "purchase orders"],
+      ["SELECT 1 FROM invoices WHERE order_id = ? LIMIT 1", "invoices"],
+      ["SELECT 1 FROM delivery_receipts WHERE order_id = ? LIMIT 1", "delivery receipts"],
+      ["SELECT 1 FROM refunds WHERE order_id = ? LIMIT 1", "refunds"],
+      ["SELECT 1 FROM stock_movements WHERE reference_type IN ('Order', 'Purchase Order') AND reference_id = ? LIMIT 1", "stock movement history"],
+      ["SELECT 1 FROM notifications WHERE reference_type = 'Order' AND reference_id = ? LIMIT 1", "notifications"],
+    ],
+  },
+  reservations: {
+    table: "reservations", primaryKey: "reservation_id", label: "reservation",
+    blockers: [
+      ["SELECT 1 FROM reservation_items WHERE reservation_id = ? LIMIT 1", "reservation items"],
+      ["SELECT 1 FROM orders WHERE reservation_id = ? LIMIT 1", "orders"],
+      ["SELECT 1 FROM stock_movements WHERE reference_type = 'Reservation' AND reference_id = ? LIMIT 1", "stock movement history"],
+      ["SELECT 1 FROM notifications WHERE reference_type = 'Reservation' AND reference_id = ? LIMIT 1", "notifications"],
+    ],
+  },
+  refunds: {
+    table: "refunds", primaryKey: "refund_id", label: "refund",
+    blockers: [
+      ["SELECT 1 FROM refund_items WHERE refund_id = ? LIMIT 1", "refund items"],
+      ["SELECT 1 FROM stock_movements WHERE reference_type = 'Refund' AND reference_id = ? LIMIT 1", "stock movement history"],
+      ["SELECT 1 FROM notifications WHERE reference_type = 'Refund' AND reference_id = ? LIMIT 1", "notifications"],
+    ],
+  },
+};
+
+export async function deleteRecord(req, res, { kind, id }) {
+  const admin = await requireRole(req, ADMIN);
+  const spec = deletableRecords[kind];
+  if (!spec) throw new HttpError(400, "This record type cannot be deleted.");
+  const recordId = parseId(id);
+
+  try {
+    await withTransaction(async (conn) => {
+      const [records] = await conn.query(
+        `SELECT \`${spec.primaryKey}\` FROM \`${spec.table}\` WHERE \`${spec.primaryKey}\` = ? FOR UPDATE`,
+        [recordId]
+      );
+      if (!records[0]) throw new HttpError(404, "The selected record no longer exists.");
+
+      for (const [sql, label] of spec.blockers) {
+        const [linked] = await conn.query(sql, [recordId]);
+        if (linked.length) throw new HttpError(409, `Cannot delete this ${spec.label} while it has linked ${label}.`);
+      }
+
+      await conn.query(
+        `DELETE FROM \`${spec.table}\` WHERE \`${spec.primaryKey}\` = ?`,
+        [recordId]
+      );
+      await conn.query(
+        `INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, created_at)
+         VALUES (?, 'delete_record', ?, ?, ?, ?)`,
+        [admin.user_id, spec.label, recordId, `${spec.label} ${recordId} permanently deleted`, new Date()]
+      );
+    });
+  } catch (error) {
+    if (error?.code === "ER_ROW_IS_REFERENCED_2" || error?.errno === 1451) {
+      throw new HttpError(409, `Cannot delete this ${spec.label} because other records depend on it.`);
+    }
+    throw error;
+  }
+
   sendJson(res, 200, { ok: true });
 }
 

@@ -1,0 +1,21 @@
+﻿user_id,role_id,full_name,username,email,password_hash,must_change_password,account_status,failed_login_count,locked_until,created_by,approved_by,approved_at,created_at
+1,1,User 1,user1,,$2b$10$7wJNAxFestU9vep07TKH0.G6dTk7YYUoLvISeYDocQie66IeLeXLy,1,Active,0,,2,1,2025-05-06,2025-05-06
+2,3,User 2,user2,,$2b$10$d/32mqH0wEwyox3A64ZuxOSqhUdztyvdHAirqDczcPEa9sJj2EWEC,1,Active,0,,2,,,2025-12-13
+3,1,User 3,user3,,$2b$10$cUsh52Vf89FNMjL.cy2qrO.0r6DN.dwBmo6E02yMwuK4smtFzBcyi,1,Disabled,0,,,,,2025-02-17
+4,3,User 4,user4,,$2b$10$w86PKuGEtPeX/2R5PwcGxOiacBMZIEU4k7Y4WFJAmIWtlIalcmBaG,1,Active,0,,2,2,2025-01-14,2025-01-14
+5,3,User 5,user5,,$2b$10$7BcSKcX0wQZFZR/oPUfD/Ok58zfWMD8unQ2HHk8IHzkWENhhkkk.e,1,Disabled,0,,,1,,2025-10-29
+6,2,User 6,user6,,$2b$10$sf.W6HMPGmGOBzyAUpP5t.mOSYN3EVrYQgWvQMboWKCcj/2jyxWRi,1,Active,0,,,2,2025-08-05,2025-08-05
+7,2,User 7,user7,,$2b$10$qjnzgpHQe9JmbpQ8ex/deuICUe0QvATddQkrHRXghjz8q.4tf6l1.,1,Pending Approval,0,,,,,2025-06-22
+8,1,User 8,user8,,$2b$10$sgKDzdEgYBt1EuFVA8Ms/uMIVz8IsseGF6ALY1QVtk8qaA/ZOmP46,1,Active,0,,1,,,2025-07-03
+9,2,User 9,user9,,$2b$10$Bt8RwOYWxeElg2Bqg1FBoeXdhtbDyMZaBccnE.G2hWn2t/KTCM/Fu,1,Pending Approval,0,,,2,,2025-08-24
+10,1,User 10,user10,,$2b$10$Pst0zf.FUOhi0hCG1iAEXOnpMO0wiYElWnKkOyyl.uFrZI.MsIRWy,1,Disabled,0,,,2,,2025-05-31
+11,2,User 11,user11,,$2b$10$mDIGqVnJPwUSXOdrzO./puiaLhSAb1qKGeZq5p7NXSh/XKNnJ9lrW,1,Active,0,,2,,,2025-01-24
+12,3,User 12,user12,,$2b$10$A9l9875oZwv2cMeH.hz3yu2W5U7Hgtrjk5WM0va4K8yGmzWx2QotS,1,Pending Approval,0,,,,,2025-02-21
+13,2,User 13,user13,,$2b$10$pHF4KEJvXOrhDfuDSuy16OyXOxvbjpNUMwdW0XYX8JTPOTlluwiYK,1,Pending Approval,0,,1,2,,2025-07-06
+14,3,User 14,user14,,$2b$10$QSBUrhRD5rVKlVEzBU0nDOO.zd00yyvy2fIYG1HfEcLKXi2Jep9Ri,1,Pending Approval,0,,1,,,2025-12-10
+15,2,User 15,user15,,$2b$10$sTT8Ee5vBUHXVx2hU2mloOooz8kyZ2qVj8.G07g/sozDATrxQdq4.,1,Active,0,,2,2,2025-03-29,2025-03-29
+16,3,User 16,user16,,$2b$10$DbIHQiugVUV8VGt5FaiNBOyVmMo2lfKRKAqy/D5YG5wynZRNkQHCG,1,Active,0,,1,1,2025-05-19,2025-05-19
+17,3,User 17,user17,,$2b$10$gv62w9FvbPJUIB.TJdDZKeG3znlYS6L90og7L3q2vWeSpIeo3/DoK,1,Pending Approval,0,,,,,2025-01-17
+18,2,User 18,user18,,$2b$10$36oAJ7m2E.Fu9ciLSiCbIuCNjuN7DLwstwiw0XN34Mjue1eHP34pa,1,Disabled,0,,1,,,2025-04-19
+19,2,User 19,user19,,$2b$10$ADJYznqEpy99IKBh2dSYz.R9bmO6j4KHnwUpl1UpWROfF8iv0zEkq,1,Active,0,,2,1,2025-07-22,2025-07-22
+20,2,User 20,user20,,$2b$10$atZy4KDfou21fA3o2mDA8eQftRbXWFH3Xwguz4sQZP7yNefJHhjLq,1,Active,0,,1,,,2025-05-07

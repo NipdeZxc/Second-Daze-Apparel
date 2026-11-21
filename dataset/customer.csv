@@ -1,0 +1,101 @@
+﻿customer_id,full_name,contact_number,social_media_name,street_address,barangay,city_municipality,province,postal_code,entry_source,info_verified,verified_by,verified_at,returned_parcels,created_by,created_at
+1,Andrea Mendoza,09902099969,customer_1,"House 1, Sample Street",Not provided,Taguig,Metro Manila,1438,Staff,0,,,0,,2025-07-24
+2,John Garcia,09248532577,customer_2,"House 2, Sample Street",Not provided,Taguig,Metro Manila,1505,Staff,1,,2025-01-25,0,,2025-01-25
+3,Nicole Reyes,09264112119,customer_3,"House 3, Sample Street",Not provided,Mandaluyong,Metro Manila,1163,Staff,0,,,0,,2025-08-05
+4,Miguel Reyes,09513140753,customer_4,"House 4, Sample Street",Not provided,Pasig,Metro Manila,1610,Staff,1,,2025-09-28,0,,2025-09-28
+5,Mark Santos,09830448745,customer_5,"House 5, Sample Street",Not provided,Mandaluyong,Metro Manila,1117,Staff,0,,,0,,2025-10-02
+6,James Mendoza,09925276600,customer_6,"House 6, Sample Street",Not provided,Mandaluyong,Metro Manila,1348,Staff,1,,2025-05-31,0,,2025-05-31
+7,Angela Cruz,09587182120,customer_7,"House 7, Sample Street",Not provided,Manila,Metro Manila,1739,Staff,0,,,0,,2025-05-15
+8,Sofia Cruz,09645119047,customer_8,"House 8, Sample Street",Not provided,Manila,Metro Manila,1640,Staff,1,,2025-11-24,0,,2025-11-24
+9,Sofia Garcia,09264109919,customer_9,"House 9, Sample Street",Not provided,Makati,Metro Manila,1780,Staff,1,,2025-10-04,0,,2025-10-04
+10,James Santos,09743111853,customer_10,"House 10, Sample Street",Not provided,Makati,Metro Manila,1500,Staff,1,,2025-02-27,0,,2025-02-27
+11,Gabriel Flores,09992994062,customer_11,"House 11, Sample Street",Not provided,Makati,Metro Manila,1245,Staff,1,,2025-05-04,0,,2025-05-04
+12,Gabriel Reyes,09191969690,customer_12,"House 12, Sample Street",Not provided,Mandaluyong,Metro Manila,1497,Staff,1,,2025-09-30,0,,2025-09-30
+13,James Cruz,09237859287,customer_13,"House 13, Sample Street",Not provided,Mandaluyong,Metro Manila,1486,Staff,0,,,0,,2025-03-26
+14,Mark Ramos,09327416584,customer_14,"House 14, Sample Street",Not provided,Taguig,Metro Manila,1773,Staff,0,,,0,,2025-12-20
+15,Ana Mendoza,09528414718,customer_15,"House 15, Sample Street",Not provided,Mandaluyong,Metro Manila,1665,Staff,1,,2025-08-13,0,,2025-08-13
+16,Gabriel Bautista,09229927269,customer_16,"House 16, Sample Street",Not provided,Quezon City,Metro Manila,1230,Staff,1,,2025-06-23,0,,2025-06-23
+17,Juan Garcia,09731832764,customer_17,"House 17, Sample Street",Not provided,Quezon City,Metro Manila,1007,Staff,1,,2025-12-29,0,,2025-12-29
+18,Daniel Santos,09345824373,customer_18,"House 18, Sample Street",Not provided,Manila,Metro Manila,1032,Staff,1,,2025-02-06,0,,2025-02-06
+19,Sofia Garcia,09399012686,customer_19,"House 19, Sample Street",Not provided,Mandaluyong,Metro Manila,1497,Staff,1,,2025-10-04,0,,2025-10-04
+20,Pedro Bautista,09360916298,customer_20,"House 20, Sample Street",Not provided,Pasig,Metro Manila,1416,Staff,1,,2025-02-18,0,,2025-02-18
+21,Maria Ramos,09480424119,customer_21,"House 21, Sample Street",Not provided,Pasig,Metro Manila,1420,Staff,1,,2025-01-28,0,,2025-01-28
+22,Daniel Reyes,09165082363,customer_22,"House 22, Sample Street",Not provided,Pasig,Metro Manila,1745,Staff,1,,2025-02-25,0,,2025-02-25
+23,Ana Garcia,09304235259,customer_23,"House 23, Sample Street",Not provided,Taguig,Metro Manila,1459,Staff,1,,2025-08-05,0,,2025-08-05
+24,Pedro Mendoza,09596743109,customer_24,"House 24, Sample Street",Not provided,Quezon City,Metro Manila,1077,Staff,1,,2025-10-09,0,,2025-10-09
+25,Maria Santos,09800235246,customer_25,"House 25, Sample Street",Not provided,Taguig,Metro Manila,1015,Staff,1,,2025-05-02,0,,2025-05-02
+26,Pedro Ramos,09621453189,customer_26,"House 26, Sample Street",Not provided,Pasig,Metro Manila,1218,Staff,1,,2025-01-31,0,,2025-01-31
+27,Pedro Ramos,09102314313,customer_27,"House 27, Sample Street",Not provided,Pasig,Metro Manila,1271,Staff,1,,2025-05-27,0,,2025-05-27
+28,Angela Bautista,09266211829,customer_28,"House 28, Sample Street",Not provided,Quezon City,Metro Manila,1303,Staff,1,,2025-01-30,0,,2025-01-30
+29,Miguel Santos,09903132646,customer_29,"House 29, Sample Street",Not provided,Makati,Metro Manila,1058,Staff,1,,2025-10-27,0,,2025-10-27
+30,Carlo Cruz,09161073976,customer_30,"House 30, Sample Street",Not provided,Taguig,Metro Manila,1082,Staff,1,,2025-02-05,0,,2025-02-05
+31,Miguel Reyes,09825003955,customer_31,"House 31, Sample Street",Not provided,Quezon City,Metro Manila,1413,Staff,1,,2025-10-19,0,,2025-10-19
+32,Ana Santos,09765055833,customer_32,"House 32, Sample Street",Not provided,Manila,Metro Manila,1429,Staff,0,,,0,,2025-10-26
+33,Miguel Flores,09379995032,customer_33,"House 33, Sample Street",Not provided,Quezon City,Metro Manila,1685,Staff,0,,,0,,2025-06-10
+34,Ana Mendoza,09524971817,customer_34,"House 34, Sample Street",Not provided,Quezon City,Metro Manila,1687,Staff,0,,,0,,2025-06-03
+35,Carlo Flores,09907308348,customer_35,"House 35, Sample Street",Not provided,Manila,Metro Manila,1009,Staff,1,,2025-11-15,0,,2025-11-15
+36,Miguel Reyes,09178663096,customer_36,"House 36, Sample Street",Not provided,Taguig,Metro Manila,1218,Staff,0,,,0,,2025-05-16
+37,Pedro Flores,09173864104,customer_37,"House 37, Sample Street",Not provided,Quezon City,Metro Manila,1378,Staff,1,,2025-03-22,0,,2025-03-22
+38,Carlo Mendoza,09756783995,customer_38,"House 38, Sample Street",Not provided,Mandaluyong,Metro Manila,1541,Staff,1,,2025-12-08,0,,2025-12-08
+39,Nicole Mendoza,09812308209,customer_39,"House 39, Sample Street",Not provided,Manila,Metro Manila,1137,Staff,1,,2025-03-01,0,,2025-03-01
+40,Gabriel Reyes,09897163846,customer_40,"House 40, Sample Street",Not provided,Taguig,Metro Manila,1159,Staff,1,,2025-05-25,0,,2025-05-25
+41,Miguel Garcia,09870530217,customer_41,"House 41, Sample Street",Not provided,Makati,Metro Manila,1208,Staff,0,,,0,,2025-11-21
+42,Nicole Mendoza,09642678844,customer_42,"House 42, Sample Street",Not provided,Pasig,Metro Manila,1257,Staff,1,,2025-02-17,0,,2025-02-17
+43,Daniel Ramos,09990505735,customer_43,"House 43, Sample Street",Not provided,Makati,Metro Manila,1045,Staff,1,,2025-06-20,0,,2025-06-20
+44,James Cruz,09784095277,customer_44,"House 44, Sample Street",Not provided,Makati,Metro Manila,1165,Staff,0,,,0,,2025-08-15
+45,Sofia Ramos,09702269164,customer_45,"House 45, Sample Street",Not provided,Manila,Metro Manila,1114,Staff,1,,2025-12-20,0,,2025-12-20
+46,Gabriel Cruz,09685823118,customer_46,"House 46, Sample Street",Not provided,Manila,Metro Manila,1378,Staff,0,,,0,,2025-10-10
+47,Pedro Ramos,09236843584,customer_47,"House 47, Sample Street",Not provided,Manila,Metro Manila,1315,Staff,1,,2025-01-21,0,,2025-01-21
+48,Gabriel Flores,09325567963,customer_48,"House 48, Sample Street",Not provided,Mandaluyong,Metro Manila,1255,Staff,0,,,0,,2025-02-22
+49,John Ramos,09766430218,customer_49,"House 49, Sample Street",Not provided,Mandaluyong,Metro Manila,1158,Staff,1,,2025-03-25,0,,2025-03-25
+50,James Cruz,09542697755,customer_50,"House 50, Sample Street",Not provided,Manila,Metro Manila,1183,Staff,0,,,0,,2025-06-20
+51,James Ramos,09961393416,customer_51,"House 51, Sample Street",Not provided,Mandaluyong,Metro Manila,1752,Staff,1,,2025-05-17,0,,2025-05-17
+52,Pedro Reyes,09510751046,customer_52,"House 52, Sample Street",Not provided,Manila,Metro Manila,1481,Staff,1,,2025-04-13,0,,2025-04-13
+53,Nicole Bautista,09475442872,customer_53,"House 53, Sample Street",Not provided,Makati,Metro Manila,1233,Staff,1,,2025-01-13,0,,2025-01-13
+54,Daniel Garcia,09527849588,customer_54,"House 54, Sample Street",Not provided,Makati,Metro Manila,1285,Staff,1,,2025-05-23,0,,2025-05-23
+55,John Ramos,09829627019,customer_55,"House 55, Sample Street",Not provided,Taguig,Metro Manila,1339,Staff,1,,2025-03-01,0,,2025-03-01
+56,Gabriel Mendoza,09291735734,customer_56,"House 56, Sample Street",Not provided,Taguig,Metro Manila,1271,Staff,1,,2025-02-25,0,,2025-02-25
+57,Miguel Ramos,09471178705,customer_57,"House 57, Sample Street",Not provided,Mandaluyong,Metro Manila,1321,Staff,1,,2025-11-07,0,,2025-11-07
+58,Sofia Reyes,09513600440,customer_58,"House 58, Sample Street",Not provided,Taguig,Metro Manila,1194,Staff,1,,2025-01-23,0,,2025-01-23
+59,Andrea Ramos,09101815992,customer_59,"House 59, Sample Street",Not provided,Taguig,Metro Manila,1551,Staff,0,,,0,,2025-12-10
+60,Ana Flores,09563102056,customer_60,"House 60, Sample Street",Not provided,Manila,Metro Manila,1680,Staff,1,,2025-11-16,0,,2025-11-16
+61,John Reyes,09872830248,customer_61,"House 61, Sample Street",Not provided,Makati,Metro Manila,1519,Staff,1,,2025-12-08,0,,2025-12-08
+62,Angela Flores,09532074125,customer_62,"House 62, Sample Street",Not provided,Mandaluyong,Metro Manila,1302,Staff,0,,,0,,2025-03-07
+63,Ana Ramos,09813962536,customer_63,"House 63, Sample Street",Not provided,Pasig,Metro Manila,1693,Staff,0,,,0,,2025-03-31
+64,Miguel Mendoza,09536019893,customer_64,"House 64, Sample Street",Not provided,Taguig,Metro Manila,1000,Staff,1,,2025-05-27,0,,2025-05-27
+65,Ana Ramos,09943702118,customer_65,"House 65, Sample Street",Not provided,Taguig,Metro Manila,1621,Staff,0,,,0,,2025-06-14
+66,Carlo Bautista,09574765466,customer_66,"House 66, Sample Street",Not provided,Mandaluyong,Metro Manila,1218,Staff,0,,,0,,2025-08-31
+67,James Cruz,09807435606,customer_67,"House 67, Sample Street",Not provided,Manila,Metro Manila,1290,Staff,0,,,0,,2025-12-06
+68,Daniel Flores,09200273738,customer_68,"House 68, Sample Street",Not provided,Quezon City,Metro Manila,1688,Staff,1,,2025-04-26,0,,2025-04-26
+69,James Garcia,09258220114,customer_69,"House 69, Sample Street",Not provided,Manila,Metro Manila,1047,Staff,1,,2025-09-01,0,,2025-09-01
+70,Miguel Reyes,09588999385,customer_70,"House 70, Sample Street",Not provided,Pasig,Metro Manila,1644,Staff,0,,,0,,2025-04-10
+71,Andrea Ramos,09630833445,customer_71,"House 71, Sample Street",Not provided,Pasig,Metro Manila,1249,Staff,1,,2025-12-02,0,,2025-12-02
+72,Andrea Santos,09906341966,customer_72,"House 72, Sample Street",Not provided,Manila,Metro Manila,1797,Staff,1,,2025-04-23,0,,2025-04-23
+73,Pedro Bautista,09153921577,customer_73,"House 73, Sample Street",Not provided,Taguig,Metro Manila,1255,Staff,1,,2025-08-22,0,,2025-08-22
+74,Pedro Bautista,09816806128,customer_74,"House 74, Sample Street",Not provided,Taguig,Metro Manila,1572,Staff,0,,,0,,2025-06-12
+75,James Bautista,09757830420,customer_75,"House 75, Sample Street",Not provided,Mandaluyong,Metro Manila,1516,Staff,1,,2025-10-08,0,,2025-10-08
+76,Carlo Cruz,09898493949,customer_76,"House 76, Sample Street",Not provided,Pasig,Metro Manila,1460,Staff,1,,2025-05-07,0,,2025-05-07
+77,Nicole Mendoza,09922286180,customer_77,"House 77, Sample Street",Not provided,Taguig,Metro Manila,1496,Staff,0,,,0,,2025-05-03
+78,Mark Bautista,09183197117,customer_78,"House 78, Sample Street",Not provided,Mandaluyong,Metro Manila,1292,Staff,1,,2025-05-20,0,,2025-05-20
+79,John Flores,09679984033,customer_79,"House 79, Sample Street",Not provided,Manila,Metro Manila,1141,Staff,1,,2025-04-29,0,,2025-04-29
+80,Angela Cruz,09858511779,customer_80,"House 80, Sample Street",Not provided,Quezon City,Metro Manila,1065,Staff,1,,2025-07-28,0,,2025-07-28
+81,John Bautista,09546434187,customer_81,"House 81, Sample Street",Not provided,Manila,Metro Manila,1211,Staff,1,,2025-07-19,0,,2025-07-19
+82,Gabriel Santos,09922050912,customer_82,"House 82, Sample Street",Not provided,Taguig,Metro Manila,1389,Staff,1,,2025-01-04,0,,2025-01-04
+83,John Mendoza,09909037759,customer_83,"House 83, Sample Street",Not provided,Pasig,Metro Manila,1429,Staff,0,,,0,,2025-10-07
+84,James Garcia,09624232414,customer_84,"House 84, Sample Street",Not provided,Quezon City,Metro Manila,1279,Staff,1,,2025-09-06,0,,2025-09-06
+85,Juan Ramos,09460916347,customer_85,"House 85, Sample Street",Not provided,Mandaluyong,Metro Manila,1695,Staff,1,,2025-03-26,0,,2025-03-26
+86,Nicole Bautista,09237039296,customer_86,"House 86, Sample Street",Not provided,Taguig,Metro Manila,1546,Staff,1,,2025-07-21,0,,2025-07-21
+87,Miguel Santos,09190137896,customer_87,"House 87, Sample Street",Not provided,Mandaluyong,Metro Manila,1438,Staff,1,,2025-08-25,0,,2025-08-25
+88,Pedro Santos,09379340713,customer_88,"House 88, Sample Street",Not provided,Pasig,Metro Manila,1335,Staff,1,,2025-08-21,0,,2025-08-21
+89,John Flores,09917364173,customer_89,"House 89, Sample Street",Not provided,Pasig,Metro Manila,1284,Staff,1,,2025-05-10,0,,2025-05-10
+90,Nicole Reyes,09604988121,customer_90,"House 90, Sample Street",Not provided,Manila,Metro Manila,1767,Staff,0,,,0,,2025-01-27
+91,John Garcia,09798086909,customer_91,"House 91, Sample Street",Not provided,Manila,Metro Manila,1799,Staff,0,,,0,,2025-01-21
+92,James Santos,09365518424,customer_92,"House 92, Sample Street",Not provided,Quezon City,Metro Manila,1020,Staff,0,,,0,,2025-03-20
+93,Ana Cruz,09608482316,customer_93,"House 93, Sample Street",Not provided,Mandaluyong,Metro Manila,1117,Staff,0,,,0,,2025-04-22
+94,Carlo Mendoza,09923450567,customer_94,"House 94, Sample Street",Not provided,Makati,Metro Manila,1171,Staff,0,,,0,,2025-11-07
+95,Andrea Reyes,09935147672,customer_95,"House 95, Sample Street",Not provided,Quezon City,Metro Manila,1318,Staff,1,,2025-10-24,0,,2025-10-24
+96,Juan Mendoza,09718257024,customer_96,"House 96, Sample Street",Not provided,Mandaluyong,Metro Manila,1384,Staff,1,,2025-04-12,0,,2025-04-12
+97,Maria Garcia,09209415691,customer_97,"House 97, Sample Street",Not provided,Mandaluyong,Metro Manila,1791,Staff,1,,2025-12-17,0,,2025-12-17
+98,Miguel Reyes,09954942461,customer_98,"House 98, Sample Street",Not provided,Taguig,Metro Manila,1042,Staff,1,,2025-09-30,0,,2025-09-30
+99,Angela Flores,09174041730,customer_99,"House 99, Sample Street",Not provided,Taguig,Metro Manila,1663,Staff,1,,2025-01-07,0,,2025-01-07
+100,Nicole Ramos,09982971099,customer_100,"House 100, Sample Street",Not provided,Pasig,Metro Manila,1108,Staff,1,,2025-07-05,0,,2025-07-05
