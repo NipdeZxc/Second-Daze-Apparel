@@ -761,7 +761,7 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
     for (const field of fields) {
       const normalized = field.toLowerCase();
       const value = String(values[field] || "").trim();
-      const optional = normalized.includes("note") || normalized === "social media handle" || normalized === "email";
+      const optional = normalized.includes("note") || ["social media handle", "email", "postal code", "additional items"].includes(normalized);
       if (!optional && !value) {
         nextErrors[field] = `${field} is required.`;
       } else if (normalized.includes("quantity") || normalized.includes("agreed days")) {
@@ -770,8 +770,8 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
         if (value && (!/^\d+(\.\d{1,2})?$/.test(value) || Number(value) < 0)) nextErrors[field] = `${field} must be a non-negative amount with up to two decimal places.`;
       } else if (normalized === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
         nextErrors[field] = "Enter a valid email address.";
-      } else if (normalized.includes("contact number") && value && value.replace(/\D/g, "").length < 7) {
-        nextErrors[field] = "Enter a valid contact number.";
+      } else if (normalized.includes("contact number") && value && !/^(09|\+639)\d{9}$/.test(value.replace(/[\s-]/g, ""))) {
+        nextErrors[field] = "Contact number must look like 09XXXXXXXXX or +639XXXXXXXXX.";
       }
     }
     setErrors(nextErrors);
@@ -824,7 +824,7 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
           {fields.map((field) => {
             const normalized = field.toLowerCase();
             const choices = formChoices[normalized];
-            const optional = normalized.includes("note") || normalized === "social media handle" || normalized === "email";
+            const optional = normalized.includes("note") || ["social media handle", "email", "postal code", "additional items"].includes(normalized);
             const isLongText = normalized.includes("note") || normalized.includes("address") || normalized.includes("reason");
             const id = fieldId(field);
             return (

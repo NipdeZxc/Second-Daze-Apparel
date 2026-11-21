@@ -81,7 +81,7 @@ export const formFields = {
   "3.5-refund-condition-review": ["Refund ticket", "Item condition", "Inspection result", "Inventory disposition", "Review note"],
   "3.6-approval-request-detail": ["Refund ticket", "Order reference", "Requested amount", "Decision", "Admin note"],
   "3.12-new-customer-validation": ["Full name", "Social media handle", "Contact number", "Address", "Barangay", "City", "Province", "Postal code"],
-  "3.13-create-purchase-order": ["Customer", "Product", "Quantity", "Note for the Admin"],
+  "3.13-create-purchase-order": ["Customer", "Product", "Quantity", "Additional items", "Note for the Admin"],
   "3.14-confirm-delivery": ["Order number", "Delivery status", "Date and time delivered", "Received by"],
   "4.3-edit-product-admin-only": ["Product code", "Product name", "Category", "Size", "Cost price", "Selling price", "Low-stock threshold", "Status"],
   "5.1-new-reservation": ["Customer", "Product", "Quantity", "Agreed days", "Pickup note"],

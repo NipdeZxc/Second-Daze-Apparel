@@ -151,6 +151,7 @@ function rowActions(kind, row, role) {
     }
     if (row.status === "Paid") actions.push(action("pack", "Mark packed"));
     if (["Packed", "For Shipping"].includes(row.status)) actions.push(action("ship", "Ship", { prompt: "J&T tracking number" }));
+    if (row.status === "Shipped" && row.shipment_status === "Shipped") actions.push(action("in-transit", "Mark in transit"));
     if (row.status === "Delivered") actions.push(action("complete", "Complete"));
     if (["Pending Approval", "Pending Payment"].includes(row.status)) actions.push(action("cancel", "Cancel"));
   } else if (kind === "refunds") {
@@ -183,8 +184,13 @@ export async function getRecords(req, res) {
              FROM customers c ORDER BY c.customer_id DESC`),
     query(`SELECT o.order_id AS id, o.order_number, c.full_name AS customer_name, o.order_status AS status,
                   o.order_date AS ordered_at, COALESCE(t.total, 0) AS total_amount, COALESCE(t.cost, 0) AS cost,
-                  pay.payment_status, pay.verified_at, pay.gcash_reference_number
+                  pay.payment_status, pay.verified_at, pay.gcash_reference_number,
+                  c.contact_number, CONCAT_WS(', ', c.street_address, c.barangay, c.city_municipality, c.province) AS address,
+                  (SELECT GROUP_CONCAT(CONCAT(p.product_name, ' (', p.product_code, ') x ', oi.quantity) SEPARATOR '; ')
+                     FROM order_items oi JOIN products p ON p.product_id = oi.product_id WHERE oi.order_id = o.order_id) AS items,
+                  sh.tracking_number, sh.shipment_status
              FROM orders o JOIN customers c ON c.customer_id = o.customer_id
+             LEFT JOIN shipments sh ON sh.order_id = o.order_id
              LEFT JOIN (SELECT order_id, SUM(quantity * unit_price) AS total, SUM(quantity * unit_cost) AS cost
                           FROM order_items GROUP BY order_id) t ON t.order_id = o.order_id
              LEFT JOIN payments pay ON pay.payment_id = (SELECT MAX(p2.payment_id) FROM payments p2 WHERE p2.order_id = o.order_id)
@@ -640,6 +646,15 @@ const orderActions = {
     await conn.query(`UPDATE orders SET order_status = 'Shipped' WHERE order_id = ?`, [id]);
     return "ship_order";
   },
+  async "in-transit"(conn, user, id) {
+    const order = await lockOrder(conn, id);
+    expectStatus(order.order_status, ["Shipped"], "This order");
+    const [result] = await conn.query(
+      `UPDATE shipments SET shipment_status = 'In Transit', updated_by = ? WHERE order_id = ? AND shipment_status = 'Shipped'`, [user.user_id, id]
+    );
+    if (!result.affectedRows) throw new HttpError(409, "This shipment is not waiting to be marked in transit.");
+    return "update_shipment";
+  },
   async complete(conn, user, id) {
     const order = await lockOrder(conn, id);
     expectStatus(order.order_status, ["Delivered"], "This order");
@@ -733,11 +748,19 @@ export async function runRowAction(req, res, { kind, id: rawId, action }) {
 
 async function findCustomer(conn, term) {
   const value = text(term);
-  const [rows] = await conn.query(
-    `SELECT customer_id, full_name FROM customers WHERE contact_number = ? OR LOWER(full_name) = LOWER(?) LIMIT 2`,
-    [value.replace(/[\s-]/g, ""), value]
+  if (!value) throw new HttpError(400, "Enter the customer's name or contact number.");
+  const digits = value.replace(/[\s-]/g, "");
+  const national = digits.startsWith("+63") ? `0${digits.slice(3)}` : digits;
+  const international = national.startsWith("09") ? `+63${national.slice(1)}` : digits;
+  let [rows] = await conn.query(
+    `SELECT customer_id, full_name FROM customers WHERE contact_number IN (?, ?, ?) OR LOWER(full_name) = LOWER(?) LIMIT 2`,
+    [digits, national, international, value]
   );
-  if (!rows.length) throw new HttpError(404, `Customer "${value}" was not found. Add the customer first.`);
+  if (!rows.length) {
+    const like = `%${value.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`;
+    [rows] = await conn.query(`SELECT customer_id, full_name FROM customers WHERE LOWER(full_name) LIKE ? LIMIT 2`, [like]);
+  }
+  if (!rows.length) throw new HttpError(404, `Customer "${value}" was not found. Add the customer first in Customers > Add customer.`);
   if (rows.length > 1) throw new HttpError(409, `More than one customer is named "${value}". Use the contact number instead.`);
   return rows[0];
 }
@@ -759,10 +782,11 @@ const formActions = {
       full_name: v["Full name"], contact_number: v["Contact number"], street_address: v["Address"],
       barangay: v["Barangay"], city_municipality: v["City"], province: v["Province"],
     });
-    const [dup] = await conn.query(`SELECT 1 FROM customers WHERE contact_number = ?`, [fields.contact_number]);
+    const alternate = fields.contact_number.startsWith("+63") ? `0${fields.contact_number.slice(3)}` : `+63${fields.contact_number.slice(1)}`;
+    const [dup] = await conn.query(`SELECT 1 FROM customers WHERE contact_number IN (?, ?)`,     [fields.contact_number, alternate]);
     if (dup.length) throw new HttpError(409, "A customer with that contact number already exists.");
-    const [result] = await conn.query(
-      `INSERT INTO customers (full_name, contact_number, social_media_name, street_address, barangay,
+        const [result] = await conn.query(
+          `INSERT INTO customers (full_name, contact_number, social_media_name, street_address, barangay,
                               city_municipality, province, postal_code, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [fields.full_name, fields.contact_number, cleanText(v["Social media handle"], "Social media handle", 100, { optional: true }),
@@ -796,10 +820,24 @@ const formActions = {
 
   async "3.13-create-purchase-order"(conn, user, v) {
     const customer = await findCustomer(conn, v.Customer);
-    const product = await findProduct(conn, v.Product);
-    const quantity = cleanInt(v.Quantity, "Quantity", { min: 1 });
-    if (product.stock_quantity < quantity) {
-      throw new HttpError(409, `Only ${product.stock_quantity} of ${product.product_name} available.`);
+    const lines = new Map();
+    const addLine = async (term, qty) => {
+      const product = await findProduct(conn, term);
+      const entry = lines.get(product.product_id) || { product, quantity: 0 };
+      entry.quantity += qty;
+      lines.set(product.product_id, entry);
+    };
+    await addLine(v.Product, cleanInt(v.Quantity, "Quantity", { min: 1 }));
+    // Extra line items: "CODE x 2, CODE2 x 1" (comma or semicolon separated)
+    for (const part of text(v["Additional items"]).split(/[;,\n]/).map((s) => s.trim()).filter(Boolean)) {
+      const match = part.match(/^(.+?)\s*(?:x|\*|:)\s*(\d+)$/i);
+      if (!match) throw new HttpError(400, `Additional item "${part}" must look like "PRODUCT-CODE x 2".`);
+      await addLine(match[1].trim(), cleanInt(match[2], "Quantity", { min: 1 }));
+    }
+    for (const { product, quantity } of lines.values()) {
+      if (product.stock_quantity < quantity) {
+        throw new HttpError(409, `Only ${product.stock_quantity} of ${product.product_name} available.`);
+      }
     }
     const admin = user.role_name === ADMIN;
     const [result] = await conn.query(
@@ -809,10 +847,12 @@ const formActions = {
         cleanText(v["Note for the Admin"], "Note", 255, { optional: true }), user.user_id,
         admin ? user.user_id : null, admin ? new Date() : null]
     );
-    await conn.query(
-      `INSERT INTO order_items (order_id, product_id, quantity, unit_price, unit_cost) VALUES (?, ?, ?, ?, ?)`,
-      [result.insertId, product.product_id, quantity, product.selling_price, product.cost_price]
-    );
+    for (const { product, quantity } of lines.values()) {
+      await conn.query(
+        `INSERT INTO order_items (order_id, product_id, quantity, unit_price, unit_cost) VALUES (?, ?, ?, ?, ?)`,
+        [result.insertId, product.product_id, quantity, product.selling_price, product.cost_price]
+      );
+    }
     await conn.query(
       `INSERT INTO purchase_orders (po_number, order_id, issued_by) VALUES (?, ?, ?)`,
       [await nextDocumentNumber(conn, "PO"), result.insertId, user.user_id]

@@ -36,7 +36,7 @@ export const datasets = {
     label: "Orders", key: "order_number",
     columns: [
       text("order_number", "Order"), text("customer_name", "Customer"), money("total_amount", "Amount"),
-      text("payment_status", "Payment"),
+      text("payment_status", "Payment"), text("items", "Items"), text("tracking_number", "Tracking no."),
       status(["Pending Approval", "Pending Payment", "Paid", "Packed", "For Shipping", "Shipped", "Delivered", "Completed", "Cancelled", "Voided"]),
       date("ordered_at", "Ordered at"),
     ],
