@@ -1,0 +1,80 @@
+﻿shipment_id,order_id,courier,tracking_number,shipment_status,shipped_at,delivered_at,received_by,return_reason,updated_by
+1,2,LBC,TRK-0000001,In Transit,2025-06-28,,,,20
+2,5,J&T Express,TRK-0000002,Delivered,2025-01-13,2025-01-16,,,16
+3,8,J&T Express,TRK-0000003,Shipped,2025-02-14,,,,8
+4,9,LBC,TRK-0000004,Delivered,2025-09-08,2025-09-13,,,16
+5,10,Flash Express,TRK-0000005,Pending,2025-07-10,,,,1
+6,11,LBC,TRK-0000006,Shipped,2025-12-11,,,,8
+7,13,J&T Express,TRK-0000007,Pending,2025-04-19,,,,19
+8,14,Local Delivery,TRK-0000008,Pending,2025-11-02,,,,6
+9,22,J&T Express,TRK-0000009,In Transit,2025-05-22,,,,11
+10,23,Local Delivery,TRK-0000010,Shipped,2025-10-11,,,,11
+11,24,J&T Express,TRK-0000011,In Transit,2025-04-25,,,,8
+12,25,Flash Express,TRK-0000012,In Transit,2025-09-01,,,,16
+13,26,LBC,TRK-0000013,Pending,2026-01-02,,,,16
+14,28,Flash Express,TRK-0000014,Delivered,2025-11-26,2025-11-30,,,4
+15,29,LBC,TRK-0000015,Delivered,2025-07-28,2025-08-01,,,20
+16,32,LBC,TRK-0000016,Pending,2025-12-17,,,,6
+17,33,Flash Express,TRK-0000017,Delivered,2025-08-05,2025-08-10,,,2
+18,36,J&T Express,TRK-0000018,Delivered,2025-08-25,2025-08-26,,,15
+19,37,Local Delivery,TRK-0000019,In Transit,2025-04-20,,,,4
+20,40,LBC,TRK-0000020,Delivered,2025-09-28,2025-10-03,,,6
+21,45,Local Delivery,TRK-0000021,Delivered,2025-06-01,2025-06-04,,,1
+22,46,Local Delivery,TRK-0000022,In Transit,2025-06-20,,,,19
+23,48,J&T Express,TRK-0000023,Delivered,2025-07-06,2025-07-08,,,1
+24,49,Flash Express,TRK-0000024,In Transit,2025-02-17,,,,16
+25,50,Local Delivery,TRK-0000025,In Transit,2025-08-04,,,,4
+26,62,J&T Express,TRK-0000026,Shipped,2025-09-19,,,,2
+27,65,Flash Express,TRK-0000027,Delivered,2025-12-31,2026-01-01,,,20
+28,67,Local Delivery,TRK-0000028,Delivered,2025-05-18,2025-05-21,,,2
+29,70,Flash Express,TRK-0000029,Pending,2025-04-11,,,,4
+30,72,LBC,TRK-0000030,Pending,2025-12-07,,,,11
+31,75,Flash Express,TRK-0000031,Shipped,2025-11-16,,,,4
+32,81,Flash Express,TRK-0000032,In Transit,2025-02-14,,,,15
+33,82,J&T Express,TRK-0000033,In Transit,2025-06-03,,,,8
+34,86,LBC,TRK-0000034,Pending,2025-06-20,,,,4
+35,90,Flash Express,TRK-0000035,Shipped,2025-10-03,,,,11
+36,93,Flash Express,TRK-0000036,In Transit,2025-12-06,,,,11
+37,97,LBC,TRK-0000037,In Transit,2025-03-02,,,,1
+38,98,Flash Express,TRK-0000038,In Transit,2025-03-24,,,,16
+39,99,LBC,TRK-0000039,In Transit,2025-02-14,,,,2
+40,100,LBC,TRK-0000040,Shipped,2025-03-27,,,,6
+41,105,Local Delivery,TRK-0000041,Pending,2025-07-31,,,,16
+42,106,LBC,TRK-0000042,Pending,2025-07-29,,,,1
+43,108,Flash Express,TRK-0000043,In Transit,2025-05-11,,,,11
+44,114,Flash Express,TRK-0000044,Delivered,2025-06-28,2025-07-03,,,4
+45,118,J&T Express,TRK-0000045,In Transit,2025-05-10,,,,2
+46,119,LBC,TRK-0000046,Shipped,2025-09-01,,,,6
+47,120,LBC,TRK-0000047,Shipped,2025-04-17,,,,4
+48,122,J&T Express,TRK-0000048,Delivered,2025-07-23,2025-07-24,,,1
+49,124,LBC,TRK-0000049,Delivered,2025-10-09,2025-10-10,,,2
+50,125,Local Delivery,TRK-0000050,Pending,2025-08-03,,,,2
+51,126,J&T Express,TRK-0000051,Pending,2025-05-20,,,,8
+52,127,J&T Express,TRK-0000052,Pending,2025-09-09,,,,2
+53,130,LBC,TRK-0000053,Shipped,2025-03-29,,,,4
+54,131,J&T Express,TRK-0000054,In Transit,2026-01-01,,,,2
+55,135,Flash Express,TRK-0000055,In Transit,2025-11-17,,,,11
+56,137,J&T Express,TRK-0000056,Shipped,2025-06-08,,,,2
+57,138,LBC,TRK-0000057,Pending,2025-09-27,,,,6
+58,139,J&T Express,TRK-0000058,Shipped,2025-11-03,,,,2
+59,141,LBC,TRK-0000059,Delivered,2025-11-10,2025-11-13,,,16
+60,142,LBC,TRK-0000060,Pending,2025-08-22,,,,11
+61,147,LBC,TRK-0000061,Delivered,2025-09-25,2025-09-27,,,15
+62,148,J&T Express,TRK-0000062,In Transit,2025-04-12,,,,16
+63,149,Local Delivery,TRK-0000063,Shipped,2025-01-08,,,,11
+64,153,J&T Express,TRK-0000064,In Transit,2025-03-12,,,,2
+65,154,Local Delivery,TRK-0000065,Delivered,2025-10-19,2025-10-20,,,8
+66,157,Local Delivery,TRK-0000066,In Transit,2025-10-11,,,,6
+67,163,Local Delivery,TRK-0000067,Delivered,2025-07-02,2025-07-05,,,6
+68,166,LBC,TRK-0000068,Delivered,2025-03-12,2025-03-15,,,1
+69,167,Local Delivery,TRK-0000069,Delivered,2025-02-11,2025-02-12,,,16
+70,169,J&T Express,TRK-0000070,Pending,2025-03-20,,,,4
+71,170,J&T Express,TRK-0000071,Delivered,2025-03-10,2025-03-15,,,4
+72,172,LBC,TRK-0000072,In Transit,2025-05-07,,,,11
+73,180,LBC,TRK-0000073,Delivered,2025-06-27,2025-06-28,,,15
+74,181,Flash Express,TRK-0000074,Delivered,2025-10-14,2025-10-17,,,15
+75,185,Local Delivery,TRK-0000075,Delivered,2025-03-20,2025-03-25,,,16
+76,186,LBC,TRK-0000076,In Transit,2025-11-14,,,,16
+77,188,Flash Express,TRK-0000077,Pending,2025-12-10,,,,16
+78,191,LBC,TRK-0000078,Shipped,2025-04-09,,,,1
+79,196,J&T Express,TRK-0000079,Pending,2025-05-28,,,,16

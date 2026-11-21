@@ -1,5 +1,5 @@
 import { getPool } from "../../_db.js";
-import { HttpError, requireFields, sendJson } from "../http.js";
+import { HttpError, parseId, requireFields, sendJson } from "../http.js";
 import { audit, requireRole, requireUser } from "../auth.js";
 
 const ADMIN = "Admin";
@@ -12,7 +12,7 @@ const MAX_IMPORT_ROWS = 5000;
 const num = (value) => Number(value ?? 0);
 const text = (value) => (typeof value === "string" ? value.trim() : "");
 
-async function withTransaction(work) {
+export async function withTransaction(work) {
   const connection = await getPool().getConnection();
   try {
     await connection.beginTransaction();
@@ -41,7 +41,7 @@ async function nextDocumentNumber(conn, type) {
   return `${type}-${year}-${String(rows[0].last_number).padStart(5, "0")}`;
 }
 
-async function notify(conn, { role = null, userId = null, category, message, refType = null, refId = null }) {
+export async function notify(conn, { role = null, userId = null, category, message, refType = null, refId = null }) {
   await conn.query(
     `INSERT INTO notifications (target_role_id, target_user_id, category, message, reference_type, reference_id)
      VALUES ((SELECT role_id FROM roles WHERE role_name = ?), ?, ?, ?, ?, ?)`,
@@ -75,7 +75,7 @@ async function notifyIfLow(conn, productId) {
 }
 
 // Releases the hold of reservations whose agreed days have passed without an order.
-async function voidExpiredReservations() {
+export async function voidExpiredReservations() {
   const db = getPool();
   const [due] = await db.query(
     `SELECT r.reservation_id FROM reservations r
@@ -90,7 +90,7 @@ async function voidExpiredReservations() {
         [id]
       );
       if (rows[0]?.reservation_status !== "Active") return;
-      await releaseReservationStock(conn, id, null, "Reservation expired");
+      const released = await releaseReservationStock(conn, id, null, "Reservation expired");
       await conn.query(
         `UPDATE reservations SET reservation_status = 'Voided', voided_at = ?, void_reason = 'Expired' WHERE reservation_id = ?`,
         [new Date(), id]
@@ -98,7 +98,9 @@ async function voidExpiredReservations() {
       await notify(conn, {
         userId: rows[0].created_by,
         category: "Reservation",
-        message: "A reservation expired and its stock was released.",
+        message: released
+          ? "A reservation expired and its stock was released."
+          : "A historical reservation expired without a recorded stock hold. Inventory was left unchanged.",
         refType: "Reservation",
         refId: id,
       });
@@ -106,22 +108,54 @@ async function voidExpiredReservations() {
   }
 }
 
-async function releaseReservationStock(conn, reservationId, userId, remarks) {
+export async function releaseReservationStock(conn, reservationId, userId, remarks) {
   const [items] = await conn.query(
-    `SELECT product_id, quantity FROM reservation_items WHERE reservation_id = ?`,
+    `SELECT product_id, SUM(quantity) AS quantity FROM reservation_items
+      WHERE reservation_id = ? GROUP BY product_id ORDER BY product_id`,
     [reservationId]
   );
+  const [holds] = await conn.query(
+    `SELECT product_id, -SUM(quantity_change) AS held_quantity FROM stock_movements
+      WHERE reference_type = 'Reservation' AND reference_id = ?
+        AND movement_type IN ('Reservation Hold', 'Reservation Release')
+      GROUP BY product_id`,
+    [reservationId]
+  );
+  // Historical CSV snapshots may contain Active reservations that never held inventory.
+  if (!holds.length) {
+    await conn.query(
+      `INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, created_at)
+       VALUES (?, 'reservation_without_hold', 'reservation', ?, ?, ?)`,
+      [userId, reservationId, `${remarks}: no recorded stock hold; inventory unchanged`, new Date()]
+    );
+    return false;
+  }
+  const heldByProduct = new Map(holds.map((hold) => [String(hold.product_id), Number(hold.held_quantity)]));
+  if (holds.some((hold) => !items.some((item) => String(item.product_id) === String(hold.product_id)))) {
+    throw new HttpError(409, `Reservation ${reservationId} has stock holds that do not match its items. Reconcile its inventory before releasing stock.`);
+  }
   for (const item of items) {
-    await conn.query(`SELECT product_id FROM products WHERE product_id = ? FOR UPDATE`, [item.product_id]);
+    const quantity = Number(item.quantity);
+    if (heldByProduct.get(String(item.product_id)) !== quantity) {
+      throw new HttpError(409, `Reservation ${reservationId} has an inconsistent stock hold for product ${item.product_id}. Reconcile its inventory before releasing stock.`);
+    }
+    const [[product]] = await conn.query(
+      `SELECT product_id, reserved_quantity FROM products WHERE product_id = ? FOR UPDATE`,
+      [item.product_id]
+    );
+    if (!product || Number(product.reserved_quantity) < quantity) {
+      throw new HttpError(409, `Reservation ${reservationId} requires ${quantity} reserved units of product ${item.product_id}. Reconcile its inventory before releasing stock.`);
+    }
     await conn.query(
       `UPDATE products SET stock_quantity = stock_quantity + ?, reserved_quantity = reserved_quantity - ? WHERE product_id = ?`,
-      [item.quantity, item.quantity, item.product_id]
+      [quantity, quantity, item.product_id]
     );
     await moveStock(conn, {
-      productId: item.product_id, type: "Reservation Release", change: item.quantity,
+      productId: item.product_id, type: "Reservation Release", change: quantity,
       refType: "Reservation", refId: reservationId, remarks, userId,
     });
   }
+  return items.length > 0;
 }
 
 const iso = (value) => (value ? new Date(value).toISOString() : "");
@@ -193,7 +227,9 @@ export async function getRecords(req, res) {
              LEFT JOIN shipments sh ON sh.order_id = o.order_id
              LEFT JOIN (SELECT order_id, SUM(quantity * unit_price) AS total, SUM(quantity * unit_cost) AS cost
                           FROM order_items GROUP BY order_id) t ON t.order_id = o.order_id
-             LEFT JOIN payments pay ON pay.payment_id = (SELECT MAX(p2.payment_id) FROM payments p2 WHERE p2.order_id = o.order_id)
+             LEFT JOIN (SELECT order_id, MAX(payment_id) AS payment_id FROM payments GROUP BY order_id) latest_pay
+               ON latest_pay.order_id = o.order_id
+             LEFT JOIN payments pay ON pay.payment_id = latest_pay.payment_id
             ORDER BY o.order_date DESC, o.order_id DESC`),
     query(`SELECT r.reservation_id AS id, r.reservation_number, c.full_name AS customer_name,
                   r.reservation_status AS status, r.expiry_date AS expires_at, r.reservation_days,
@@ -456,6 +492,96 @@ export async function updateRecord(req, res, { kind, id }) {
   } else {
     throw new HttpError(400, "This record type cannot be edited.");
   }
+  sendJson(res, 200, { ok: true });
+}
+
+const deletableRecords = {
+  products: {
+    table: "products", primaryKey: "product_id", label: "product",
+    blockers: [
+      ["SELECT 1 FROM reservation_items WHERE product_id = ? LIMIT 1", "reservation items"],
+      ["SELECT 1 FROM order_items WHERE product_id = ? LIMIT 1", "order items"],
+      ["SELECT 1 FROM stock_movements WHERE product_id = ? LIMIT 1", "stock movement history"],
+      ["SELECT 1 FROM notifications WHERE reference_type = 'Product' AND reference_id = ? LIMIT 1", "notifications"],
+    ],
+  },
+  customers: {
+    table: "customers", primaryKey: "customer_id", label: "customer",
+    blockers: [
+      ["SELECT 1 FROM reservations WHERE customer_id = ? LIMIT 1", "reservations"],
+      ["SELECT 1 FROM orders WHERE customer_id = ? LIMIT 1", "orders"],
+      ["SELECT 1 FROM refunds WHERE customer_id = ? LIMIT 1", "refunds"],
+    ],
+  },
+  orders: {
+    table: "orders", primaryKey: "order_id", label: "order",
+    blockers: [
+      ["SELECT 1 FROM order_items WHERE order_id = ? LIMIT 1", "order items"],
+      ["SELECT 1 FROM payments WHERE order_id = ? LIMIT 1", "payments"],
+      ["SELECT 1 FROM shipments WHERE order_id = ? LIMIT 1", "shipments"],
+      ["SELECT 1 FROM purchase_orders WHERE order_id = ? LIMIT 1", "purchase orders"],
+      ["SELECT 1 FROM invoices WHERE order_id = ? LIMIT 1", "invoices"],
+      ["SELECT 1 FROM delivery_receipts WHERE order_id = ? LIMIT 1", "delivery receipts"],
+      ["SELECT 1 FROM refunds WHERE order_id = ? LIMIT 1", "refunds"],
+      ["SELECT 1 FROM stock_movements WHERE reference_type IN ('Order', 'Purchase Order') AND reference_id = ? LIMIT 1", "stock movement history"],
+      ["SELECT 1 FROM notifications WHERE reference_type = 'Order' AND reference_id = ? LIMIT 1", "notifications"],
+    ],
+  },
+  reservations: {
+    table: "reservations", primaryKey: "reservation_id", label: "reservation",
+    blockers: [
+      ["SELECT 1 FROM reservation_items WHERE reservation_id = ? LIMIT 1", "reservation items"],
+      ["SELECT 1 FROM orders WHERE reservation_id = ? LIMIT 1", "orders"],
+      ["SELECT 1 FROM stock_movements WHERE reference_type = 'Reservation' AND reference_id = ? LIMIT 1", "stock movement history"],
+      ["SELECT 1 FROM notifications WHERE reference_type = 'Reservation' AND reference_id = ? LIMIT 1", "notifications"],
+    ],
+  },
+  refunds: {
+    table: "refunds", primaryKey: "refund_id", label: "refund",
+    blockers: [
+      ["SELECT 1 FROM refund_items WHERE refund_id = ? LIMIT 1", "refund items"],
+      ["SELECT 1 FROM stock_movements WHERE reference_type = 'Refund' AND reference_id = ? LIMIT 1", "stock movement history"],
+      ["SELECT 1 FROM notifications WHERE reference_type = 'Refund' AND reference_id = ? LIMIT 1", "notifications"],
+    ],
+  },
+};
+
+export async function deleteRecord(req, res, { kind, id }) {
+  const admin = await requireRole(req, ADMIN);
+  const spec = deletableRecords[kind];
+  if (!spec) throw new HttpError(400, "This record type cannot be deleted.");
+  const recordId = parseId(id);
+
+  try {
+    await withTransaction(async (conn) => {
+      const [records] = await conn.query(
+        `SELECT \`${spec.primaryKey}\` FROM \`${spec.table}\` WHERE \`${spec.primaryKey}\` = ? FOR UPDATE`,
+        [recordId]
+      );
+      if (!records[0]) throw new HttpError(404, "The selected record no longer exists.");
+
+      for (const [sql, label] of spec.blockers) {
+        const [linked] = await conn.query(sql, [recordId]);
+        if (linked.length) throw new HttpError(409, `Cannot delete this ${spec.label} while it has linked ${label}.`);
+      }
+
+      await conn.query(
+        `DELETE FROM \`${spec.table}\` WHERE \`${spec.primaryKey}\` = ?`,
+        [recordId]
+      );
+      await conn.query(
+        `INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, created_at)
+         VALUES (?, 'delete_record', ?, ?, ?, ?)`,
+        [admin.user_id, spec.label, recordId, `${spec.label} ${recordId} permanently deleted`, new Date()]
+      );
+    });
+  } catch (error) {
+    if (error?.code === "ER_ROW_IS_REFERENCED_2" || error?.errno === 1451) {
+      throw new HttpError(409, `Cannot delete this ${spec.label} because other records depend on it.`);
+    }
+    throw error;
+  }
+
   sendJson(res, 200, { ok: true });
 }
 

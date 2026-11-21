@@ -17,8 +17,16 @@ export function importRecords({ kind, fileName, records }) {
   return apiRequest("/api/data/import", { method: "POST", body: { kind, fileName, records } });
 }
 
+export function importDatasetBatch(files) {
+  return apiRequest("/api/data/import-batch", { method: "POST", body: { files } });
+}
+
 export function updateRecord(kind, key, values) {
   return apiRequest(`/api/data/${kind}/${encodeURIComponent(key)}`, { method: "PUT", body: values });
+}
+
+export function deleteRecord(kind, id) {
+  return apiRequest(`/api/data/${kind}/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function runRowAction(path, value) {

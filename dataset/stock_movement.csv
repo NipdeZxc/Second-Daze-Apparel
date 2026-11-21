@@ -1,0 +1,301 @@
+﻿movement_id,product_id,movement_type,quantity_change,reference_type,reference_id,remarks,performed_by,created_at
+1,27,Adjustment,-6,Purchase Order,68,,2,2025-06-23
+2,40,Adjustment,2,Purchase Order,173,,2,2025-10-01
+3,25,Sale,-21,Manual,10,,16,2025-11-13
+4,5,Stock In,81,Order,192,,8,2025-02-16
+5,28,Stock In,98,Purchase Order,43,,2,2025-12-22
+6,20,Stock In,6,Order,76,,11,2025-07-03
+7,24,Sale,-5,Manual,106,,6,2025-10-17
+8,12,Stock In,23,Manual,98,,2,2025-11-14
+9,16,Sale,-30,Order,60,,20,2025-08-25
+10,17,Sale,-9,Purchase Order,12,,1,2025-12-13
+11,35,Stock In,10,Purchase Order,151,,16,2025-06-03
+12,28,Adjustment,-2,Purchase Order,49,,16,2025-07-16
+13,31,Stock In,31,Manual,92,,15,2025-10-22
+14,19,Adjustment,-1,Manual,102,,1,2025-05-21
+15,1,Adjustment,-9,Manual,128,,20,2025-05-27
+16,15,Adjustment,1,Manual,49,,6,2025-11-14
+17,17,Adjustment,-6,Manual,166,,2,2025-01-21
+18,20,Sale,-2,Purchase Order,188,,20,2025-03-09
+19,6,Sale,-11,Order,52,,15,2025-03-09
+20,35,Sale,-17,Purchase Order,43,,19,2025-05-12
+21,31,Sale,-24,Order,120,,11,2025-02-08
+22,10,Stock In,87,Manual,94,,15,2025-02-16
+23,26,Stock In,34,Order,117,,19,2025-07-08
+24,17,Adjustment,2,Order,173,,11,2025-04-30
+25,31,Stock In,80,Purchase Order,157,,19,2025-04-24
+26,5,Adjustment,4,Manual,105,,8,2025-03-01
+27,9,Stock In,5,Purchase Order,30,,8,2025-02-19
+28,16,Adjustment,-6,Purchase Order,79,,15,2025-12-10
+29,35,Sale,-19,Purchase Order,168,,4,2025-02-20
+30,32,Adjustment,3,Order,177,,8,2025-07-09
+31,14,Sale,-15,Purchase Order,26,,6,2025-12-18
+32,24,Adjustment,10,Order,102,,11,2025-05-22
+33,13,Stock In,59,Manual,55,,2,2025-11-25
+34,39,Stock In,7,Order,33,,11,2025-10-17
+35,14,Stock In,98,Order,151,,19,2025-04-21
+36,15,Sale,-25,Manual,1,,4,2025-05-22
+37,10,Stock In,70,Order,29,,8,2025-12-05
+38,2,Stock In,2,Order,151,,11,2025-06-15
+39,2,Stock In,34,Order,190,,1,2025-08-04
+40,34,Stock In,96,Purchase Order,115,,2,2025-07-05
+41,33,Adjustment,-7,Manual,57,,16,2025-11-11
+42,3,Adjustment,6,Purchase Order,165,,8,2025-01-16
+43,4,Sale,-28,Purchase Order,176,,15,2025-02-25
+44,32,Adjustment,4,Order,83,,2,2025-11-08
+45,10,Stock In,17,Manual,163,,8,2025-10-27
+46,36,Adjustment,0,Manual,136,,15,2025-05-31
+47,30,Adjustment,9,Order,180,,15,2025-02-28
+48,36,Adjustment,-4,Purchase Order,13,,15,2025-07-31
+49,22,Sale,-13,Manual,25,,15,2025-06-10
+50,28,Sale,-22,Purchase Order,40,,8,2025-12-18
+51,31,Stock In,12,Order,111,,2,2025-02-19
+52,24,Stock In,72,Manual,144,,1,2025-10-15
+53,22,Adjustment,-7,Purchase Order,171,,15,2025-08-05
+54,4,Sale,-20,Purchase Order,27,,8,2025-10-23
+55,33,Stock In,20,Order,28,,16,2025-06-29
+56,36,Sale,-4,Manual,58,,8,2025-08-08
+57,36,Adjustment,9,Order,156,,19,2025-12-03
+58,18,Stock In,24,Manual,196,,8,2025-06-08
+59,22,Sale,-1,Order,145,,4,2025-12-03
+60,26,Stock In,19,Order,192,,1,2025-09-29
+61,14,Sale,-14,Purchase Order,41,,16,2025-07-09
+62,20,Adjustment,0,Manual,22,,20,2025-01-27
+63,10,Stock In,97,Order,173,,20,2025-02-11
+64,18,Sale,-22,Purchase Order,156,,15,2025-08-15
+65,27,Sale,-7,Order,89,,19,2025-08-09
+66,8,Sale,-22,Purchase Order,135,,20,2025-12-08
+67,20,Stock In,29,Manual,15,,15,2025-01-04
+68,14,Sale,-7,Purchase Order,75,,4,2025-06-17
+69,8,Stock In,64,Order,34,,15,2025-07-14
+70,35,Adjustment,-3,Manual,172,,19,2025-07-01
+71,5,Sale,-28,Purchase Order,5,,1,2025-08-24
+72,5,Sale,-19,Manual,104,,15,2025-12-30
+73,27,Sale,-4,Order,84,,15,2025-03-29
+74,40,Sale,-27,Order,112,,11,2025-02-24
+75,16,Sale,-19,Manual,21,,15,2025-07-22
+76,20,Adjustment,0,Purchase Order,200,,6,2025-03-28
+77,5,Adjustment,10,Manual,131,,2,2025-04-10
+78,23,Sale,-24,Order,27,,4,2025-03-16
+79,17,Stock In,23,Order,195,,20,2025-12-02
+80,5,Stock In,99,Purchase Order,194,,16,2025-10-16
+81,38,Sale,-22,Manual,163,,20,2025-11-16
+82,21,Adjustment,0,Purchase Order,18,,4,2025-08-29
+83,29,Adjustment,-1,Manual,15,,8,2025-06-30
+84,33,Stock In,40,Purchase Order,10,,16,2025-01-30
+85,24,Sale,-3,Manual,153,,2,2025-09-17
+86,25,Sale,-19,Manual,11,,19,2025-08-19
+87,37,Adjustment,-4,Manual,122,,11,2025-09-14
+88,10,Stock In,58,Purchase Order,183,,2,2025-02-13
+89,33,Adjustment,-5,Order,182,,1,2025-08-13
+90,29,Adjustment,6,Order,94,,20,2025-07-10
+91,19,Sale,-14,Manual,154,,11,2025-01-27
+92,22,Stock In,43,Manual,174,,2,2025-07-17
+93,19,Sale,-24,Order,86,,20,2025-02-11
+94,38,Adjustment,-6,Purchase Order,168,,11,2025-12-24
+95,26,Stock In,77,Purchase Order,144,,2,2025-07-12
+96,22,Stock In,86,Order,166,,19,2025-12-10
+97,28,Adjustment,1,Purchase Order,71,,1,2025-04-03
+98,14,Sale,-25,Order,58,,16,2025-03-12
+99,10,Stock In,38,Manual,198,,2,2025-10-04
+100,34,Stock In,85,Manual,34,,11,2025-11-02
+101,25,Stock In,21,Manual,198,,4,2025-11-16
+102,11,Adjustment,4,Purchase Order,94,,1,2025-12-13
+103,16,Sale,-20,Manual,115,,8,2025-04-30
+104,35,Stock In,40,Order,95,,16,2025-12-14
+105,37,Sale,-15,Purchase Order,129,,8,2025-09-28
+106,27,Stock In,26,Order,65,,20,2025-01-27
+107,31,Sale,-18,Manual,133,,2,2025-03-05
+108,19,Stock In,98,Purchase Order,116,,4,2025-09-20
+109,10,Sale,-3,Purchase Order,87,,6,2025-01-14
+110,27,Stock In,51,Purchase Order,61,,19,2025-07-17
+111,6,Sale,-8,Purchase Order,26,,1,2025-11-29
+112,22,Stock In,18,Purchase Order,121,,1,2025-12-23
+113,9,Adjustment,5,Manual,2,,16,2025-02-10
+114,2,Sale,-7,Manual,187,,4,2025-11-08
+115,34,Sale,-4,Order,78,,8,2025-03-04
+116,4,Stock In,54,Purchase Order,12,,20,2025-02-26
+117,32,Adjustment,7,Manual,132,,1,2025-10-22
+118,16,Adjustment,-6,Purchase Order,1,,8,2025-11-11
+119,23,Stock In,74,Order,171,,15,2025-12-09
+120,6,Adjustment,1,Manual,140,,2,2025-09-17
+121,33,Adjustment,-10,Purchase Order,12,,15,2025-11-22
+122,25,Sale,-9,Purchase Order,18,,1,2025-06-26
+123,16,Adjustment,10,Manual,189,,2,2025-06-20
+124,9,Stock In,46,Purchase Order,165,,19,2025-03-31
+125,30,Adjustment,5,Order,17,,4,2025-08-23
+126,3,Sale,-7,Order,11,,1,2025-06-11
+127,20,Adjustment,2,Purchase Order,65,,19,2025-01-19
+128,13,Sale,-12,Manual,85,,1,2025-05-20
+129,8,Sale,-14,Manual,113,,15,2025-07-17
+130,22,Stock In,64,Purchase Order,133,,16,2025-05-17
+131,6,Adjustment,3,Purchase Order,155,,2,2025-04-03
+132,35,Sale,-11,Order,84,,2,2025-12-05
+133,19,Sale,-15,Manual,110,,20,2025-03-27
+134,29,Sale,-15,Manual,91,,1,2025-11-11
+135,28,Sale,-21,Order,172,,1,2025-11-23
+136,26,Sale,-17,Order,37,,4,2025-11-08
+137,29,Stock In,17,Order,200,,2,2025-11-27
+138,24,Sale,-13,Order,155,,20,2025-03-20
+139,29,Sale,-12,Order,147,,16,2025-03-12
+140,34,Sale,-13,Manual,72,,11,2025-05-08
+141,8,Stock In,95,Purchase Order,133,,4,2025-07-18
+142,36,Stock In,34,Manual,115,,8,2025-04-20
+143,40,Sale,-23,Order,32,,16,2025-03-11
+144,5,Sale,-6,Order,175,,16,2025-06-13
+145,23,Adjustment,-8,Manual,75,,19,2025-06-03
+146,11,Adjustment,10,Purchase Order,131,,4,2025-04-25
+147,8,Stock In,18,Purchase Order,7,,6,2025-07-04
+148,36,Adjustment,1,Manual,34,,16,2025-11-10
+149,6,Stock In,40,Manual,185,,15,2025-09-03
+150,34,Sale,-25,Manual,19,,15,2025-03-06
+151,21,Adjustment,-8,Purchase Order,175,,16,2025-09-22
+152,23,Stock In,100,Manual,151,,19,2025-04-04
+153,9,Sale,-17,Order,133,,1,2025-03-20
+154,20,Stock In,21,Manual,58,,11,2025-06-27
+155,34,Sale,-28,Purchase Order,49,,2,2025-11-22
+156,36,Sale,-5,Manual,137,,8,2025-02-17
+157,33,Adjustment,-5,Manual,40,,20,2025-03-29
+158,40,Adjustment,9,Manual,11,,11,2025-01-15
+159,6,Stock In,83,Purchase Order,167,,20,2025-04-18
+160,37,Sale,-20,Purchase Order,161,,1,2025-10-07
+161,19,Adjustment,-1,Order,176,,16,2025-07-27
+162,20,Sale,-3,Order,113,,1,2025-08-01
+163,31,Sale,-7,Manual,37,,11,2025-06-10
+164,21,Adjustment,1,Order,195,,15,2025-07-09
+165,33,Adjustment,-7,Order,120,,11,2025-03-04
+166,18,Sale,-8,Order,13,,4,2025-05-29
+167,25,Adjustment,3,Order,84,,6,2025-10-23
+168,21,Stock In,98,Purchase Order,132,,4,2025-08-28
+169,32,Sale,-16,Order,101,,1,2025-09-16
+170,30,Stock In,28,Purchase Order,13,,20,2025-01-26
+171,19,Sale,-20,Purchase Order,138,,16,2025-01-05
+172,7,Sale,-5,Manual,94,,8,2025-07-26
+173,24,Stock In,52,Manual,144,,1,2025-04-10
+174,24,Adjustment,-1,Purchase Order,130,,2,2025-08-19
+175,36,Sale,-27,Manual,157,,20,2025-03-02
+176,9,Stock In,51,Purchase Order,143,,11,2025-07-07
+177,10,Stock In,78,Purchase Order,129,,19,2025-01-21
+178,3,Stock In,18,Purchase Order,133,,11,2025-08-22
+179,10,Adjustment,6,Purchase Order,157,,4,2025-06-13
+180,11,Sale,-20,Manual,87,,8,2025-09-17
+181,33,Adjustment,5,Purchase Order,122,,20,2025-01-09
+182,24,Sale,-22,Purchase Order,150,,2,2025-06-07
+183,2,Adjustment,5,Manual,199,,8,2025-10-24
+184,37,Stock In,93,Manual,123,,1,2025-03-29
+185,34,Adjustment,9,Order,175,,15,2025-05-05
+186,3,Adjustment,-7,Order,113,,6,2025-06-10
+187,27,Stock In,53,Purchase Order,129,,6,2025-11-10
+188,31,Adjustment,-9,Manual,54,,4,2025-10-15
+189,21,Adjustment,5,Purchase Order,81,,19,2025-03-30
+190,30,Adjustment,0,Purchase Order,174,,19,2025-12-15
+191,17,Adjustment,5,Order,72,,6,2025-10-13
+192,20,Stock In,39,Manual,54,,8,2025-12-20
+193,32,Sale,-16,Manual,185,,11,2025-05-21
+194,19,Stock In,74,Purchase Order,102,,19,2025-06-26
+195,10,Sale,-2,Manual,21,,8,2025-06-27
+196,29,Adjustment,-2,Order,52,,16,2025-10-03
+197,18,Adjustment,-2,Order,158,,4,2025-10-28
+198,16,Stock In,7,Order,164,,19,2025-04-30
+199,4,Stock In,53,Manual,121,,11,2025-02-21
+200,9,Stock In,71,Purchase Order,168,,4,2025-09-01
+201,31,Adjustment,-4,Purchase Order,12,,8,2025-11-27
+202,4,Stock In,84,Order,137,,20,2025-01-20
+203,12,Sale,-29,Order,102,,4,2025-09-11
+204,12,Adjustment,-1,Order,77,,1,2025-10-18
+205,39,Stock In,43,Purchase Order,165,,8,2025-10-06
+206,34,Sale,-29,Manual,120,,4,2025-05-20
+207,13,Stock In,43,Manual,118,,4,2025-11-28
+208,17,Adjustment,-5,Manual,87,,1,2025-06-01
+209,37,Adjustment,-4,Manual,164,,4,2025-07-27
+210,28,Adjustment,0,Purchase Order,172,,2,2025-02-18
+211,12,Stock In,62,Order,2,,11,2025-05-14
+212,25,Stock In,58,Purchase Order,67,,8,2025-10-26
+213,37,Stock In,34,Manual,61,,11,2025-02-01
+214,8,Sale,-10,Purchase Order,176,,4,2025-09-15
+215,20,Adjustment,-7,Purchase Order,158,,8,2025-04-24
+216,15,Stock In,62,Purchase Order,192,,4,2025-11-07
+217,24,Sale,-23,Purchase Order,194,,19,2025-10-03
+218,14,Stock In,88,Order,135,,20,2025-08-17
+219,34,Adjustment,1,Manual,29,,2,2025-02-01
+220,36,Adjustment,-4,Manual,39,,20,2025-03-26
+221,21,Adjustment,4,Manual,53,,2,2025-10-26
+222,32,Stock In,66,Order,117,,16,2025-03-09
+223,33,Sale,-15,Order,144,,20,2025-08-25
+224,20,Adjustment,-10,Purchase Order,1,,15,2025-04-22
+225,38,Stock In,6,Purchase Order,180,,15,2025-02-02
+226,35,Stock In,9,Order,74,,16,2025-07-29
+227,12,Stock In,99,Purchase Order,76,,15,2025-08-18
+228,25,Sale,-3,Order,168,,19,2025-06-28
+229,8,Stock In,69,Manual,33,,15,2025-04-25
+230,1,Stock In,39,Manual,185,,16,2025-10-06
+231,28,Adjustment,2,Order,118,,6,2025-06-27
+232,10,Sale,-7,Order,170,,2,2025-08-03
+233,40,Stock In,31,Order,26,,6,2025-11-01
+234,3,Sale,-20,Order,190,,1,2025-01-23
+235,26,Sale,-8,Order,194,,19,2025-01-29
+236,9,Adjustment,-1,Manual,148,,6,2025-06-13
+237,37,Adjustment,0,Purchase Order,30,,6,2025-12-05
+238,34,Stock In,53,Purchase Order,16,,8,2025-10-13
+239,38,Adjustment,-5,Manual,127,,15,2025-01-25
+240,23,Adjustment,2,Purchase Order,179,,19,2025-08-02
+241,27,Stock In,39,Order,194,,15,2025-10-03
+242,31,Stock In,29,Manual,37,,8,2025-08-26
+243,4,Adjustment,3,Manual,136,,15,2025-03-10
+244,25,Stock In,33,Purchase Order,166,,6,2025-02-10
+245,29,Sale,-3,Manual,49,,19,2025-01-27
+246,18,Sale,-22,Manual,11,,20,2025-02-07
+247,13,Adjustment,7,Purchase Order,54,,6,2025-06-20
+248,20,Stock In,28,Manual,31,,6,2025-09-03
+249,16,Adjustment,9,Purchase Order,49,,6,2025-10-10
+250,21,Sale,-13,Manual,167,,16,2025-07-03
+251,20,Sale,-12,Purchase Order,120,,19,2025-02-20
+252,31,Sale,-30,Purchase Order,81,,6,2025-07-31
+253,3,Adjustment,-3,Order,67,,4,2025-10-11
+254,38,Adjustment,3,Order,51,,8,2025-06-18
+255,15,Sale,-19,Purchase Order,141,,6,2025-12-02
+256,22,Sale,-25,Manual,165,,16,2025-09-09
+257,30,Stock In,94,Order,36,,11,2025-10-07
+258,32,Stock In,70,Manual,9,,1,2025-02-08
+259,4,Stock In,53,Manual,60,,4,2025-02-04
+260,10,Stock In,28,Purchase Order,56,,19,2025-01-31
+261,40,Adjustment,9,Manual,125,,16,2025-01-09
+262,1,Adjustment,7,Order,5,,15,2025-09-29
+263,18,Adjustment,-1,Manual,179,,1,2025-12-12
+264,28,Stock In,14,Manual,39,,2,2025-05-04
+265,13,Adjustment,6,Purchase Order,69,,8,2025-07-23
+266,6,Sale,-13,Manual,63,,16,2025-12-23
+267,15,Sale,-22,Manual,167,,2,2025-01-17
+268,6,Sale,-13,Manual,122,,15,2025-01-29
+269,1,Adjustment,-5,Purchase Order,112,,2,2025-11-27
+270,22,Adjustment,-7,Order,59,,19,2025-04-19
+271,37,Sale,-9,Order,176,,1,2025-05-24
+272,35,Adjustment,-9,Purchase Order,5,,4,2025-04-17
+273,38,Stock In,97,Order,77,,15,2025-03-25
+274,37,Stock In,73,Manual,139,,15,2025-06-19
+275,25,Adjustment,-6,Manual,191,,2,2025-06-27
+276,4,Stock In,56,Order,88,,6,2025-11-06
+277,40,Adjustment,2,Order,163,,11,2025-05-20
+278,29,Sale,-8,Manual,97,,11,2025-08-10
+279,12,Adjustment,8,Order,198,,15,2025-11-13
+280,19,Stock In,92,Order,69,,2,2025-03-20
+281,25,Adjustment,10,Manual,100,,4,2025-06-12
+282,24,Stock In,12,Purchase Order,114,,1,2025-07-04
+283,18,Stock In,17,Order,111,,2,2025-08-18
+284,36,Adjustment,6,Order,7,,15,2025-02-15
+285,23,Adjustment,-8,Manual,84,,20,2025-07-17
+286,1,Sale,-14,Order,186,,15,2025-10-14
+287,16,Adjustment,6,Manual,98,,4,2025-03-28
+288,9,Sale,-10,Purchase Order,38,,8,2025-02-02
+289,11,Sale,-9,Purchase Order,124,,15,2025-02-09
+290,24,Sale,-8,Manual,158,,16,2025-04-11
+291,30,Stock In,18,Order,102,,8,2025-06-20
+292,40,Sale,-26,Purchase Order,86,,11,2025-08-09
+293,39,Stock In,39,Manual,178,,11,2025-04-13
+294,31,Sale,-6,Purchase Order,75,,15,2025-12-22
+295,32,Adjustment,-3,Purchase Order,72,,11,2025-07-21
+296,24,Stock In,73,Manual,140,,6,2025-04-03
+297,36,Stock In,94,Manual,54,,16,2025-08-13
+298,19,Adjustment,-8,Manual,128,,15,2025-03-13
+299,20,Stock In,33,Manual,109,,4,2025-07-13
+300,5,Sale,-20,Manual,103,,16,2025-10-01

@@ -1,0 +1,81 @@
+﻿reservation_id,reservation_number,customer_id,reservation_days,reservation_status,notes,created_by,approved_by,approved_at,expiry_date,voided_at,void_reason,created_at
+1,RSV-DATA-000001,70,7,Voided,Imported legacy status: expired.,1,,,2025-09-24,,Expired (imported dataset),2025-09-17
+2,RSV-DATA-000002,77,6,Cancelled,,2,,,2025-07-10,2025-07-05,,2025-07-04
+3,RSV-DATA-000003,85,7,Active,Imported legacy status: confirmed.,11,,,2025-03-04,,,2025-02-25
+4,RSV-DATA-000004,6,6,Cancelled,,20,,,2025-04-02,2025-03-28,,2025-03-27
+5,RSV-DATA-000005,97,6,Voided,Imported legacy status: expired.,11,,,2025-12-03,,Expired (imported dataset),2025-11-27
+6,RSV-DATA-000006,13,1,Pending Approval,Imported legacy status: pending.,8,,,2025-08-10,,,2025-08-09
+7,RSV-DATA-000007,72,5,Cancelled,,20,,,2025-04-29,2025-04-25,,2025-04-24
+8,RSV-DATA-000008,58,5,Active,Imported legacy status: confirmed.,11,,,2025-12-24,,,2025-12-19
+9,RSV-DATA-000009,89,4,Cancelled,,19,,,2025-07-24,2025-07-21,,2025-07-20
+10,RSV-DATA-000010,62,3,Pending Approval,Imported legacy status: pending.,2,,,2025-03-22,,,2025-03-19
+11,RSV-DATA-000011,15,4,Pending Approval,Imported legacy status: pending.,4,,,2025-06-05,,,2025-06-01
+12,RSV-DATA-000012,59,3,Paid,Imported legacy status: completed.,6,,,2025-07-01,,,2025-06-28
+13,RSV-DATA-000013,61,4,Paid,Imported legacy status: completed.,2,,,2025-09-28,,,2025-09-24
+14,RSV-DATA-000014,41,6,Voided,Imported legacy status: expired.,2,,,2025-08-19,,Expired (imported dataset),2025-08-13
+15,RSV-DATA-000015,3,1,Pending Approval,Imported legacy status: pending.,11,,,2025-06-04,,,2025-06-03
+16,RSV-DATA-000016,95,1,Active,Imported legacy status: confirmed.,6,,,2025-11-29,,,2025-11-28
+17,RSV-DATA-000017,21,2,Cancelled,,11,,,2025-09-24,2025-09-23,,2025-09-22
+18,RSV-DATA-000018,30,4,Voided,Imported legacy status: expired.,15,,,2025-10-18,,Expired (imported dataset),2025-10-14
+19,RSV-DATA-000019,82,2,Active,Imported legacy status: confirmed.,15,,,2025-11-21,,,2025-11-19
+20,RSV-DATA-000020,26,1,Cancelled,,16,,,2025-07-23,2025-07-23,,2025-07-22
+21,RSV-DATA-000021,1,4,Voided,Imported legacy status: expired.,6,,,2025-11-04,,Expired (imported dataset),2025-10-31
+22,RSV-DATA-000022,74,3,Pending Approval,Imported legacy status: pending.,2,,,2025-04-19,,,2025-04-16
+23,RSV-DATA-000023,42,2,Paid,Imported legacy status: completed.,6,,,2025-10-04,,,2025-10-02
+24,RSV-DATA-000024,86,1,Paid,Imported legacy status: completed.,16,,,2025-08-24,,,2025-08-23
+25,RSV-DATA-000025,77,6,Paid,Imported legacy status: completed.,15,,,2025-10-04,,,2025-09-28
+26,RSV-DATA-000026,15,4,Cancelled,,11,,,2025-11-13,2025-11-10,,2025-11-09
+27,RSV-DATA-000027,80,7,Voided,Imported legacy status: expired.,4,,,2025-07-07,,Expired (imported dataset),2025-06-30
+28,RSV-DATA-000028,79,6,Paid,Imported legacy status: completed.,20,,,2025-12-17,,,2025-12-11
+29,RSV-DATA-000029,41,6,Active,Imported legacy status: confirmed.,2,,,2025-02-19,,,2025-02-13
+30,RSV-DATA-000030,24,3,Pending Approval,Imported legacy status: pending.,11,,,2025-05-06,,,2025-05-03
+31,RSV-DATA-000031,50,2,Cancelled,,15,,,2025-12-24,2025-12-23,,2025-12-22
+32,RSV-DATA-000032,50,2,Cancelled,,15,,,2025-11-04,2025-11-03,,2025-11-02
+33,RSV-DATA-000033,89,4,Cancelled,,4,,,2025-04-10,2025-04-07,,2025-04-06
+34,RSV-DATA-000034,37,2,Voided,Imported legacy status: expired.,4,,,2025-10-14,,Expired (imported dataset),2025-10-12
+35,RSV-DATA-000035,80,3,Voided,Imported legacy status: expired.,1,,,2025-04-09,,Expired (imported dataset),2025-04-06
+36,RSV-DATA-000036,18,1,Voided,Imported legacy status: expired.,6,,,2025-07-04,,Expired (imported dataset),2025-07-03
+37,RSV-DATA-000037,84,5,Cancelled,,16,,,2025-07-21,2025-07-17,,2025-07-16
+38,RSV-DATA-000038,54,6,Voided,Imported legacy status: expired.,16,,,2025-08-04,,Expired (imported dataset),2025-07-29
+39,RSV-DATA-000039,73,2,Pending Approval,Imported legacy status: pending.,1,,,2025-09-10,,,2025-09-08
+40,RSV-DATA-000040,36,3,Pending Approval,Imported legacy status: pending.,6,,,2025-04-26,,,2025-04-23
+41,RSV-DATA-000041,100,3,Active,Imported legacy status: confirmed.,16,,,2025-10-06,,,2025-10-03
+42,RSV-DATA-000042,71,6,Voided,Imported legacy status: expired.,19,,,2025-10-23,,Expired (imported dataset),2025-10-17
+43,RSV-DATA-000043,35,5,Pending Approval,Imported legacy status: pending.,19,,,2025-03-04,,,2025-02-27
+44,RSV-DATA-000044,98,5,Pending Approval,Imported legacy status: pending.,16,,,2025-07-12,,,2025-07-07
+45,RSV-DATA-000045,14,2,Voided,Imported legacy status: expired.,6,,,2025-10-09,,Expired (imported dataset),2025-10-07
+46,RSV-DATA-000046,58,7,Pending Approval,Imported legacy status: pending.,8,,,2025-06-09,,,2025-06-02
+47,RSV-DATA-000047,57,7,Pending Approval,Imported legacy status: pending.,2,,,2025-07-05,,,2025-06-28
+48,RSV-DATA-000048,89,2,Cancelled,,11,,,2025-05-04,2025-05-03,,2025-05-02
+49,RSV-DATA-000049,22,5,Voided,Imported legacy status: expired.,20,,,2026-01-04,,Expired (imported dataset),2025-12-30
+50,RSV-DATA-000050,27,7,Active,Imported legacy status: confirmed.,1,,,2025-03-20,,,2025-03-13
+51,RSV-DATA-000051,36,3,Cancelled,,20,,,2025-10-22,2025-10-20,,2025-10-19
+52,RSV-DATA-000052,91,2,Paid,Imported legacy status: completed.,8,,,2025-10-05,,,2025-10-03
+53,RSV-DATA-000053,66,5,Paid,Imported legacy status: completed.,2,,,2025-06-03,,,2025-05-29
+54,RSV-DATA-000054,8,7,Voided,Imported legacy status: expired.,8,,,2025-03-18,,Expired (imported dataset),2025-03-11
+55,RSV-DATA-000055,32,2,Active,Imported legacy status: confirmed.,4,,,2025-12-04,,,2025-12-02
+56,RSV-DATA-000056,98,3,Active,Imported legacy status: confirmed.,15,,,2026-01-03,,,2025-12-31
+57,RSV-DATA-000057,81,2,Cancelled,,8,,,2025-09-10,2025-09-09,,2025-09-08
+58,RSV-DATA-000058,58,4,Voided,Imported legacy status: expired.,2,,,2025-11-22,,Expired (imported dataset),2025-11-18
+59,RSV-DATA-000059,52,7,Pending Approval,Imported legacy status: pending.,19,,,2025-11-28,,,2025-11-21
+60,RSV-DATA-000060,59,6,Paid,Imported legacy status: completed.,16,,,2025-05-29,,,2025-05-23
+61,RSV-DATA-000061,100,5,Pending Approval,Imported legacy status: pending.,2,,,2025-06-22,,,2025-06-17
+62,RSV-DATA-000062,9,6,Paid,Imported legacy status: completed.,19,,,2025-08-29,,,2025-08-23
+63,RSV-DATA-000063,28,2,Voided,Imported legacy status: expired.,16,,,2025-07-25,,Expired (imported dataset),2025-07-23
+64,RSV-DATA-000064,44,3,Paid,Imported legacy status: completed.,19,,,2025-05-21,,,2025-05-18
+65,RSV-DATA-000065,63,2,Cancelled,,11,,,2025-10-25,2025-10-24,,2025-10-23
+66,RSV-DATA-000066,6,7,Pending Approval,Imported legacy status: pending.,2,,,2025-12-23,,,2025-12-16
+67,RSV-DATA-000067,3,7,Voided,Imported legacy status: expired.,2,,,2025-11-24,,Expired (imported dataset),2025-11-17
+68,RSV-DATA-000068,1,4,Voided,Imported legacy status: expired.,15,,,2025-03-26,,Expired (imported dataset),2025-03-22
+69,RSV-DATA-000069,84,6,Active,Imported legacy status: confirmed.,8,,,2025-04-20,,,2025-04-14
+70,RSV-DATA-000070,12,7,Paid,Imported legacy status: completed.,11,,,2025-03-30,,,2025-03-23
+71,RSV-DATA-000071,86,1,Paid,Imported legacy status: completed.,4,,,2025-05-10,,,2025-05-09
+72,RSV-DATA-000072,93,4,Paid,Imported legacy status: completed.,6,,,2025-01-31,,,2025-01-27
+73,RSV-DATA-000073,91,6,Pending Approval,Imported legacy status: pending.,2,,,2025-08-14,,,2025-08-08
+74,RSV-DATA-000074,10,2,Voided,Imported legacy status: expired.,4,,,2025-01-03,,Expired (imported dataset),2025-01-01
+75,RSV-DATA-000075,88,2,Cancelled,,16,,,2025-11-02,2025-11-01,,2025-10-31
+76,RSV-DATA-000076,16,1,Paid,Imported legacy status: completed.,15,,,2025-01-06,,,2025-01-05
+77,RSV-DATA-000077,10,2,Voided,Imported legacy status: expired.,6,,,2025-12-24,,Expired (imported dataset),2025-12-22
+78,RSV-DATA-000078,14,1,Pending Approval,Imported legacy status: pending.,11,,,2025-07-17,,,2025-07-16
+79,RSV-DATA-000079,49,3,Active,Imported legacy status: confirmed.,4,,,2025-07-11,,,2025-07-08
+80,RSV-DATA-000080,9,6,Active,Imported legacy status: confirmed.,19,,,2025-12-01,,,2025-11-25

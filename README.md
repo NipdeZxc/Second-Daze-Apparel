@@ -75,26 +75,21 @@ test logins set `ENABLE_TEST_ACCOUNTS=true`: signing in as `admin` / `admin` or
 These credentials are deliberately weak; **remove the flag before handling real
 data**.
 
-Reservation and refund API routes use the columns in
-[`second_daze_physical_schema.sql`](./second_daze_physical_schema.sql). Their
-status, stock, payment, notification, and audit updates are transaction-backed.
-Reservation expiry reminders run hourly through Vercel Cron; configure
-`CRON_SECRET` in Vercel so the maintenance endpoint accepts only scheduled calls.
-
-Refund photos and PDFs use the additive migration
-[`001_refund_evidence.sql`](./scripts/migrations/001_refund_evidence.sql). Apply
-that file once in the TiDB SQL editor before enabling evidence uploads. It only
-creates the evidence table and does not modify or delete existing records.
-Customer refund email notices use the existing Gmail mailer settings.
-
 Workflow notes:
 
 - Orders, reservations, refunds and sales are created through their forms and
   row actions (approve, record GCash payment, verify payment, pack, ship,
-  deliver, complete, cancel, refund), not by CSV import.
+  deliver, complete, cancel, refund). Admins can also load the provided
+  historical dataset CSVs for review through the separate batch-import option.
 - Products and customers can be bulk-added by an Admin through **Import CSV**.
-- Expired reservations are voided and their stock released by the hourly Vercel
-  maintenance job and when reservation data is refreshed.
+- Admins can permanently delete individual products, customers, orders,
+  reservations, and refunds from their record tables. A confirmation identifies
+  the selected record, and records with linked history cannot be deleted.
+- Expired reservations are voided and their stock released whenever data is
+  read; there is no scheduled job. Stock is only released against recorded
+  reservation holds. Historical imports without hold movements are voided
+  without changing inventory, with an audit entry and notification explaining
+  why. Recorded holds with inconsistent balances require inventory reconciliation.
 
 ## Import CSV data
 
@@ -111,6 +106,22 @@ quantities non-negative whole numbers. Each file may contain up to 5,000 data
 rows and must be 2 MB or smaller. Select **Preview CSV**, review the first ten
 rows, then **Import records**. Invalid rows and duplicate identifiers reject the
 entire import; imports only add records and never overwrite existing ones.
+
+For the files in [`dataset/`](./dataset/), use **Import multiple TiDB dataset
+files** and select one or more files at once. The files are named after the
+schema tables (for example `product.csv`, `orders.csv`, and
+`stock_movement.csv`). The importer validates their TiDB column headers, remaps
+IDs to avoid collisions, inserts tables in foreign-key order, and saves the
+whole selection in one transaction. If a file fails, none of the batch is
+saved. Include any files referenced by the selected rows (usually the full
+dataset) so remapped IDs preserve foreign-key relationships. Select no more
+than 15 files, 2 MB per file, 3 MB total, and 10,000 rows per batch.
+
+The legacy dataset is normalized to the TiDB enum and relationship rules.
+Legacy user roles map to the app's three roles; imported user passwords must be
+reset before those accounts can sign in. Duplicate purchase-order rows that
+violated the TiDB one-PO-per-order rule are omitted, and extra order-to-
+reservation links are cleared while retained in the order notes.
 
 Data tables include search, sortable columns, status filters, pagination, View,
 and the row actions allowed for the signed-in role. Admins can edit products and
@@ -146,6 +157,8 @@ Leave `VITE_API_BASE_URL` empty to use the same origin.
   actions each row currently allows
 - `POST /api/data/actions` – form submissions `{ screenId, values }`
 - `POST /api/data/import`, `PUT /api/data/:kind/:id`
+- `DELETE /api/data/:kind/:id` – Admin-only deletion of an unlinked individual record
+- `POST /api/data/import-batch` – Admin-only atomic TiDB dataset import
 - `POST /api/data/:kind/:id/:action` – row actions
 - `POST /api/data/notifications-read`
 

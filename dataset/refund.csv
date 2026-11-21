@@ -1,0 +1,13 @@
+﻿refund_id,refund_number,order_id,customer_id,refund_date,days_of_ownership,issue_description,inspection_note,refund_amount,refund_status,requested_by,approved_by,approved_at,decision_note
+1,RFD-DATA-000001,1,41,2025-05-07,7,Damaged product,,376.30,Rejected,1,1,2025-05-07,
+2,RFD-DATA-000002,6,94,2025-11-04,11,Defective product,,1573.55,Approved,19,19,2025-11-04,
+3,RFD-DATA-000003,8,20,2025-02-26,8,Damaged product,,2313.46,Approved,15,15,2025-02-26,Imported legacy status: completed.
+4,RFD-DATA-000004,31,86,2025-03-30,14,Defective product,,1032.09,Pending Approval,4,,,
+5,RFD-DATA-000005,49,57,2025-02-21,4,Defective product,,1572.77,Pending Approval,6,,,
+6,RFD-DATA-000006,54,85,2025-03-21,9,Defective product,,612.75,Approved,1,1,2025-03-21,Imported legacy status: completed.
+7,RFD-DATA-000007,81,65,2025-02-25,6,Customer changed mind,,353.71,Rejected,6,6,2025-02-25,
+8,RFD-DATA-000008,105,37,2025-08-12,4,Defective product,,328.67,Rejected,19,19,2025-08-12,
+9,RFD-DATA-000009,115,1,2025-03-10,2,Incomplete order,,866.47,Pending Approval,20,,,
+10,RFD-DATA-000010,124,79,2025-10-22,9,Defective product,,2100.67,Rejected,8,8,2025-10-22,
+11,RFD-DATA-000011,137,56,2025-06-20,14,Incorrect item,,4996.47,Approved,19,19,2025-06-20,
+12,RFD-DATA-000012,169,6,2025-03-22,8,Incorrect item,,1023.25,Rejected,11,11,2025-03-22,

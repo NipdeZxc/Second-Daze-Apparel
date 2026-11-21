@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildOverview, csvTemplate, emptyRecords, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
+import { datasetImportFiles, parseDatasetFile } from "./datasetImport.js";
 
 const productCsv = `${csvTemplate("products")}TEST-1,"Shirt, ""Blue""",Tops,M,100.10,200.20,2,3`;
 const customerCsv = `${csvTemplate("customers")}Test Customer,09123456789,"Line one
@@ -66,6 +67,45 @@ test("overview of empty records has no synthetic data", () => {
   assert.equal(overview.metrics.fulfillmentRate, null);
   assert.deepEqual(overview.dailySales, []);
   assert.deepEqual(overview.queues, { accessApprovals: 0, ordersToFulfill: 0, lowStockItems: 0 });
+});
+
+test("TiDB dataset CSV parser recognizes supported files and keeps schema columns", () => {
+  const definition = datasetImportFiles.find((item) => item.file === "product.csv");
+  const values = {
+    product_id: "1",
+    product_code: "SKU-000001",
+    product_name: "Sample Shirt",
+    category: "Tops",
+    size: "M",
+    cost_price: "10.00",
+    selling_price: "20.00",
+    stock_quantity: "5",
+    reserved_quantity: "0",
+    defective_quantity: "0",
+    low_stock_threshold: "1",
+    is_active: "1",
+    created_by: "1",
+    updated_by: "",
+  };
+  const csv = `${definition.columns.join(",")}\r\n${definition.columns.map((column) => values[column]).join(",")}`;
+  const parsed = parseDatasetFile("product.csv", csv);
+  assert.equal(parsed.table, "products");
+  assert.equal(parsed.records.length, 1);
+  assert.equal(parsed.records[0].product_code, "SKU-000001");
+  assert.equal(parsed.records[0].updated_by, null);
+});
+
+test("TiDB dataset CSV parser rejects unknown files, missing columns, and duplicate IDs", () => {
+  assert.throws(() => parseDatasetFile("unknown.csv", "id\n1"), /not a supported TiDB dataset/);
+  assert.throws(() => parseDatasetFile("product.csv", "product_id,product_name\n1,Shirt"), /columns do not match/);
+  const definition = datasetImportFiles.find((item) => item.file === "product.csv");
+  const values = {
+    product_id: "1", product_code: "SKU-1", product_name: "Shirt", category: "", size: "",
+    cost_price: "1.00", selling_price: "2.00", stock_quantity: "1", reserved_quantity: "0",
+    defective_quantity: "0", low_stock_threshold: "1", is_active: "1", created_by: "1", updated_by: "",
+  };
+  const row = definition.columns.map((column) => values[column]).join(",");
+  assert.throws(() => parseDatasetFile("product.csv", `${definition.columns.join(",")}\n${row}\n${row}`), /duplicate product_id/);
 });
 
 test("overview nets approved refunds, counts low stock and open orders", () => {

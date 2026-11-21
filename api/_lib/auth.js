@@ -64,13 +64,12 @@ export function clearSession(res) {
 }
 
 export function publicUser(row) {
-  const role = row.role_name || (row.role === "Sales" ? "Sales Management" : row.role === "Inventory" ? "Inventory Management" : row.role);
   return {
     id: row.user_id,
     fullName: row.full_name,
-    username: row.username || row.email,
+    username: row.username,
     email: row.email,
-    role,
+    role: row.role_name,
     status: row.account_status,
     mustChangePassword: Boolean(row.must_change_password),
   };
@@ -80,12 +79,7 @@ export async function getSessionUser(req) {
   const payload = verify(parseCookies(req.headers.cookie)[COOKIE]);
   if (!payload) return null;
   const [rows] = await getPool().query(
-    `SELECT u.*, u.email AS username,
-            CASE u.role WHEN 'Sales' THEN 'Sales Management'
-                        WHEN 'Inventory' THEN 'Inventory Management'
-                        ELSE u.role END AS role_name,
-            0 AS must_change_password
-       FROM users u WHERE u.user_id = ?`,
+    `SELECT u.*, r.role_name FROM users u JOIN roles r ON r.role_id = u.role_id WHERE u.user_id = ?`,
     [payload.uid]
   );
   const user = rows[0];
@@ -111,7 +105,7 @@ export async function requireRole(req, ...roles) {
 
 export async function audit(userId, action, entityType = null, entityId = null, details = null) {
   await getPool().query(
-    `INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-    [userId, action, entityType || "system", entityId || 0, details, new Date()]
+    `INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    [userId, action, entityType, entityId, details, new Date()]
   );
 }

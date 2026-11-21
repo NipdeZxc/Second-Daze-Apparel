@@ -52,18 +52,15 @@ export const datasets = {
     columns: [
       text("reservation_number", "Reservation"), text("customer_name", "Customer"), text("items", "Items", { optional: true }),
       money("amount", "Amount"),
-      status(["Pending Approval", "Active", "Paid", "Voided", "No-show", "Cancelled", "Rejected"]),
+      status(["Pending Approval", "Active", "Paid", "Voided", "Cancelled", "Rejected"]),
       date("expires_at", "Expires at", { optional: true }),
-      text("urgency", "Priority", { readonly: true, optional: true }),
     ],
   },
   refunds: {
     label: "Refunds", key: "refund_number",
     columns: [
       text("refund_number", "Refund ticket"), text("order_number", "Order"), text("customer_name", "Customer"),
-      text("reason", "Reason"), money("amount", "Amount"), text("evidence", "Evidence", { readonly: true, optional: true }),
-      text("urgency", "Priority", { readonly: true, optional: true }),
-      status(["Condition Review", "Pending Approval", "Approved", "Completed", "Rejected"]),
+      text("reason", "Reason"), money("amount", "Amount"), status(["Pending Approval", "Approved", "Rejected"]),
     ],
   },
   documents: {
