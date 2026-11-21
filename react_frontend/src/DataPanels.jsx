@@ -107,6 +107,24 @@ function RecordRows({ columns, rows, rowKey }) {
   );
 }
 
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// Packers have no system access, so the order details are printed for them.
+function printOrder(order) {
+  const win = window.open("", "_blank", "width=720,height=900");
+  if (!win) return;
+  const items = String(order.items || "").split("; ").filter(Boolean);
+  win.document.write(`<!doctype html><title>${escapeHtml(order.order_number)}</title>
+    <style>body{font-family:Arial,sans-serif;padding:24px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #333;padding:6px;text-align:left}</style>
+    <h1>Packing slip: ${escapeHtml(order.order_number)}</h1>
+    <p><b>Customer:</b> ${escapeHtml(order.customer_name)}<br><b>Contact:</b> ${escapeHtml(order.contact_number)}<br><b>Ship to:</b> ${escapeHtml(order.address)}</p>
+    <table><tr><th>Item</th></tr>${items.map((item) => `<tr><td>${escapeHtml(item)}</td></tr>`).join("")}</table>
+    <p><b>Status:</b> ${escapeHtml(order.status)}${order.tracking_number ? ` &middot; <b>Tracking:</b> ${escapeHtml(order.tracking_number)}` : ""}</p>`);
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
 export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false, onRecordUpdated }) {
   const definition = datasets[kind];
   const editable = canEdit && definition.editable;
@@ -293,7 +311,10 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
                   {definition.columns.map((column) => <div key={column.key}><dt>{column.label}</dt><dd>{displayValue(selectedRecord[column.key], column)}</dd></div>)}
                   {hasStatus && <div><dt>Status</dt><dd>{recordStatus(selectedRecord)}</dd></div>}
                 </dl>
-                <div className="record-dialog__actions"><button type="button" className="button button--outline" onClick={closeDialog}>Close</button></div>
+                <div className="record-dialog__actions">
+                  {kind === "orders" && <button type="button" className="button button--primary" onClick={() => printOrder(selectedRecord)}>Print for packer</button>}
+                  <button type="button" className="button button--outline" onClick={closeDialog}>Close</button>
+                </div>
               </>
             ) : dialogMode === "confirm" ? (
               <>
