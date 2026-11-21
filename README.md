@@ -75,14 +75,26 @@ test logins set `ENABLE_TEST_ACCOUNTS=true`: signing in as `admin` / `admin` or
 These credentials are deliberately weak; **remove the flag before handling real
 data**.
 
+Reservation and refund API routes use the columns in
+[`second_daze_physical_schema.sql`](./second_daze_physical_schema.sql). Their
+status, stock, payment, notification, and audit updates are transaction-backed.
+Reservation expiry reminders run hourly through Vercel Cron; configure
+`CRON_SECRET` in Vercel so the maintenance endpoint accepts only scheduled calls.
+
+Refund photos and PDFs use the additive migration
+[`001_refund_evidence.sql`](./scripts/migrations/001_refund_evidence.sql). Apply
+that file once in the TiDB SQL editor before enabling evidence uploads. It only
+creates the evidence table and does not modify or delete existing records.
+Customer refund email notices use the existing Gmail mailer settings.
+
 Workflow notes:
 
 - Orders, reservations, refunds and sales are created through their forms and
   row actions (approve, record GCash payment, verify payment, pack, ship,
   deliver, complete, cancel, refund), not by CSV import.
 - Products and customers can be bulk-added by an Admin through **Import CSV**.
-- Expired reservations are voided and their stock released whenever data is
-  read; there is no scheduled job.
+- Expired reservations are voided and their stock released by the hourly Vercel
+  maintenance job and when reservation data is refreshed.
 
 ## Import CSV data
 

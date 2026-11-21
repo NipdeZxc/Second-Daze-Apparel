@@ -5,6 +5,9 @@
   "installCommand": "npm ci && npm --prefix react_frontend ci",
   "buildCommand": "npm --prefix react_frontend run build",
   "outputDirectory": "react_frontend/dist",
+  "crons": [
+    { "path": "/api/operations/maintenance", "schedule": "0 * * * *" }
+  ],
   "rewrites": [
     { "source": "/mobile", "destination": "/index.html" },
     { "source": "/mobile/", "destination": "/index.html" }

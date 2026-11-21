@@ -409,6 +409,7 @@ td { border-top: 1px solid #f1e7ee; padding: 14px; font-size: 10px; }
 .record-details > div, .form-confirm dl > div { display: grid; grid-template-columns: minmax(110px, .7fr) 1fr; gap: 12px; border-top: 1px solid #f1e7ee; padding: 10px 0; }
 .record-details dt, .form-confirm dt { color: var(--muted); font-size: 9px; }
 .record-details dd, .form-confirm dd { overflow-wrap: anywhere; margin: 0; color: var(--text); font-size: 10px; }
+.record-details__multiline { white-space: pre-wrap; }
 .record-edit-form { display: grid; gap: 12px; }
 .record-edit-form .field { font-size: 9px; }
 .record-edit-form .field input, .record-edit-form .field select { min-height: 36px; font-size: 10px; }

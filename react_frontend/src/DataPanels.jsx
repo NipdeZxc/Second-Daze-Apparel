@@ -109,6 +109,19 @@ function RecordRows({ columns, rows, rowKey }) {
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+const detailFields = {
+  reservations: ["contact_number", "reservation_days", "payment_status", "pickup_status", "order_number", "order_status", "void_reason", "timeline"],
+  refunds: ["contact_number", "requested_by_name", "approved_by_name", "condition_reviewed_by_name", "refunded_by_name", "refund_method", "refund_receipt_no", "refunded_at", "inspection_note", "evidence", "timeline"],
+};
+const detailLabels = {
+  contact_number: "Customer contact", reservation_days: "Agreed days", payment_status: "Payment",
+  pickup_status: "Pickup progress", order_number: "Linked order", order_status: "Order status",
+  void_reason: "Expiry / cancellation reason", requested_by_name: "Submitted by", approved_by_name: "Approved by",
+  condition_reviewed_by_name: "Inspected by", refunded_by_name: "Payout recorded by", refund_method: "Payout method",
+  refund_receipt_no: "Payout reference", refunded_at: "Paid at", inspection_note: "Inspection note",
+  evidence: "Evidence", timeline: "History",
+};
+
 // Packers have no system access, so the order details are printed for them.
 function printOrder(order) {
   const win = window.open("", "_blank", "width=720,height=900");
@@ -131,6 +144,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
   const editColumns = definition.columns.filter((column) => !column.readonly);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [urgencyFilter, setUrgencyFilter] = useState("");
   const [sortKey, setSortKey] = useState(definition.key);
   const [sortDirection, setSortDirection] = useState("asc");
   const [pageSize, setPageSize] = useState(10);
@@ -150,13 +164,14 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
   };
   const statusColumn = definition.columns.find((column) => column.key === "status");
   const hasStatus = kind === "products" || Boolean(statusColumn);
-  const statuses = statusColumn?.values || [...new Set(rows.map(recordStatus).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const statuses = [...new Set([...(statusColumn?.values || []), ...rows.map(recordStatus).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
+  const urgencyOptions = kind === "reservations" ? ["Expiring soon", "Overdue"] : kind === "refunds" ? ["Urgent"] : [];
   const filteredRows = rows.filter((record) => {
     const matchesQuery = !query.trim() || [
       ...Object.values(record),
       ...(hasStatus ? [recordStatus(record)] : []),
     ].some((value) => String(value ?? "").toLowerCase().includes(query.trim().toLowerCase()));
-    return matchesQuery && (!statusFilter || recordStatus(record) === statusFilter);
+    return matchesQuery && (!statusFilter || recordStatus(record) === statusFilter) && (!urgencyFilter || record.urgency === urgencyFilter);
   });
   const sortColumn = definition.columns.find((column) => column.key === sortKey);
   const sortedRows = [...filteredRows].sort((left, right) => {
@@ -177,6 +192,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
   useEffect(() => {
     setQuery("");
     setStatusFilter("");
+    setUrgencyFilter("");
     setSortKey(definition.key);
     setSortDirection("asc");
     setPage(1);
@@ -248,6 +264,15 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
             </select>
           </label>
         )}
+        {urgencyOptions.length > 0 && (
+          <label className="table-filter">
+            <span>Priority</span>
+            <select value={urgencyFilter} onChange={(event) => { setUrgencyFilter(event.target.value); setPage(1); }}>
+              <option value="">All priorities</option>
+              {urgencyOptions.map((priority) => <option value={priority} key={priority}>{priority}</option>)}
+            </select>
+          </label>
+        )}
         <label className="table-page-size">
           <span>Rows</span>
           <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}>
@@ -309,6 +334,19 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
               <>
                 <dl className="record-details">
                   {definition.columns.map((column) => <div key={column.key}><dt>{column.label}</dt><dd>{displayValue(selectedRecord[column.key], column)}</dd></div>)}
+                  {(detailFields[kind] || []).map((key) => {
+                    const value = selectedRecord[key];
+                    if (value == null || value === "") return null;
+                    if (key === "evidence") return <div key={key}><dt>{detailLabels[key]}</dt><dd>{String(value).split("\n").filter(Boolean).map((entry) => {
+                      const separator = entry.indexOf(":");
+                      const evidenceId = entry.slice(0, separator);
+                      const fileName = entry.slice(separator + 1);
+                      return <a key={evidenceId} href={`/api/data/refund-evidence/${encodeURIComponent(evidenceId)}`} target="_blank" rel="noreferrer">{fileName}</a>;
+                    }).reduce((nodes, link) => nodes.length ? [...nodes, ", ", link] : [link], [])}</dd></div>;
+                    if (key === "timeline") return <div key={key}><dt>{detailLabels[key]}</dt><dd className="record-details__multiline">{value}</dd></div>;
+                    const dateValue = /(?:_at|date)$/.test(key) ? displayValue(value, { type: "date" }) : String(value);
+                    return <div key={key}><dt>{detailLabels[key]}</dt><dd>{dateValue}</dd></div>;
+                  })}
                   {hasStatus && <div><dt>Status</dt><dd>{recordStatus(selectedRecord)}</dd></div>}
                 </dl>
                 <div className="record-dialog__actions">

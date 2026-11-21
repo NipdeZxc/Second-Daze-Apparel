@@ -31,3 +31,15 @@ export async function sendPasswordResetEmail(to, fullName, link) {
       `If you did not ask for this, ignore this email and your password stays the same.`,
   });
 }
+
+export async function sendRefundStatusEmail(to, fullName, refund) {
+  const completed = refund.status === "completed";
+  await getTransporter().sendMail({
+    from: `"Second Daze Apparel" <${process.env.GMAIL_USER}>`,
+    to,
+    subject: completed ? `Refund completed - ${refund.number}` : `Refund request update - ${refund.number}`,
+    text: completed
+      ? `Hello ${fullName},\n\nYour refund ${refund.number} has been paid. Amount: PHP ${Number(refund.amount).toFixed(2)}. Receipt/reference: ${refund.receipt}.\n\nThank you.\nSecond Daze Apparel`
+      : `Hello ${fullName},\n\nYour refund request ${refund.number} was rejected. Reason: ${refund.reason || "Please contact the store for details."}\n\nSecond Daze Apparel`,
+  });
+}

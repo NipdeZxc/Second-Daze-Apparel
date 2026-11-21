@@ -11,13 +11,19 @@ import {
 import { exportTable } from "./_lib/routes/export.js";
 import { forgotPassword, resetPassword } from "./_lib/routes/reset.js";
 import {
-  getRecords,
   importRecords,
-  markNotificationsRead,
   runFormAction,
   runRowAction,
   updateRecord,
 } from "./_lib/routes/data.js";
+import {
+  getOperationsRecords,
+  getRefundEvidence,
+  markOperationsNotificationsRead,
+  runOperationsMaintenance,
+  runOperationFormAction,
+  runOperationRowAction,
+} from "./_lib/routes/operations.js";
 
 // One catch-all function keeps the project under Vercel's function limit.
 const routes = [
@@ -34,12 +40,20 @@ const routes = [
   ["POST", "users/:id/enable", enableUser],
   ["POST", "users/:id/reset-password", resetUserPassword],
   ["GET", "export/:name", exportTable],
-  ["GET", "data/records", getRecords],
+  ["GET", "data/records", getOperationsRecords],
   ["POST", "data/import", importRecords],
-  ["POST", "data/actions", runFormAction],
-  ["POST", "data/notifications-read", markNotificationsRead],
+  ["POST", "data/actions", (req, res) =>
+    ["5.1-new-reservation", "8.6-mobile-new-reservation", "3.4-new-refund-request", "3.5-refund-condition-review"].includes(req.body?.screenId)
+      ? runOperationFormAction(req, res)
+      : runFormAction(req, res)],
+  ["GET", "data/refund-evidence/:id", getRefundEvidence],
+  ["GET", "operations/maintenance", runOperationsMaintenance],
+  ["POST", "data/notifications-read", markOperationsNotificationsRead],
   ["PUT", "data/:kind/:id", updateRecord],
-  ["POST", "data/:kind/:id/:action", runRowAction],
+  ["POST", "data/:kind/:id/:action", (req, res, params) =>
+    ["reservations", "refunds"].includes(params.kind)
+      ? runOperationRowAction(req, res, params)
+      : runRowAction(req, res, params)],
 ];
 
 function match(method, segments) {

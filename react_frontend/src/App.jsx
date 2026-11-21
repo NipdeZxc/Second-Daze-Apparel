@@ -742,7 +742,17 @@ const formChoices = {
   decision: ["Approve", "Reject"],
   "delivery status": ["Delivered", "Failed delivery", "Returned to sender"],
   status: ["Active", "Inactive"],
+  "requested method": ["Cash", "GCash"],
 };
+
+function fileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ name: file.name, data: reader.result });
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+    reader.readAsDataURL(file);
+  });
+}
 
 function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
   const [message, setMessage] = useState("");
@@ -756,12 +766,25 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
   const cancelScreenId = formCancelTargets[screen.id] || (mobile ? "8.1-mobile-admin-dashboard" : "2-admin-dashboard");
   const submitForm = (event) => {
     event.preventDefault();
-    const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const formData = new FormData(event.currentTarget);
+    const values = Object.fromEntries(formData.entries());
+    if (screen.id === "3.4-new-refund-request") {
+      values["Evidence files"] = formData.getAll("Evidence files").filter((file) => file instanceof File && file.size > 0);
+      const evidenceBytes = values["Evidence files"].reduce((total, file) => total + file.size, 0);
+      if (values["Evidence files"].length > 5) {
+        setErrors({ "Evidence files": "Attach no more than 5 files." });
+        return;
+      }
+      if (evidenceBytes > 3 * 1024 * 1024) {
+        setErrors({ "Evidence files": "Combined evidence size must be 3 MB or less." });
+        return;
+      }
+    }
     const nextErrors = {};
     for (const field of fields) {
       const normalized = field.toLowerCase();
       const value = String(values[field] || "").trim();
-      const optional = normalized.includes("note") || ["social media handle", "email", "postal code", "additional items"].includes(normalized);
+      const optional = normalized.includes("note") || ["social media handle", "email", "postal code", "additional items", "evidence files"].includes(normalized);
       if (!optional && !value) {
         nextErrors[field] = `${field} is required.`;
       } else if (normalized.includes("quantity") || normalized.includes("agreed days")) {
@@ -784,9 +807,11 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
     setSubmitting(true);
     setMessage("");
     try {
+      const values = { ...pendingValues };
+      if (Array.isArray(values["Evidence files"])) values["Evidence files"] = await Promise.all(values["Evidence files"].map(fileAsDataUrl));
       await submitWorkspaceAction({
         screenId: screen.id,
-        values: pendingValues,
+        values,
       });
       setMessage("Saved to the database.");
       setMessageType("status");
@@ -803,6 +828,7 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
   };
   const fieldInputType = (field) => {
     const normalized = field.toLowerCase();
+    if (normalized === "evidence files") return "file";
     if (normalized.includes("date and time")) return "datetime-local";
     if (normalized.includes("date")) return "date";
     if (normalized.includes("quantity") || normalized.includes("agreed days")) return "number";
@@ -824,7 +850,7 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
           {fields.map((field) => {
             const normalized = field.toLowerCase();
             const choices = formChoices[normalized];
-            const optional = normalized.includes("note") || ["social media handle", "email", "postal code", "additional items"].includes(normalized);
+            const optional = normalized.includes("note") || ["social media handle", "email", "postal code", "additional items", "evidence files"].includes(normalized);
             const isLongText = normalized.includes("note") || normalized.includes("address") || normalized.includes("reason");
             const id = fieldId(field);
             return (
@@ -842,6 +868,8 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
                     id={id}
                     name={field}
                     type={fieldInputType(field)}
+                    accept={normalized === "evidence files" ? "image/png,image/jpeg,image/webp,application/pdf" : undefined}
+                    multiple={normalized === "evidence files" ? true : undefined}
                     required={!optional}
                     min={fieldInputType(field) === "number" ? (normalized.includes("quantity") || normalized.includes("days") ? 1 : 0) : undefined}
                     step={normalized.includes("amount") || normalized.includes("price") ? "0.01" : normalized.includes("quantity") || normalized.includes("days") ? "1" : undefined}
@@ -870,7 +898,7 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
             <p className="eyebrow">CONFIRM ACTION</p>
             <h2 id="form-confirm-title">Review before saving</h2>
             <p>Confirm these details before saving them to the database.</p>
-            <dl>{Object.entries(pendingValues || {}).slice(0, 4).map(([field, value]) => <div key={field}><dt>{field}</dt><dd>{value || "—"}</dd></div>)}</dl>
+            <dl>{Object.entries(pendingValues || {}).slice(0, 10).map(([field, value]) => <div key={field}><dt>{field}</dt><dd>{Array.isArray(value) && value.every((file) => file instanceof File) ? value.map((file) => file.name).join(", ") || "None" : value || "—"}</dd></div>)}</dl>
             <div className="form-confirm__actions">
               <button className="button button--outline" type="button" onClick={() => setConfirming(false)} disabled={submitting}>Continue editing</button>
               <button className="button button--primary" type="button" onClick={saveAction} disabled={submitting}>{submitting ? "Saving…" : "Confirm and save"}</button>
