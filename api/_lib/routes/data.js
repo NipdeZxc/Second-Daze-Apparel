@@ -227,7 +227,9 @@ export async function getRecords(req, res) {
              LEFT JOIN shipments sh ON sh.order_id = o.order_id
              LEFT JOIN (SELECT order_id, SUM(quantity * unit_price) AS total, SUM(quantity * unit_cost) AS cost
                           FROM order_items GROUP BY order_id) t ON t.order_id = o.order_id
-             LEFT JOIN payments pay ON pay.payment_id = (SELECT MAX(p2.payment_id) FROM payments p2 WHERE p2.order_id = o.order_id)
+             LEFT JOIN (SELECT order_id, MAX(payment_id) AS payment_id FROM payments GROUP BY order_id) latest_pay
+               ON latest_pay.order_id = o.order_id
+             LEFT JOIN payments pay ON pay.payment_id = latest_pay.payment_id
             ORDER BY o.order_date DESC, o.order_id DESC`),
     query(`SELECT r.reservation_id AS id, r.reservation_number, c.full_name AS customer_name,
                   r.reservation_status AS status, r.expiry_date AS expires_at, r.reservation_days,
