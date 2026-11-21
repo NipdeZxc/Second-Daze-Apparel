@@ -90,7 +90,7 @@ async function voidExpiredReservations() {
         [id]
       );
       if (rows[0]?.reservation_status !== "Active") return;
-      await releaseReservationStock(conn, id, null, "Reservation expired");
+      const released = await releaseReservationStock(conn, id, null, "Reservation expired");
       await conn.query(
         `UPDATE reservations SET reservation_status = 'Voided', voided_at = ?, void_reason = 'Expired' WHERE reservation_id = ?`,
         [new Date(), id]
@@ -98,7 +98,9 @@ async function voidExpiredReservations() {
       await notify(conn, {
         userId: rows[0].created_by,
         category: "Reservation",
-        message: "A reservation expired and its stock was released.",
+        message: released
+          ? "A reservation expired and its stock was released."
+          : "A historical reservation expired without a recorded stock hold. Inventory was left unchanged.",
         refType: "Reservation",
         refId: id,
       });
@@ -106,22 +108,54 @@ async function voidExpiredReservations() {
   }
 }
 
-async function releaseReservationStock(conn, reservationId, userId, remarks) {
+export async function releaseReservationStock(conn, reservationId, userId, remarks) {
   const [items] = await conn.query(
-    `SELECT product_id, quantity FROM reservation_items WHERE reservation_id = ?`,
+    `SELECT product_id, SUM(quantity) AS quantity FROM reservation_items
+      WHERE reservation_id = ? GROUP BY product_id ORDER BY product_id`,
     [reservationId]
   );
+  const [holds] = await conn.query(
+    `SELECT product_id, -SUM(quantity_change) AS held_quantity FROM stock_movements
+      WHERE reference_type = 'Reservation' AND reference_id = ?
+        AND movement_type IN ('Reservation Hold', 'Reservation Release')
+      GROUP BY product_id`,
+    [reservationId]
+  );
+  // Historical CSV snapshots may contain Active reservations that never held inventory.
+  if (!holds.length) {
+    await conn.query(
+      `INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, created_at)
+       VALUES (?, 'reservation_without_hold', 'reservation', ?, ?, ?)`,
+      [userId, reservationId, `${remarks}: no recorded stock hold; inventory unchanged`, new Date()]
+    );
+    return false;
+  }
+  const heldByProduct = new Map(holds.map((hold) => [String(hold.product_id), Number(hold.held_quantity)]));
+  if (holds.some((hold) => !items.some((item) => String(item.product_id) === String(hold.product_id)))) {
+    throw new HttpError(409, `Reservation ${reservationId} has stock holds that do not match its items. Reconcile its inventory before releasing stock.`);
+  }
   for (const item of items) {
-    await conn.query(`SELECT product_id FROM products WHERE product_id = ? FOR UPDATE`, [item.product_id]);
+    const quantity = Number(item.quantity);
+    if (heldByProduct.get(String(item.product_id)) !== quantity) {
+      throw new HttpError(409, `Reservation ${reservationId} has an inconsistent stock hold for product ${item.product_id}. Reconcile its inventory before releasing stock.`);
+    }
+    const [[product]] = await conn.query(
+      `SELECT product_id, reserved_quantity FROM products WHERE product_id = ? FOR UPDATE`,
+      [item.product_id]
+    );
+    if (!product || Number(product.reserved_quantity) < quantity) {
+      throw new HttpError(409, `Reservation ${reservationId} requires ${quantity} reserved units of product ${item.product_id}. Reconcile its inventory before releasing stock.`);
+    }
     await conn.query(
       `UPDATE products SET stock_quantity = stock_quantity + ?, reserved_quantity = reserved_quantity - ? WHERE product_id = ?`,
-      [item.quantity, item.quantity, item.product_id]
+      [quantity, quantity, item.product_id]
     );
     await moveStock(conn, {
-      productId: item.product_id, type: "Reservation Release", change: item.quantity,
+      productId: item.product_id, type: "Reservation Release", change: quantity,
       refType: "Reservation", refId: reservationId, remarks, userId,
     });
   }
+  return items.length > 0;
 }
 
 const iso = (value) => (value ? new Date(value).toISOString() : "");

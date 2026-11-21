@@ -86,7 +86,10 @@ Workflow notes:
   reservations, and refunds from their record tables. A confirmation identifies
   the selected record, and records with linked history cannot be deleted.
 - Expired reservations are voided and their stock released whenever data is
-  read; there is no scheduled job.
+  read; there is no scheduled job. Stock is only released against recorded
+  reservation holds. Historical imports without hold movements are voided
+  without changing inventory, with an audit entry and notification explaining
+  why. Recorded holds with inconsistent balances require inventory reconciliation.
 
 ## Import CSV data
 
