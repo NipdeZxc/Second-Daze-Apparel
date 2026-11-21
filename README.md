@@ -66,7 +66,10 @@ payment verification, document numbering, expiry, role checks) are enforced
 server-side in `api/_lib/routes/data.js`.
 
 Required environment variables on Vercel: `DB_HOST`, `DB_PORT`, `DB_USER`,
-`DB_PASSWORD`, `DB_NAME`, `SESSION_SECRET` (32+ characters). For the class
+`DB_PASSWORD`, `DB_NAME`, `SESSION_SECRET` (32+ characters). The database
+connector also accepts TiDB Marketplace's `TIDB_HOST`, `TIDB_PORT`, `TIDB_USER`,
+`TIDB_PASSWORD`, and `TIDB_DATABASE` variables directly. Optionally set
+`DB_SSL_CA` to a PEM CA certificate if your cluster requires it. For the class
 test logins set `ENABLE_TEST_ACCOUNTS=true`: signing in as `admin` / `admin` or
 `staff` / `staff` then creates those accounts in the database on first use.
 These credentials are deliberately weak; **remove the flag before handling real
@@ -108,11 +111,15 @@ Run the CSV validation and dashboard aggregation tests with
 
 Create a Vercel project connected to this repository and set:
 
-- **Root Directory:** `react_frontend`
+- **Root Directory:** repository root (`.`)
 - **Framework preset:** Vite
-- **Build command:** `npm run build`
-- **Output directory:** `dist`
-- **Install command:** `npm ci`
+- **Build command:** `npm --prefix react_frontend run build`
+- **Output directory:** `react_frontend/dist`
+- **Install command:** `npm ci && npm --prefix react_frontend ci`
+
+Use the repository root so Vercel deploys the top-level `api` serverless
+functions as well as the React frontend. The root `vercel.json` contains these
+build settings.
 
 The app uses hash-based routes, so direct navigation to a screen does not need
 extra Vercel rewrite rules. The Vercel rewrite serves the SPA at `/mobile`.
