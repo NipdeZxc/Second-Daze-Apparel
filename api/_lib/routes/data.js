@@ -209,7 +209,7 @@ export async function getRecords(req, res) {
   const db = getPool();
   const query = async (sql, params = []) => (await db.query(sql, params))[0];
 
-  const [products, customers, orders, reservations, refunds, documents, notifications, activity] = await Promise.all([
+  const [products, customers, orders, reservations, refunds, documents, notifications, activity, shippingItems] = await Promise.all([
     query(`SELECT product_id AS id, product_code, product_name, category, size, cost_price, selling_price,
                   stock_quantity, reserved_quantity, defective_quantity, low_stock_threshold, is_active
              FROM products ORDER BY product_code`),
@@ -232,7 +232,7 @@ export async function getRecords(req, res) {
              LEFT JOIN payments pay ON pay.payment_id = latest_pay.payment_id
             ORDER BY o.order_date DESC, o.order_id DESC`),
     query(`SELECT r.reservation_id AS id, r.reservation_number, c.full_name AS customer_name,
-                  r.reservation_status AS status, r.expiry_date AS expires_at, r.reservation_days,
+                  r.reservation_status AS status, r.payment_status, r.expiry_date AS expires_at, r.reservation_days,
                   (SELECT GROUP_CONCAT(CONCAT(p.product_name, ' x', ri.quantity) SEPARATOR ', ')
                      FROM reservation_items ri JOIN products p ON p.product_id = ri.product_id
                     WHERE ri.reservation_id = r.reservation_id) AS items,
@@ -261,6 +261,9 @@ export async function getRecords(req, res) {
     query(`SELECT a.audit_id, a.action, a.entity_type, a.details, a.created_at, u.username
              FROM audit_log a LEFT JOIN users u ON u.user_id = a.user_id
             ORDER BY a.audit_id DESC LIMIT 20`),
+    query(`SELECT COALESCE(SUM(oi.quantity), 0) AS item_count
+         FROM order_items oi JOIN orders o ON o.order_id = oi.order_id
+        WHERE o.order_status = 'For Shipping'`),
   ]);
 
   let accounts = [];
@@ -290,7 +293,21 @@ export async function getRecords(req, res) {
       cost: order.cost,
       sold_at: iso(order.verified_at || order.ordered_at),
     }));
-
+  const cents = (value) => Math.round(num(value) * 100);
+  const salesCents = sales.reduce((sum, sale) => sum + cents(sale.amount), 0);
+  const costCents = sales.reduce((sum, sale) => sum + cents(sale.cost), 0);
+  const refundsCents = refunds
+    .filter((refund) => ["Approved", "Completed"].includes(refund.status))
+    .reduce((sum, refund) => sum + cents(refund.amount), 0);
+  const netSalesCents = salesCents - refundsCents;
+  const dashboard = {
+    totalSales: netSalesCents / 100,
+    totalProfit: (netSalesCents - costCents) / 100,
+    pendingOrders: orderRows.filter((order) => ["Pending Approval", "Pending Payment"].includes(order.status)).length,
+    unpaidReservations: reservations.filter((reservation) => reservation.status === "Active" && reservation.payment_status === "Unpaid").length,
+    itemsForShipping: num(shippingItems[0]?.item_count),
+    completedOrders: orderRows.filter((order) => order.status === "Completed").length,
+  };
   sendJson(res, 200, {
     products: withActions("products", products.map((p) => ({
       ...p,
@@ -301,6 +318,7 @@ export async function getRecords(req, res) {
     customers: withActions("customers", customers.map((c) => ({ ...c, status: c.info_verified ? "Verified" : "Unverified" }))),
     orders: withActions("orders", orderRows),
     sales,
+    dashboard,
     reservations: withActions("reservations", reservations.map((r) => ({
       ...r, expires_at: iso(r.expires_at), amount: num(r.amount), items: r.items || "",
     }))),

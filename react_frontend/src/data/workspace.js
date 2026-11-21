@@ -91,7 +91,7 @@ export const importColumns = (kind) => definitionFor(kind).columns.filter((colum
 export function emptyRecords() {
   return {
     ...Object.fromEntries(Object.keys(datasets).map((kind) => [kind, []])),
-    notifications: [], recentActivity: [], pendingAccess: 0, updatedAt: null,
+    notifications: [], recentActivity: [], pendingAccess: 0, dashboard: null, updatedAt: null,
   };
 }
 
@@ -162,9 +162,13 @@ export function buildOverview(records, now = new Date()) {
   const totalCost = records.sales.reduce((sum, sale) => sum + cents(sale.cost), 0);
   const grossSales = salesTotal - refunded;
   const pendingOrders = records.orders.filter((order) => !CLOSED_ORDERS.includes(order.status));
+  const pendingOrderCount = records.dashboard?.pendingOrders
+    ?? records.orders.filter((order) => ["Pending Approval", "Pending Payment"].includes(order.status)).length;
   const lowStock = records.products.filter((product) => product.status !== "Inactive" && Number(product.stock_quantity) <= Number(product.low_stock_threshold));
   const reservations = records.reservations.filter((item) => ["Pending Approval", "Active"].includes(item.status)
     && (!item.expires_at || Date.parse(item.expires_at) > now.getTime()));
+  const unpaidReservations = records.dashboard?.unpaidReservations
+    ?? records.reservations.filter((item) => item.status === "Active" && item.payment_status !== "Paid").length;
   const dateKey = (value) => new Date(value).toLocaleDateString("en-CA");
   const dailySales = new Map();
   for (const sale of records.sales) {
@@ -177,6 +181,11 @@ export function buildOverview(records, now = new Date()) {
     records, lowStock, reservations, pendingOrders,
     metrics: {
       grossSales: grossSales / 100, totalCost: totalCost / 100, profit: (grossSales - totalCost) / 100,
+      pendingOrders: pendingOrderCount,
+      unpaidReservations,
+      itemsForShipping: records.dashboard?.itemsForShipping ?? null,
+      completedOrders: records.dashboard?.completedOrders
+        ?? records.orders.filter((order) => order.status === "Completed").length,
       todaysSales: records.sales.filter((sale) => dateKey(sale.sold_at) === dateKey(now)).reduce((sum, sale) => sum + cents(sale.amount), 0) / 100,
       ordersPlaced: records.orders.length,
       averageOrderValue: records.orders.length ? orderedTotal / 100 / records.orders.length : null,
@@ -184,7 +193,12 @@ export function buildOverview(records, now = new Date()) {
         ? countedOrders.filter((order) => ["Delivered", "Completed"].includes(order.status)).length / countedOrders.length * 100 : null,
       activeReservations: reservations.length,
     },
-    queues: { accessApprovals: records.pendingAccess, ordersToFulfill: pendingOrders.length, lowStockItems: lowStock.length },
+    queues: {
+      accessApprovals: records.pendingAccess,
+      ordersToFulfill: pendingOrders.length,
+      lowStockItems: lowStock.length,
+      unpaidReservations,
+    },
     dailySales: [...dailySales].sort(([a], [b]) => a.localeCompare(b)).slice(-30).map(([day, amount]) => [day, amount / 100]),
     recentActivity: records.recentActivity,
     updatedAt: records.updatedAt,

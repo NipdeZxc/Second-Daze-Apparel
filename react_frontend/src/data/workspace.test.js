@@ -66,7 +66,7 @@ test("overview of empty records has no synthetic data", () => {
   assert.equal(overview.metrics.averageOrderValue, null);
   assert.equal(overview.metrics.fulfillmentRate, null);
   assert.deepEqual(overview.dailySales, []);
-  assert.deepEqual(overview.queues, { accessApprovals: 0, ordersToFulfill: 0, lowStockItems: 0 });
+  assert.deepEqual(overview.queues, { accessApprovals: 0, ordersToFulfill: 0, lowStockItems: 0, unpaidReservations: 0 });
 });
 
 test("TiDB dataset CSV parser recognizes supported files and keeps schema columns", () => {
@@ -128,14 +128,21 @@ test("overview nets approved refunds, counts low stock and open orders", () => {
       { refund_number: "R2", status: "Rejected", amount: 99 },
     ],
     reservations: [
-      { reservation_number: "V1", status: "Active", expires_at: "2026-11-25T00:00:00Z" },
-      { reservation_number: "V2", status: "Active", expires_at: "2026-11-01T00:00:00Z" },
+      { reservation_number: "V1", status: "Active", payment_status: "Unpaid", expires_at: "2026-11-25T00:00:00Z" },
+      { reservation_number: "V2", status: "Active", payment_status: "Paid", expires_at: "2026-11-25T00:00:00Z" },
+      { reservation_number: "V3", status: "Active", payment_status: "Unpaid", expires_at: "2026-11-01T00:00:00Z" },
     ],
+    dashboard: { pendingOrders: 1, unpaidReservations: 1, itemsForShipping: 4, completedOrders: 1 },
   };
   const overview = buildOverview(records, new Date("2026-11-20T12:00:00Z"));
   assert.equal(overview.metrics.grossSales, 150.1);
   assert.equal(overview.metrics.profit, 50);
   assert.equal(overview.metrics.ordersPlaced, 3);
   assert.equal(overview.metrics.activeReservations, 1);
-  assert.deepEqual(overview.queues, { accessApprovals: 2, ordersToFulfill: 1, lowStockItems: 1 });
+  assert.equal(overview.metrics.pendingOrders, 1);
+  assert.equal(overview.metrics.unpaidReservations, 1);
+  assert.equal(overview.metrics.itemsForShipping, 4);
+  assert.equal(overview.metrics.completedOrders, 1);
+  assert.deepEqual(overview.queues, { accessApprovals: 2, ordersToFulfill: 1, lowStockItems: 1, unpaidReservations: 1 });
 });
+

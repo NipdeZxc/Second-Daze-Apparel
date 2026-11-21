@@ -480,6 +480,10 @@ function Dashboard({ overviewState, onRefresh, search }) {
     { label: "Gross sales", value: formatMoney(summary?.grossSales), detail: "All imported sales", icon: "bag", screenId: "2.8-sales" },
     { label: "Total cost", value: formatMoney(summary?.totalCost), detail: "Recorded cost of imported sales", icon: "box", screenId: "6.1-sales-inventory-reports-v2" },
     { label: "Profit", value: formatMoney(summary?.profit), detail: "Gross sales minus recorded cost", icon: "chart", screenId: "6.1-sales-inventory-reports-v2" },
+    { label: "Pending orders", value: typeof summary?.pendingOrders === "number" ? summary.pendingOrders : "—", detail: "Awaiting approval or payment", icon: "clock", screenId: "3.9-orders-status-tracking" },
+    { label: "Unpaid reservations", value: typeof summary?.unpaidReservations === "number" ? summary.unpaidReservations : "—", detail: "Active holds without payment", icon: "calendar", screenId: "2.5-reservations" },
+    { label: "Items for shipping", value: typeof summary?.itemsForShipping === "number" ? summary.itemsForShipping : "—", detail: "Units in the shipping queue", icon: "box", screenId: "3.9-orders-status-tracking" },
+    { label: "Completed orders", value: typeof summary?.completedOrders === "number" ? summary.completedOrders : "—", detail: "Orders marked complete", icon: "check", screenId: "3.9-orders-status-tracking" },
     {
       label: "Access approvals",
       value: typeof queues?.accessApprovals === "number" ? queues.accessApprovals : "—",
@@ -1241,7 +1245,7 @@ function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewSta
           {screen.kind === "form" && <FormPanel key={screen.id} screen={screen} authUser={authUser} onActionSaved={onRefresh} />}
           {screen.kind === "detail" && <DetailPanel screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
           {screen.kind === "success" && <DetailPanel screen={screen} success overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
-          {screen.kind === "reports" && <DataReports overview={overviewState.data} />}
+          {screen.kind === "reports" && <DataReports overview={overviewState.data} authUser={authUser} />}
           <WorkflowLinks screenId={screen.id} />
         </div>
         <footer className="workspace__footer"><span>Second Daze Apparel</span><span>Operations workspace</span></footer>

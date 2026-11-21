@@ -36,3 +36,7 @@ export function runRowAction(path, value) {
 export function markNotificationsRead() {
   return apiRequest("/api/data/notifications-read", { method: "POST" });
 }
+
+export function exportWorkspaceData(name) {
+  return apiRequest(`/api/export/${encodeURIComponent(name)}`);
+}

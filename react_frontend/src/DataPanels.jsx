@@ -7,7 +7,7 @@ import {
   MAX_DATASET_FILE_BYTES,
   parseDatasetFile,
 } from "./data/datasetImport.js";
-import { deleteRecord, importDatasetBatch, importRecords, runRowAction, updateRecord } from "./api/workspace.js";
+import { deleteRecord, exportWorkspaceData, importDatasetBatch, importRecords, runRowAction, updateRecord } from "./api/workspace.js";
 
 export const screenDatasets = {
   "3.9-orders-status-tracking": "orders",
@@ -616,23 +616,79 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
   );
 }
 
-export function DataReports({ overview }) {
+export function DataReports({ overview, authUser }) {
+  const [exporting, setExporting] = useState("");
+  const [exportError, setExportError] = useState("");
+  const [exportMessage, setExportMessage] = useState("");
   const metrics = overview?.metrics;
   const reports = [
     ["Gross sales", formatMoney(metrics?.grossSales)],
     ["Recorded cost of sales", formatMoney(metrics?.totalCost)],
     ["Gross profit", formatMoney(metrics?.profit)],
     ["Orders", metrics?.ordersPlaced ?? "—"],
+    ["Pending orders", metrics?.pendingOrders ?? "—"],
+    ["Unpaid reservations", metrics?.unpaidReservations ?? "—"],
+    ["Items for shipping", metrics?.itemsForShipping ?? "—"],
+    ["Completed orders", metrics?.completedOrders ?? "—"],
+    ["Low-stock products", overview?.queues?.lowStockItems ?? "—"],
   ];
+  const exports = [
+    ["v_weekly_sales", "Weekly sales"],
+    ["v_order_totals", "Order totals"],
+    ["products", "Inventory products"],
+  ];
+  const downloadReport = async (name, label) => {
+    setExporting(name);
+    setExportError("");
+    setExportMessage("");
+    try {
+      const csv = await exportWorkspaceData(name);
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${name}.csv`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setExportMessage(`${label} CSV downloaded.`);
+    } catch (error) {
+      setExportError(error.message || `The ${label.toLowerCase()} export could not be downloaded.`);
+    } finally {
+      setExporting("");
+    }
+  };
   return (
-    <section className="report-grid">
-      {reports.map(([label, value]) => (
-        <article className="panel report-card" key={label}>
-          <span className="eyebrow">LIVE DATA</span><h2>{label}</h2>
-          <p>{overview?.records ? "Calculated from records in the database." : "Data is not available."}</p>
-          <div className="report-card__empty">{value}</div>
-        </article>
-      ))}
-    </section>
+    <>
+      <section className="report-grid">
+        {reports.map(([label, value]) => (
+          <article className="panel report-card" key={label}>
+            <span className="eyebrow">LIVE DATA</span><h2>{label}</h2>
+            <p>{overview?.records ? "Calculated from records in the database." : "Data is not available."}</p>
+            <div className="report-card__empty">{value}</div>
+          </article>
+        ))}
+      </section>
+      {authUser?.role === "Admin" && (
+        <section className="panel report-exports">
+          <div className="panel__top">
+            <div><h2>Export reports</h2><p>Download current database records as CSV files.</p></div>
+          </div>
+          <div className="report-export-actions">
+            {exports.map(([name, label]) => (
+              <button
+                type="button"
+                className="button button--outline"
+                key={name}
+                onClick={() => downloadReport(name, label)}
+                disabled={Boolean(exporting)}
+              >
+                {exporting === name ? "Preparing CSV…" : `Export ${label}`}
+              </button>
+            ))}
+          </div>
+          {exportError && <p className="inline-error" role="alert">{exportError}</p>}
+          {exportMessage && <p className="form-note" role="status">{exportMessage}</p>}
+        </section>
+      )}
+    </>
   );
 }

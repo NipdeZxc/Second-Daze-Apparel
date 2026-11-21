@@ -159,6 +159,8 @@ td { border-top: 1px solid #f1e7ee; padding: 14px; font-size: 10px; }
 .report-card .eyebrow { margin-bottom: 8px; font-size: 9px; }
 .report-card p { margin: 5px 0 0; color: var(--muted); font-size: 9px; }
 .report-card__empty { display: grid; min-height: 100px; place-items: center; margin-top: 16px; border-radius: 8px; color: #a08c9d; background: #fcf8fb; font-size: 9px; }
+.report-exports { margin-top: 14px; padding: 17px; }
+.report-export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .catalog-panel .empty-message { min-height: 300px; border-top: 1px solid var(--line); }
 
 /* Authentication preview */

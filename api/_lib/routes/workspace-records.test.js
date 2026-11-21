@@ -27,6 +27,14 @@ test("workspace loading uses a TiDB-compatible latest-payment join and preserves
           { id: 2, order_number: "ORD-2", status: "Paid", ordered_at: "2025-01-02", total_amount: "50", cost: "20", payment_status: "Verified" },
         ]];
       }
+      if (sql.includes("FROM reservations r JOIN customers")) {
+        assert.match(sql, /r\.payment_status/);
+        return [[
+          { id: 1, status: "Active", payment_status: "Unpaid" },
+          { id: 2, status: "Active", payment_status: "Paid" },
+        ]];
+      }
+      if (sql.includes("FROM order_items oi JOIN orders o")) return [[{ item_count: 3 }]];
       return [[]];
     },
   }));
@@ -47,6 +55,16 @@ test("workspace loading uses a TiDB-compatible latest-payment join and preserves
     assert.equal(res.body.orders[0].payment_status, "Unpaid");
     assert.equal(res.body.orders[1].payment_status, "Verified");
     assert.equal(res.body.sales.length, 1);
+    assert.equal(res.body.dashboard.unpaidReservations, 1);
+    assert.equal(res.body.dashboard.itemsForShipping, 3);
+    assert.deepEqual(res.body.dashboard, {
+      totalSales: 50,
+      totalProfit: 30,
+      pendingOrders: 1,
+      unpaidReservations: 0,
+      itemsForShipping: 0,
+      completedOrders: 0,
+    });
   } finally {
     if (previousSecret === undefined) delete process.env.SESSION_SECRET;
     else process.env.SESSION_SECRET = previousSecret;
