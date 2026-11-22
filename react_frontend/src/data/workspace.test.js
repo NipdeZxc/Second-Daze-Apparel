@@ -132,9 +132,9 @@ test("overview nets approved refunds, counts low stock and open orders", () => {
       { refund_number: "R2", status: "Rejected", amount: 99 },
     ],
     reservations: [
-      { reservation_number: "V1", status: "Active", payment_status: "Unpaid", expires_at: "2026-11-25T00:00:00Z" },
-      { reservation_number: "V2", status: "Active", payment_status: "Paid", expires_at: "2026-11-25T00:00:00Z" },
-      { reservation_number: "V3", status: "Active", payment_status: "Unpaid", expires_at: "2026-11-01T00:00:00Z" },
+      { reservation_number: "V1", status: "Active", expires_at: "2026-11-25T00:00:00Z" },
+      { reservation_number: "V2", status: "Paid", expires_at: "2026-11-25T00:00:00Z" },
+      { reservation_number: "V3", status: "Active", expires_at: "2026-11-01T00:00:00Z" },
     ],
     dashboard: { pendingOrders: 1, unpaidReservations: 1, itemsForShipping: 4, completedOrders: 1 },
   };

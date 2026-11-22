@@ -222,11 +222,10 @@ export function buildOverview(records, now = new Date()) {
     && (!item.expires_at || Date.parse(item.expires_at) > now.getTime()));
   const activeReservationCount = records.reservations.filter((item) =>
     item.status === "Active"
-    && item.payment_status !== "Paid"
     && (!item.expires_at || Date.parse(item.expires_at) > now.getTime()),
   ).length;
   const unpaidReservations = records.dashboard?.unpaidReservations
-    ?? records.reservations.filter((item) => item.status === "Active" && item.payment_status !== "Paid").length;
+    ?? records.reservations.filter((item) => ["Pending Approval", "Active"].includes(item.status)).length;
   const dateKey = (value) => new Date(value).toLocaleDateString("en-CA");
   const dailySales = new Map();
   for (const sale of records.sales) {
