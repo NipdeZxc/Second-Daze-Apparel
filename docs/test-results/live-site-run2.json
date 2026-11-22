@@ -1,0 +1,453 @@
+{
+  "site": "https://second-daze-apparel.vercel.app",
+  "started": "2026-11-22T15:30:51.730Z",
+  "finished": "2026-11-22T15:31:24.866Z",
+  "dashboardBefore": {
+    "totalSales": 152407.44,
+    "totalProfit": 26623.82,
+    "pendingOrders": 42,
+    "unpaidReservations": 26,
+    "itemsForShipping": 33,
+    "completedOrders": 46
+  },
+  "results": [
+    {
+      "id": "TC-01",
+      "title": "Admin creates Sales and Inventory subaccounts",
+      "status": "Pass",
+      "actual": "201 Created for both; status Pending Approval; 12-character temporary password returned once (e.g. length 12)."
+    },
+    {
+      "id": "TC-02",
+      "title": "Pending account cannot sign in",
+      "status": "Pass",
+      "actual": "HTTP 403 \"This account is not active. Please contact the Admin.\""
+    },
+    {
+      "id": "TC-03",
+      "title": "Admin approves both accounts",
+      "status": "Pass",
+      "actual": "Both approved (HTTP 200); user list shows status Active."
+    },
+    {
+      "id": "TC-04",
+      "title": "First sign-in forces a password change",
+      "status": "Pass",
+      "actual": "Login 200 with mustChangePassword=true; workspace data refused before the change (HTTP 403 \"You must change your password first.\")."
+    },
+    {
+      "id": "TC-05",
+      "title": "Weak new password is rejected",
+      "status": "Pass",
+      "actual": "\"password\" → HTTP 400 \"Password must be 8-72 characters with an uppercase letter, a lowercase letter, a number and a symbol.\". A strong password was accepted (200) and the workspace opened."
+    },
+    {
+      "id": "TC-06",
+      "title": "Wrong password is refused",
+      "status": "Pass",
+      "actual": "HTTP 401 \"Invalid username or password.\""
+    },
+    {
+      "id": "TC-07",
+      "title": "Signed-out user gets no data",
+      "status": "Pass",
+      "actual": "GET /api/data/records → HTTP 401 \"Please log in.\"; site root → HTTP 200 (sign-in screen, see screenshot)."
+    },
+    {
+      "id": "TC-08",
+      "title": "Logout ends the browser session",
+      "status": "Pass",
+      "actual": "Logout cleared the cookie; /api/me → HTTP 401 \"Please log in.\". Replaying a copied old cookie → HTTP 200 (accepted risk, see security review #4)."
+    },
+    {
+      "id": "TC-09",
+      "title": "Forgot / reset password",
+      "status": "Pass",
+      "actual": "Unknown and known accounts get the same reply (\"If the account has an email on file, a reset link has been sent.\"). Token reset: first use 200, reuse HTTP 400 \"This reset link is invalid or has expired.\", expired HTTP 400 \"This reset link is invalid or has expired.\". Email delivery not checked (no staff mailbox on file)."
+    },
+    {
+      "id": "TC-10",
+      "title": "Disabled account cannot sign in; re-enable restores it",
+      "status": "Pass",
+      "actual": "Disabled: login HTTP 403 \"This account is not active. Please contact the Admin.\"; existing session /api/me → HTTP 401. Enabled: login HTTP 200."
+    },
+    {
+      "id": "TC-11",
+      "title": "Admin resets a password; old sessions end",
+      "status": "Pass",
+      "actual": "New temporary password returned; old session → HTTP 401 \"Please log in.\"; next login requires a password change."
+    },
+    {
+      "id": "SEC-08",
+      "title": "Five failed logins lock the account",
+      "status": "Pass",
+      "actual": "After 5 wrong passwords the correct password gets HTTP 423 \"Too many failed attempts. Try again in a few minutes.\"; 5 login_failed audit entries. (Unlocked in the DB afterwards.)"
+    },
+    {
+      "id": "TC-12",
+      "title": "Each role signs in with its own role",
+      "status": "Pass",
+      "actual": "qa_admin=Admin, qa_sales=Sales Management, qa_inventory=Inventory Management. Dashboards and navigation: see screenshots."
+    },
+    {
+      "id": "TC-15",
+      "title": "Sales cannot call Admin APIs",
+      "status": "Pass",
+      "actual": "GET users → 403; POST data/import → 403; GET export/customers → 403; POST users → 403"
+    },
+    {
+      "id": "TC-16",
+      "title": "Inventory cannot submit sales forms",
+      "status": "Pass",
+      "actual": "HTTP 403 \"You do not have access to this.\""
+    },
+    {
+      "id": "TC-16b",
+      "title": "Inventory does not receive customer contact details",
+      "status": "Pass",
+      "actual": "customers empty; orders have no contact number or address."
+    },
+    {
+      "id": "TC-75",
+      "title": "Sales cannot run Delete all data",
+      "status": "Pass",
+      "actual": "HTTP 403 \"You do not have access to this.\""
+    },
+    {
+      "id": "TC-17",
+      "title": "Inventory adds a product manually",
+      "status": "Blocked",
+      "actual": "No manual add-product form or API exists; products are added only by Admin CSV import (known gap, US-02)."
+    },
+    {
+      "id": "TC-18",
+      "title": "Admin imports the TEST products",
+      "status": "Pass",
+      "actual": "Imported 2 rows, created 2, stock added 14. TEST-001 stock 10, TEST-002 stock 4."
+    },
+    {
+      "id": "TC-19",
+      "title": "Same product file cannot be imported twice",
+      "status": "Pass",
+      "actual": "HTTP 409 \"This product file was already imported, so its stock was not added again. Change the quantities to import a new shipment.\"; stock unchanged (10)."
+    },
+    {
+      "id": "TC-20",
+      "title": "Inventory sees product details",
+      "status": "Pass",
+      "actual": "TEST-001: TEST Denim jacket, Outerwear, M, cost 200, price 500, stock 10, In stock."
+    },
+    {
+      "id": "TC-21",
+      "title": "Inventory adds stock",
+      "status": "Pass",
+      "actual": "Stock 10 → 15; Stock In movement +5 recorded."
+    },
+    {
+      "id": "TC-22",
+      "title": "Invalid stock quantities are refused",
+      "status": "Pass",
+      "actual": "0 → 400, -1 → 400, abc → 400; stock still 15."
+    },
+    {
+      "id": "TC-24",
+      "title": "Non-admins cannot edit products",
+      "status": "Pass",
+      "actual": "Sales form HTTP 403 \"Only an Admin can edit products.\"; Inventory form HTTP 403 \"You do not have access to this.\"; Sales PUT 403."
+    },
+    {
+      "id": "TC-28",
+      "title": "New customer with 09 number",
+      "status": "Pass",
+      "actual": "Saved; status Unverified."
+    },
+    {
+      "id": "TC-29",
+      "title": "New customer with +63 number and spaces",
+      "status": "Pass",
+      "actual": "Saved as +639990001002."
+    },
+    {
+      "id": "TC-30",
+      "title": "Invalid mobile numbers are refused",
+      "status": "Pass",
+      "actual": "12345 → 400; 0817123456 → 400; (02) 8123 4567 → 400"
+    },
+    {
+      "id": "TC-31",
+      "title": "Missing address fields are refused",
+      "status": "Pass",
+      "actual": "City blank HTTP 400 \"City is required.\"; Province blank HTTP 400 \"Province is required.\"."
+    },
+    {
+      "id": "TC-32",
+      "title": "Duplicate number (other format) is refused",
+      "status": "Pass",
+      "actual": "HTTP 409 \"A customer with that contact number already exists.\""
+    },
+    {
+      "id": "SEC-10",
+      "title": "Long text and markup in input",
+      "status": "Pass",
+      "actual": "Name over 100 characters → HTTP 400 \"Customer must be 100 characters or fewer.\". Markup is shown as text by React (see screenshot of the customer list)."
+    },
+    {
+      "id": "TC-34",
+      "title": "Sales creates a multi-item purchase order",
+      "status": "Pass",
+      "actual": "ORD-2026-00005 (PO-2026-00005) Pending Approval; items TEST-001×2 @500.00/cost 200.00, TEST-002×1 @400.00/cost 150.00; Admin notified."
+    },
+    {
+      "id": "TC-35",
+      "title": "Order larger than stock is refused",
+      "status": "Pass",
+      "actual": "HTTP 409 \"Only 15 of TEST Denim jacket available.\""
+    },
+    {
+      "id": "TC-36",
+      "title": "Bad additional-items format is refused",
+      "status": "Pass",
+      "actual": "HTTP 400 \"Additional item \"TEST-002 two\" must look like \"PRODUCT-CODE x 2\".\""
+    },
+    {
+      "id": "TC-37",
+      "title": "Admin approves the order",
+      "status": "Pass",
+      "actual": "Order status Pending Payment."
+    },
+    {
+      "id": "TC-38",
+      "title": "Sales records a GCash payment",
+      "status": "Pass",
+      "actual": "Payment TEST1795361468122 ₱1400.00 Pending Verification; Admin notified."
+    },
+    {
+      "id": "TC-40",
+      "title": "Admin rejects the payment",
+      "status": "Pass",
+      "actual": "Payment Rejected (\"TEST reference not found in GCash\"); order still Pending Payment; Sales user notified."
+    },
+    {
+      "id": "TC-39",
+      "title": "Duplicate GCash reference is refused",
+      "status": "Pass",
+      "actual": "ORD-2026-00006: reusing TEST1795361468122 → HTTP 409 \"That GCash reference number was already used.\"."
+    },
+    {
+      "id": "TC-41",
+      "title": "Verified payment deducts stock and issues the invoice",
+      "status": "Pass",
+      "actual": "Order Paid; INV-2026-00004 issued; TEST-001 15 → 13, TEST-002 4 → 3; 2 Sale movements."
+    },
+    {
+      "id": "TC-26",
+      "title": "Low stock notification for Inventory",
+      "status": "Pass",
+      "actual": "TEST-002 stock 3 ≤ threshold 3; \"Low Stock\" notification visible to Inventory."
+    },
+    {
+      "id": "TC-25",
+      "title": "Low-stock list",
+      "status": "Pass",
+      "actual": "TEST-002 status \"Low stock\"."
+    },
+    {
+      "id": "TC-42",
+      "title": "Sales documents: PO and invoice only after payment",
+      "status": "Pass",
+      "actual": "ORD-2026-00005: Invoice, Purchase Order. ORD-2026-00006 (unpaid): Purchase Order only."
+    },
+    {
+      "id": "TC-44",
+      "title": "Cancel an unpaid order",
+      "status": "Pass",
+      "actual": "ORD-2026-00006 Cancelled; TEST-002 stock unchanged (3)."
+    },
+    {
+      "id": "TC-45",
+      "title": "Cannot ship to an unverified customer",
+      "status": "Pass",
+      "actual": "Packed; ship → HTTP 409 \"Verify the customer's information before shipping.\"."
+    },
+    {
+      "id": "TC-33",
+      "title": "Sales verifies the customer",
+      "status": "Pass",
+      "actual": "TEST Ana Cruz → Verified."
+    },
+    {
+      "id": "TC-46",
+      "title": "Ship with tracking number",
+      "status": "Pass",
+      "actual": "Order Shipped; tracking JT-TEST-001 saved."
+    },
+    {
+      "id": "TC-47",
+      "title": "Mark in transit",
+      "status": "Pass",
+      "actual": "Shipment In Transit."
+    },
+    {
+      "id": "TC-48",
+      "title": "Confirm delivery issues a delivery receipt",
+      "status": "Pass",
+      "actual": "Order Delivered; DR-2026-00002 issued."
+    },
+    {
+      "id": "TC-50",
+      "title": "Complete the delivered order",
+      "status": "Pass",
+      "actual": "Order Completed."
+    },
+    {
+      "id": "TC-49",
+      "title": "Returned parcel",
+      "status": "Pass",
+      "actual": "ORD-2026-00007: shipment Returned (\"Returned to sender\"); customer returned parcels 1, back to Unverified; no DR."
+    },
+    {
+      "id": "TC-51",
+      "title": "Sales creates a reservation",
+      "status": "Pass",
+      "actual": "RES-2026-00006 Pending Approval (2 agreed days); Admin notified."
+    },
+    {
+      "id": "TC-52",
+      "title": "Invalid agreed days are refused",
+      "status": "Pass",
+      "actual": "\"0\" → 400; \"256\" → 400; \"\" → 400"
+    },
+    {
+      "id": "TC-53",
+      "title": "Approval holds stock and sets expiry",
+      "status": "Pass",
+      "actual": "Active; expiry 48.0 h after approval; stock 12 → 11, reserved 0 → 1."
+    },
+    {
+      "id": "TC-54",
+      "title": "Rejecting a reservation leaves stock alone",
+      "status": "Pass",
+      "actual": "RES-2026-00007 Rejected; stock unchanged."
+    },
+    {
+      "id": "TC-55",
+      "title": "Cancelling an active reservation releases stock",
+      "status": "Pass",
+      "actual": "RES-2026-00008 Cancelled; stock 10 → 11, reserved 2 → 1."
+    },
+    {
+      "id": "TC-56",
+      "title": "Reservation converted to a paid order",
+      "status": "Pass",
+      "actual": "ORD-2026-00008 Paid; reservation Paid; stock unchanged (11), reserved 1 → 0 (no double deduction)."
+    },
+    {
+      "id": "TC-57",
+      "title": "Expired reservation is voided; reminder sent",
+      "status": "Pass",
+      "actual": "RES-2026-00009 Voided (Expired); stock 10 → 11; creator notified. RES-2026-00010 (expires in 24 h): reminder sent (1 total), then cancelled."
+    },
+    {
+      "id": "TC-58",
+      "title": "Maintenance endpoint needs the cron secret",
+      "status": "Pass",
+      "actual": "No header → 401; wrong secret → 401. (Correct secret not tested: unknown.)"
+    },
+    {
+      "id": "TC-59",
+      "title": "Sales requests a refund",
+      "status": "Pass",
+      "actual": "RFD-2026-00004 Pending Approval, ₱500.00; Admin notified."
+    },
+    {
+      "id": "TC-60",
+      "title": "Invalid refund requests are refused",
+      "status": "Pass",
+      "actual": "Cancelled order → HTTP 409 \"This order is already Cancelled.\"; quantity 5 of 2 → HTTP 400 \"Only 2 of this item was ordered.\"."
+    },
+    {
+      "id": "TC-61",
+      "title": "Approved good item returns to stock",
+      "status": "Pass",
+      "actual": "Approved; TEST-001 stock 11 → 12; Refund Return movement."
+    },
+    {
+      "id": "TC-62",
+      "title": "Approved damaged item goes to defective",
+      "status": "Pass",
+      "actual": "RFD-2026-00005 approved; TEST-002 stock unchanged (3); defective 0 → 1."
+    },
+    {
+      "id": "TC-63",
+      "title": "Rejected refund leaves inventory alone",
+      "status": "Pass",
+      "actual": "RFD-2026-00006 Rejected; inventory unchanged."
+    },
+    {
+      "id": "TC-64",
+      "title": "Sales and profit include the TEST orders",
+      "status": "Pass",
+      "actual": "Gross TEST sales ₱2,400, cost ₱950, approved refunds ₱900 → dashboard net sales +₱1500 and profit +₱550, as calculated by hand."
+    },
+    {
+      "id": "TC-65",
+      "title": "Approved refunds reduce net sales and profit",
+      "status": "Pass",
+      "actual": "Covered in TC-64: the ₱900 of approved refunds was subtracted from sales and profit."
+    },
+    {
+      "id": "TC-66",
+      "title": "Dashboard counts match the records",
+      "status": "Pass",
+      "actual": "Pending orders 42, unpaid reservations 26, for shipping 33, completed 47: all equal to counts from the record lists."
+    },
+    {
+      "id": "TC-23",
+      "title": "Admin edits a price; old orders keep theirs",
+      "status": "Pass",
+      "actual": "Selling price now ₱550; ORD-2026-00005 still ₱500 per unit."
+    },
+    {
+      "id": "TC-27",
+      "title": "Threshold 0 removes the low-stock flag",
+      "status": "Pass",
+      "actual": "TEST-002 status now \"In stock\"."
+    },
+    {
+      "id": "TC-70",
+      "title": "CSV export of every record type",
+      "status": "Pass",
+      "actual": "All 13 tables exported as CSV (rows: products 42, customers 203, orders 204, order_items 627, payments 123, shipments 81, reservations 85, refunds 15, stock_movements 316, invoices 164, purchase_orders 74, delivery_receipts 25, audit_log 259). Excel download checked in the browser."
+    },
+    {
+      "id": "TC-71",
+      "title": "Formula-like values are exported as text",
+      "status": "Pass",
+      "actual": "Product name \"=1+1\" exported as '=1+1 (spreadsheets show it as text)."
+    },
+    {
+      "id": "TC-72",
+      "title": "Bad import files are refused",
+      "status": "Pass",
+      "actual": "Missing/invalid columns → HTTP 400 \"Data row 1: Product is required.\"; unsupported type → 400; empty file → 400; nothing saved."
+    },
+    {
+      "id": "TC-73",
+      "title": "Delete all data: button disabled without the phrase",
+      "status": "Pass",
+      "actual": "Checked in the browser (see screenshot). Server also refuses without the phrase (unit test)."
+    },
+    {
+      "id": "TC-74",
+      "title": "Delete all data",
+      "status": "Not run",
+      "actual": "Not run on the live database by decision (existing data kept). Covered by the route test and the manual check in TC-73."
+    },
+    {
+      "id": "TC-76",
+      "title": "Each role sees only its own notifications",
+      "status": "Pass",
+      "actual": "Admin: Approval/Payment/Refund; Sales: Payment/Refund/Reservation; Inventory: Low Stock. Mark all read → Inventory unread count 0."
+    }
+  ]
+}

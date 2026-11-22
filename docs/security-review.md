@@ -48,7 +48,7 @@ Results from running the checks against the real database, see [test-results.md]
 
 **Found during testing:** the `users` table on production had active accounts `admin` / `admin` and `staff` / `staff` (weak passwords). **Fixed after testing:** both were disabled and their password hashes made unusable. Both logins now return HTTP 401 on the live site. They were the only Admin logins with known passwords, so the team must create a real Admin with `node scripts/create-admin.js` (using the database settings) before using the Admin screens.
 
-**Deploy needed:** the fixes in rows 1, 3, 6, 7, 11, 12 and 16 and DEF-01 are in the working tree only. They take effect on the live site after deployment.
+**Deployed:** the fixes and DEF-01 are live (commit `77c42bc`). Run 3 on the live site passed the security checks that DEF-01 had made untestable (TC-15, TC-16, TC-16b, TC-09, TC-58, TC-75, SEC-10).
 
 ## Team checks before go-live
 

@@ -12,17 +12,18 @@ Acceptance test run for Second Daze Apparel, covering US-01 to US-07 and task-li
 | Fail | 0 |
 | Blocked | 0 |
 | Not run | 2 (TC-69, TC-74: need *Delete all data* on the shared database) |
-| Defects found | 1 critical (DEF-01), fixed in code, **not yet deployed** |
-| Unit tests | 33 backend + 28 frontend pass; production build succeeds |
+| Defects found | 1 critical (DEF-01), **fixed and deployed**; confirmed by Run 3 on the live site |
+| Unit tests | 35 backend + 28 frontend pass; production build succeeds |
 
-**Verdict:** the code passes every test that could be run. The **deployed site is not ready**: DEF-01 breaks every action button on production until the fix is deployed. After deploying, re-run the test script against the live URL (see *How to re-run*).
+**Verdict:** the code passes every test that could be run, **and the deployed site now gives the same results** (Run 3). The first deployment attempt of the fix failed on Vercel (conflicting route files); this was fixed in commit `77c42bc` and deployed.
 
 ## Where and how it was tested
 
 | Run | Target | Code | Result |
 |---|---|---|---|
 | 1. Live site | https://second-daze-apparel.vercel.app (Vercel, commit `d363e31`) | as deployed | 14 Pass / 57 Fail / 1 Blocked / 1 Not run: stopped by DEF-01 |
-| 2. Local server | `scripts/local-server.mjs` on http://localhost:3000 | working tree with all Phase 7 fixes | 79 Pass / 0 Fail / 1 Blocked / 2 Not run (TC-17 later fixed, see below) |
+| 2. Local server | `scripts/local-server.mjs` on http://localhost:3000 | working tree with all Phase 7 fixes | 79 Pass / 0 Fail / 1 Blocked / 2 Not run. TC-17 was fixed afterwards. |
+| 3. Live site, after the fix | https://second-daze-apparel.vercel.app (Vercel, commit `77c42bc`) | deployed fix, same database | **71 Pass / 0 Fail** in the API script (the script does not cover TC-17 and TC-74 is not run); **TC-17 Pass** by a separate live check (below). Raw results: [live-site-run2.json](./test-results/live-site-run2.json) |
 
 Both runs used the **real TiDB Cloud database** (`second_daze`) that the Vercel deployment uses, so data, schema and stock rules were the production ones. The local server sends every `/api/*` request to the same router file the Vercel functions use; only the Vercel URL-to-file matching is skipped.
 
@@ -33,7 +34,7 @@ Both runs used the **real TiDB Cloud database** (`second_daze`) that the Vercel 
 
 ## Defects
 
-### DEF-01 (critical): action buttons return 404 on the live site, fixed in code, pending deploy
+### DEF-01 (critical): action buttons returned 404 on the live site (fixed and deployed)
 
 | | |
 |---|---|
@@ -41,7 +42,7 @@ Both runs used the **real TiDB Cloud database** (`second_daze`) that the Vercel 
 | Symptom | Every API path with 3+ segments returns Vercel's own page *"404 NOT_FOUND"*: approve / disable / enable / reset a user, add stock, edit or delete a product, every order, reservation, refund and customer row action, and the daily cron `/api/operations/maintenance`. In the browser these buttons fail with an error. ![Live 404](./screenshots/60-live-nested-api-404.png) |
 | Cause | On this Vercel project a file named `[...route].js` only matches **one** path segment. `api/users/[...route].js` therefore serves `/api/users/5` but not `/api/users/5/approve`. Earlier fixes (`4167dca`, `f08454f`) were only tested in Node, not on Vercel. |
 | Fix | Added files with explicit dynamic segments that reuse the same router: `api/users/[id]/[action].js`, `api/data/[kind]/[id].js`, `api/data/[kind]/[id]/[action].js`, `api/operations/maintenance.js`. Regression test *"every API route has a Vercel function file that serves its path"* in `api/data/route.test.js` fails without these files. |
-| Status | Fixed in code, verified by Run 2. **Deploy, then re-run the script against the live URL to close.** |
+| Status | **Closed.** Verified by Run 2 (local) and Run 3 (live site, all 71 API checks pass). Deployment note: the first push (`37a27a6`) failed on Vercel with *"conflicting paths: api/data/[kind]/[id]/[action].js vs api/data/[...route].js"*. Commit `77c42bc` replaced the folder catch-alls with exact-depth files (`api/data/[kind].js`, `api/export/[name].js`); a new test checks that no catch-all shares a folder with nested routes. |
 
 ### Security findings from the Phase 7.3 review
 
@@ -160,8 +161,8 @@ All screenshots were taken during Run 2 with the TEST data in place. They are st
 
 ## Open items for the team
 
-1. **Deploy** the fixes (DEF-01 and the security fixes), then re-run Run 1 against the live URL and update this file.
-2. **TC-17:** the *Add product* form is built (Inventory workspace → Add product). Re-test it in the browser after deployment.
+1. ~~Deploy the fixes and re-run against the live URL~~ Done (Run 3).
+2. ~~TC-17~~ Done: tested on the live site as Inventory (see *Run 3: live check of TC-17*).
 3. **TC-69 / TC-74 (Not run):** run *Delete all data* only on a copy of the database, or right before go-live.
 4. **TC-78:** also check on a real phone (only 375 px emulation was done).
 5. Set `CRON_SECRET` in Vercel so the daily expiry job runs (TC-58 correct-secret case was tested locally only).
@@ -188,6 +189,10 @@ node scripts/phase7-live-test.mjs
 
 node scripts/phase7-cleanup.mjs --free-names   # remove TEST data, disable QA accounts
 ```
+
+## Run 3: live check of TC-17 (Add product)
+
+On https://second-daze-apparel.vercel.app, signed in as the QA Inventory user: submitting the form with a new code `TEST-ADD-9` returned 200 and the product appeared with stock 6 (status *In stock*, with an *Add stock* action); submitting the same code again returned 409; submitting a Sales form (`3.12-new-customer-validation`) as Inventory returned 403. In the browser the form and the confirmation step work: [button](./screenshots/42b-inventory-add-product-button.png), [filled form](./screenshots/42c-add-product-form-filled.png), [confirmation](./screenshots/42d-add-product-confirm.png). The test products were deleted afterwards.
 
 ## Cleanup
 
