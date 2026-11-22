@@ -731,6 +731,16 @@ export function DataReports({ overview, authUser }) {
     ["orders", "All orders"],
     ["stock_movements", "Stock movements"],
     ["refunds", "Financial refunds"],
+    ["customers", "Customers"],
+    ["order_items", "Order line items"],
+    ["payments", "Payments"],
+    ["shipments", "Shipments"],
+    ["reservations", "Reservations"],
+    ["reservation_items", "Reservation items"],
+    ["refund_items", "Refund items"],
+    ["invoices", "Invoices"],
+    ["purchase_orders", "Purchase orders"],
+    ["delivery_receipts", "Delivery receipts"],
   ];
   const downloadReport = async (name, label) => {
     setExporting(name);
