@@ -397,6 +397,41 @@ function productFields(source, { creating }) {
   return fields;
 }
 
+export async function importProductRow(conn, admin, fields, fileName) {
+  const [existing] = await conn.query(
+    `SELECT product_id FROM products WHERE product_code = ? FOR UPDATE`,
+    [fields.product_code]
+  );
+  if (existing[0]) {
+    if (fields.stock_quantity > 0) {
+      await conn.query(
+        `UPDATE products SET stock_quantity = stock_quantity + ?, updated_by = ? WHERE product_id = ?`,
+        [fields.stock_quantity, admin.user_id, existing[0].product_id]
+      );
+      await moveStock(conn, {
+        productId: existing[0].product_id, type: "Stock In", change: fields.stock_quantity,
+        refType: "Import", refId: null, remarks: fileName, userId: admin.user_id,
+      });
+    }
+    return "existing";
+  }
+
+  const [result] = await conn.query(
+    `INSERT INTO products (product_code, product_name, category, size, cost_price, selling_price,
+                           stock_quantity, low_stock_threshold, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [fields.product_code, fields.product_name, fields.category, fields.size, fields.cost_price,
+      fields.selling_price, fields.stock_quantity, fields.low_stock_threshold, admin.user_id]
+  );
+  if (fields.stock_quantity > 0) {
+    await moveStock(conn, {
+      productId: result.insertId, type: "Stock In", change: fields.stock_quantity,
+      refType: "Import", refId: null, remarks: fileName, userId: admin.user_id,
+    });
+  }
+  return "created";
+}
+
 function customerFields(source) {
   return {
     full_name: cleanText(source.full_name, "Customer", 100),
@@ -417,8 +452,10 @@ export async function importRecords(req, res) {
     throw new HttpError(400, `Import between 1 and ${MAX_IMPORT_ROWS} rows at a time.`);
   }
 
-  const count = await withTransaction(async (conn) => {
+  const summary = await withTransaction(async (conn) => {
     const seen = new Set();
+    let created = 0;
+    let stockAdded = 0;
     for (const [index, record] of records.entries()) {
       try {
         if (kind === "products") {
@@ -426,21 +463,9 @@ export async function importRecords(req, res) {
           const key = fields.product_code.toLowerCase();
           if (seen.has(key)) throw new HttpError(409, `Duplicate product code ${fields.product_code}.`);
           seen.add(key);
-          const [exists] = await conn.query(`SELECT 1 FROM products WHERE product_code = ?`, [fields.product_code]);
-          if (exists.length) throw new HttpError(409, `Product code ${fields.product_code} already exists.`);
-          const [result] = await conn.query(
-            `INSERT INTO products (product_code, product_name, category, size, cost_price, selling_price,
-                                   stock_quantity, low_stock_threshold, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [fields.product_code, fields.product_name, fields.category, fields.size, fields.cost_price,
-              fields.selling_price, fields.stock_quantity, fields.low_stock_threshold, admin.user_id]
-          );
-          if (fields.stock_quantity) {
-            await moveStock(conn, {
-              productId: result.insertId, type: "Stock In", change: fields.stock_quantity,
-              refType: "Import", refId: null, remarks: fileName, userId: admin.user_id,
-            });
-          }
+          const outcome = await importProductRow(conn, admin, fields, fileName);
+          if (outcome === "created") created += 1;
+          stockAdded += fields.stock_quantity;
         } else {
           const fields = customerFields(record);
           if (seen.has(fields.contact_number)) throw new HttpError(409, `Duplicate contact number ${fields.contact_number}.`);
@@ -463,11 +488,11 @@ export async function importRecords(req, res) {
       `INSERT INTO import_batches (data_type, file_name, rows_imported, imported_by) VALUES (?, ?, ?, ?)`,
       [kind, fileName, records.length, admin.user_id]
     );
-    return records.length;
+    return { imported: records.length, created, stockAdded };
   });
 
-  await audit(admin.user_id, "import_csv", kind, null, `${count} rows from ${fileName}`);
-  sendJson(res, 200, { imported: count });
+  await audit(admin.user_id, "import_csv", kind, null, `${summary.imported} rows from ${fileName}`);
+  sendJson(res, 200, summary);
 }
 
 export async function updateRecord(req, res, { kind, id }) {

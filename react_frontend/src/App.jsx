@@ -3,7 +3,7 @@ import { formFields, screens, tableColumns } from "./screens.js";
 import { getCurrentUser, requestPasswordReset, signIn, signOut } from "./api/auth.js";
 import { getWorkspaceRecords, markNotificationsRead, submitWorkspaceAction } from "./api/workspace.js";
 import { buildOverview } from "./data/workspace.js";
-import { ApprovalQueue, CsvImportPanel, DataReports, formatMoney, RecordsTable, screenDatasets } from "./DataPanels.jsx";
+import { ApprovalQueue, CsvImportPanel, DataExportPanel, DataReports, formatMoney, RecordsTable, screenDatasets } from "./DataPanels.jsx";
 
 const mainScreens = screens.filter((screen) => screen.group === "Main system");
 const mobileScreens = screens.filter((screen) => screen.group === "Mobile companion");
@@ -79,7 +79,7 @@ function PasswordField({ autoComplete = "current-password" }) {
   );
 }
 
-const adminOnlyIds = new Set(["2-admin-dashboard", "2.1-subaccounts", "2.2-access-approvals", "2.6-reports", "2.7-csv-import", "2.8-sales", "4.3-edit-product-admin-only", "7-staff-accounts"]);
+const adminOnlyIds = new Set(["2-admin-dashboard", "2.1-subaccounts", "2.2-access-approvals", "2.6-reports", "2.7-csv-import", "2.8-sales", "2.9-data-export", "4.3-edit-product-admin-only", "7-staff-accounts"]);
 
 function isAdmin(user) {
   return user?.role === "Admin";
@@ -220,7 +220,7 @@ function Brand({ compact = false, to = "#/1-staff-sign-in" }) {
 function Sidebar({ active, authUser, onSignOut }) {
   const admin = isAdmin(authUser);
   const dashboardNavIds = admin
-    ? ["2-admin-dashboard", "2.7-csv-import", "2.8-sales", "2.1-subaccounts", "2.2-access-approvals", "2.3-sales-documents", "2.4-refunds", "2.5-reservations", "2.6-reports", "3-sales-catalog", "3.9-orders-status-tracking", "3.11-customers", "4-inventory-workspace", "4.2-low-stock-alerts", "7-staff-accounts"]
+    ? ["2-admin-dashboard", "2.7-csv-import", "2.9-data-export", "2.8-sales", "2.1-subaccounts", "2.2-access-approvals", "2.3-sales-documents", "2.4-refunds", "2.5-reservations", "2.6-reports", "3-sales-catalog", "3.9-orders-status-tracking", "3.11-customers", "4-inventory-workspace", "4.2-low-stock-alerts", "7-staff-accounts"]
     : ["2s-staff-dashboard", "3-sales-catalog", "3.9-orders-status-tracking", "3.11-customers", "3.3-sales-documents", "4-inventory-workspace", "4.2-low-stock-alerts", "5-reservations"];
 
   return (
@@ -345,8 +345,8 @@ function PageHeader({ screen, authUser }) {
           <ScreenLink className="button button--outline" screen={screens.find((item) => item.id === "2.7-csv-import")}>
             <Icon name="file" size={14} /> Import CSV
           </ScreenLink>
-          <ScreenLink className="button button--outline" screen={screens.find((item) => item.id === "6-sales-inventory-reports")}>
-            <Icon name="chart" size={14} /> Export report
+          <ScreenLink className="button button--outline" screen={screens.find((item) => item.id === "2.9-data-export")}>
+            <Icon name="file" size={14} /> Export records
           </ScreenLink>
           {authUser?.role === "Admin" && (
             <ScreenLink className="button button--pink" screen={screens.find((item) => item.id === "7-staff-accounts")}>
@@ -1233,15 +1233,9 @@ function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewSta
           {screen.kind === "dashboard" && <Dashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
           {screen.kind === "staff-dashboard" && <StaffDashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
           {screen.kind === "csv-import" && <CsvImportPanel authUser={authUser} existingRecords={overviewState.data?.records} onImported={onRefresh} />}
-          {screen.kind === "table" && <EmptyTable screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
-          {screen.kind === "catalog" && <RecordsTable
-            kind="products"
-            rows={overviewState.data?.records?.products}
-            title="Product catalog"
-            authUser={authUser}
-            canEdit={isAdmin(authUser)}
-            onRecordUpdated={onRefresh}
-          />}
+          {screen.kind === "data-export" && <DataExportPanel authUser={authUser} records={overviewState.data?.records} />}
+          {screen.kind === "table" && <EmptyTable screen={screen} overview={overviewState.data} />}
+          {screen.kind === "catalog" && <RecordsTable kind="products" rows={overviewState.data?.records?.products} title="Product catalog" />}
           {screen.kind === "form" && <FormPanel key={screen.id} screen={screen} authUser={authUser} onActionSaved={onRefresh} />}
           {screen.kind === "detail" && <DetailPanel screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
           {screen.kind === "success" && <DetailPanel screen={screen} success overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}

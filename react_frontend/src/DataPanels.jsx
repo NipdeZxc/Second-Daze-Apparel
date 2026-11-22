@@ -8,6 +8,7 @@ import {
   parseDatasetFile,
 } from "./data/datasetImport.js";
 import { deleteRecord, exportWorkspaceData, importDatasetBatch, importRecords, runRowAction, updateRecord } from "./api/workspace.js";
+import { createWorkspaceExcel, serializeWorkspaceCsv } from "./data/export.js";
 
 export const screenDatasets = {
   "3.9-orders-status-tracking": "orders",
@@ -540,7 +541,8 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
           <p className="form-note">Optional columns: {importColumns(kind).filter((column) => column.optional).map((column) => column.key).join(", ")}.</p>
         )}
         <p className="form-note">Use plain numbers without currency symbols or thousands separators.
-          This importer only adds products and customers. Use the Admin-only batch importer below for the provided TiDB dataset files.</p>
+          For products, matching product codes add <code>stock_quantity</code> to available stock without changing product details; new codes create products with that initial stock. Import a shipment only once.
+          Duplicate identifiers within a file reject the entire import. Orders, reservations and sales are created through their workflows, not by import. Admins can load the full TiDB dataset with the batch importer below.</p>
         {error && <p className="inline-error" role="alert">{error}</p>}
         {message && <p className="form-note" role="status">{message}</p>}
         {preview && (
@@ -552,8 +554,10 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
               setError("");
               setBusy(true);
               try {
-                await importRecords({ kind, fileName: file?.name || "import.csv", records: preview });
-                setMessage(`Imported ${preview.length} ${definition.label.toLowerCase()} record(s) into the database.`);
+                const result = await importRecords({ kind, fileName: file?.name || "import.csv", records: preview });
+                setMessage(kind === "products"
+                  ? `Imported ${result.imported} product(s): ${result.created} new, ${result.imported - result.created} existing. Added ${result.stockAdded} unit(s) to stock.`
+                  : `Imported ${result.imported} ${definition.label.toLowerCase()} record(s) into the database.`);
                 setPreview(null);
                 onImported?.();
               } catch (saveError) {
@@ -615,6 +619,71 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
     </section>
   );
 }
+
+function downloadFile(contents, mimeType, filename) {
+  const url = URL.createObjectURL(new Blob([contents], { type: mimeType }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function DataExportPanel({ authUser, records }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  if (authUser?.role !== "Admin") return <p role="alert">Only an Admin can export workspace data.</p>;
+  if (!records) return <p className="data-notice" role="status">Workspace records are not loaded yet. Refresh and try again.</p>;
+
+  const filename = `second-daze-records-${new Date().toISOString().slice(0, 10)}`;
+  const runExport = async (format) => {
+    setError("");
+    setMessage("");
+    setBusy(true);
+    try {
+      if (format === "csv") {
+        downloadFile(serializeWorkspaceCsv(records), "text/csv;charset=utf-8", `${filename}.csv`);
+      } else {
+        const workbook = createWorkspaceExcel(records);
+        downloadFile(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `${filename}.xlsx`);
+      }
+      const count = Object.keys(datasets).reduce((total, kind) => total + (records[kind] || []).length, 0);
+      setMessage(`Exported ${count} records.`);
+    } catch (exportError) {
+      setError(exportError.message || "Workspace records could not be exported.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="panel csv-import">
+      <div className="panel__top">
+        <div><h2>Export all records</h2><p>Download the records available in the shared workspace.</p></div>
+      </div>
+      <div className="csv-import__content">
+        <p className="data-notice">
+          Exports products, customers, orders, sales, reservations, refunds, sales documents, and staff accounts.
+          CSV combines these record types in one file with a <code> record_type</code> column; Excel creates a
+          separate sheet for each type. Exported fields follow the workspace record lists.
+        </p>
+        <div className="csv-import__actions">
+          <button type="button" className="button button--outline" disabled={busy} onClick={() => runExport("csv")}>
+            {busy ? "Preparing export…" : "Download CSV"}
+          </button>
+          <button type="button" className="button button--primary" disabled={busy} onClick={() => runExport("excel")}>
+            {busy ? "Preparing export…" : "Download Excel"}
+          </button>
+        </div>
+        {error && <p className="inline-error" role="alert">{error}</p>}
+        {message && <p className="form-note" role="status">{message}</p>}
+      </div>
+    </section>
+  );
+}
+
 
 export function DataReports({ overview, authUser }) {
   const [exporting, setExporting] = useState("");

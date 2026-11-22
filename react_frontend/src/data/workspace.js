@@ -117,12 +117,16 @@ export function validateRecords(kind, records, existing = emptyRecords()) {
   const definition = definitionFor(kind);
   const columns = importColumns(kind);
   if (!records.length || records.length > MAX_ROWS) throw new Error(`Import between 1 and ${MAX_ROWS} rows at a time.`);
-  const seen = new Set((existing[kind] || []).map((record) => String(record[definition.importKey]).toLowerCase()));
+  const existingIds = new Set((existing[kind] || []).map((record) => String(record[definition.importKey]).toLowerCase()));
+  const seen = new Set();
   return records.map((record, index) => {
     try {
       const normalized = Object.fromEntries(columns.map((column) => [column.key, normalizeValue(record[column.key], column)]));
       const id = String(normalized[definition.importKey]).toLowerCase();
-      if (seen.has(id)) throw new Error(`Duplicate ${definition.importKey}: ${normalized[definition.importKey]}. Existing records are not overwritten.`);
+      if (seen.has(id)) throw new Error(`Duplicate ${definition.importKey}: ${normalized[definition.importKey]} within this file.`);
+      if (kind !== "products" && existingIds.has(id)) {
+        throw new Error(`Duplicate ${definition.importKey}: ${normalized[definition.importKey]}. Existing records are not overwritten.`);
+      }
       seen.add(id);
       return normalized;
     } catch (error) {

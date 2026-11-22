@@ -103,9 +103,12 @@ download its header-only template:
 
 Prices must be non-negative plain numbers with at most two decimal places and
 quantities non-negative whole numbers. Each file may contain up to 5,000 data
-rows and must be 2 MB or smaller. Select **Preview CSV**, review the first ten
-rows, then **Import records**. Invalid rows and duplicate identifiers reject the
-entire import; imports only add records and never overwrite existing ones.
+rows and must be 2 MB or smaller. Select **Preview CSV**, review the first ten rows, then **Import records**.
+Invalid rows and duplicate identifiers within the file reject the entire import.
+For products, a new product code creates a product with the CSV stock quantity;
+an existing product code adds that quantity to current stock and records a stock
+movement without changing the product details. Import each shipment only once.
+Existing customer contact numbers are rejected rather than overwritten.
 
 For the files in [`dataset/`](./dataset/), use **Import multiple TiDB dataset
 files** and select one or more files at once. The files are named after the
@@ -129,6 +132,16 @@ customers.
 
 Run the CSV validation and dashboard aggregation tests with
 `npm --prefix react_frontend test` from the repository root.
+
+## Export records
+
+Sign in as an Admin, then choose **Export records** from the sidebar or
+dashboard. **Download CSV** creates one UTF-8 CSV containing the shared
+workspace records; its `record_type` column identifies each row.
+**Download Excel** creates an `.xlsx` workbook with a separate sheet for each
+record type. Exports include products, customers, orders, sales, reservations,
+refunds, sales documents, and staff accounts. Exported columns match the
+workspace record lists. Staff accounts cannot access this screen.
 
 ## Deploy to Vercel
 

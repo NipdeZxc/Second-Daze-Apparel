@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildOverview, buildWeeklyReport, csvTemplate, emptyRecords, getFridayReviewWeek, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
+import Papa from "papaparse";
+import { strFromU8, unzipSync } from "fflate";
+import { buildOverview, buildWeeklyReport, csvTemplate, datasets, emptyRecords, getFridayReviewWeek, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
 import { datasetImportFiles, parseDatasetFile } from "./datasetImport.js";
+import { createWorkspaceExcel, serializeWorkspaceCsv } from "./export.js";
 
 const productCsv = `${csvTemplate("products")}TEST-1,"Shirt, ""Blue""",Tops,M,100.10,200.20,2,3`;
 const customerCsv = `${csvTemplate("customers")}Test Customer,09123456789,"Line one
@@ -45,10 +48,11 @@ test("numeric and contact validation reject invalid business data with row error
   assert.throws(() => parseImport("customers", customerCsv.replace("09123456789", "12345")), /contact_number/);
 });
 
-test("duplicates within a file or against existing records are rejected", () => {
+test("existing product codes can be restocked, but duplicates within a file and existing customers are rejected", () => {
   const existing = { ...emptyRecords(), products: [{ product_code: "TEST-1" }] };
-  assert.throws(() => parseImport("products", productCsv, existing), /Duplicate product_code/);
-  assert.throws(() => parseImport("products", productCsv.replace("TEST-1", "test-1"), existing), /Duplicate product_code/);
+  assert.equal(parseImport("products", productCsv, existing)[0].stock_quantity, 2);
+  const existingCustomer = { ...emptyRecords(), customers: [{ contact_number: "09123456789" }] };
+  assert.throws(() => parseImport("customers", customerCsv, existingCustomer), /Duplicate contact_number/);
   assert.throws(() => parseImport("products", `${productCsv}\n${productCsv.split("\n").at(-1)}`), /Data row 2: Duplicate product_code/);
 });
 
@@ -154,3 +158,47 @@ test("Friday review week returns Monday through the most recent Friday", () => {
   assert.equal(range.end.toISOString().slice(0, 10), "2026-11-20");
 });
 
+test("CSV export includes every dataset and safely escapes spreadsheet formulas", () => {
+  const workspace = emptyRecords();
+  workspace.products.push({ product_code: "SKU-1", product_name: '=HYPERLINK("https://example.invalid")' });
+  workspace.customers.push({ customer_id: 1, full_name: "Customer, One" });
+  workspace.orders.push({ order_number: "ORD-1" });
+  workspace.sales.push({ sale_no: "SALE-1" });
+  workspace.reservations.push({ reservation_number: "RES-1" });
+  workspace.refunds.push({ refund_number: "REF-1" });
+  workspace.documents.push({ doc_number: "DOC-1" });
+  workspace.accounts.push({ username: "staff-1" });
+
+  const csv = serializeWorkspaceCsv(workspace);
+  assert.ok(csv.startsWith('\uFEFF"record_type","product_code"'));
+  const [headers, ...rows] = Papa.parse(csv.replace(/^\uFEFF/, ""), { skipEmptyLines: true }).data;
+  const product = Object.fromEntries(headers.map((header, index) => [header, rows[0][index]]));
+  const customer = Object.fromEntries(headers.map((header, index) => [header, rows[1][index]]));
+  assert.equal(product.record_type, "products");
+  assert.equal(product.product_code, "SKU-1");
+  assert.equal(product.product_name, `'=HYPERLINK("https://example.invalid")`);
+  assert.equal(customer.record_type, "customers");
+  assert.equal(customer.full_name, "Customer, One");
+  assert.deepEqual(rows.map((row) => row[headers.indexOf("record_type")]), [
+    ...Object.keys(datasets),
+  ]);
+});
+
+test("Excel export writes one sheet per dataset with all stored rows", async () => {
+  const workspace = emptyRecords();
+  workspace.orders.push({ order_number: "ORD-1", total_amount: 250 });
+  const output = createWorkspaceExcel(workspace);
+  const files = unzipSync(output);
+  const workbookXml = strFromU8(files["xl/workbook.xml"]);
+  const orderSheetIndex = Object.keys(datasets).indexOf("orders") + 1;
+  const orderSheet = strFromU8(files[`xl/worksheets/sheet${orderSheetIndex}.xml`]);
+
+  for (const dataset of Object.values(datasets)) {
+    assert.ok(workbookXml.includes(`name="${dataset.label}"`));
+  }
+  const orderNumberColumn = datasets.orders.columns.findIndex((column) => column.key === "order_number");
+  const amountColumn = datasets.orders.columns.findIndex((column) => column.key === "total_amount");
+  const columnName = (index) => String.fromCharCode(65 + index);
+  assert.match(orderSheet, new RegExp(`<c r="${columnName(orderNumberColumn)}2" t="inlineStr"><is><t xml:space="preserve">ORD-1<\\/t><\\/is><\\/c>`));
+  assert.match(orderSheet, new RegExp(`<c r="${columnName(amountColumn)}2"><v>250<\\/v><\\/c>`));
+});
