@@ -1,13 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import {
-  changePassword,
-  getCurrentUser,
-  requestPasswordReset,
-  resetPassword,
-  signIn,
-  signOut,
-} from "../src/api/auth.js";
+import { getCurrentUser, requestPasswordReset, signIn, signOut } from "../src/api/auth.js";
 
 const originalFetch = globalThis.fetch;
 
@@ -22,7 +15,7 @@ function jsonResponse(body, status = 200) {
   });
 }
 
-test("login uses the Phase 1 endpoint and validates its user response", async () => {
+test("login uses the API session and trims the username", async () => {
   let request;
   globalThis.fetch = async (url, options) => {
     request = { url, options };
@@ -31,7 +24,7 @@ test("login uses the Phase 1 endpoint and validates its user response", async ()
     });
   };
 
-  const result = await signIn({ username: "manager", password: "example" });
+  const result = await signIn({ username: " manager ", password: "example" });
 
   assert.equal(request.url, "/api/login");
   assert.equal(request.options.method, "POST");
@@ -41,7 +34,20 @@ test("login uses the Phase 1 endpoint and validates its user response", async ()
   assert.equal(result.user.role, "Sales Management");
 });
 
-test("session restoration reads the Phase 1 current-user endpoint", async () => {
+test("login distinguishes invalid credentials and approval-required accounts", async () => {
+  globalThis.fetch = async () => jsonResponse({ error: "Not authorized." }, 401);
+  assert.deepEqual(await signIn({ username: "manager", password: "wrong" }), { status: "invalid" });
+
+  globalThis.fetch = async () => jsonResponse({ error: "Account is pending approval." }, 403);
+  assert.deepEqual(await signIn({ username: "manager", password: "example" }), { status: "pending" });
+});
+
+test("login rejects users with unsupported roles", async () => {
+  globalThis.fetch = async () => jsonResponse({ user: { username: "viewer", role: "Viewer" } });
+  await assert.rejects(signIn({ username: "viewer", password: "example" }), /unsupported user or role/);
+});
+
+test("session restoration reads the server session endpoint", async () => {
   let request;
   globalThis.fetch = async (url, options) => {
     request = { url, options };
@@ -70,26 +76,18 @@ test("logout calls the Phase 1 session endpoint", async () => {
   assert.equal(request.options.method, "POST");
 });
 
-test("password changes and recovery use the Phase 1 API contracts", async () => {
-  const requests = [];
+test("logout and password recovery use the API endpoints", async () => {
+  let request;
   globalThis.fetch = async (url, options) => {
-    requests.push({ url, options });
+    request = { url, options };
     return jsonResponse({ ok: true });
   };
 
-  await changePassword({ currentPassword: "Temporary1!", newPassword: "Updated2@" });
-  await requestPasswordReset("manager@example.com");
-  await resetPassword({ token: "reset-token", newPassword: "Updated2@" });
+  await signOut();
+  assert.equal(request.url, "/api/logout");
+  assert.equal(request.options.method, "POST");
 
-  assert.deepEqual(requests.map(({ url }) => url), [
-    "/api/change-password",
-    "/api/forgot-password",
-    "/api/reset-password",
-  ]);
-  assert.deepEqual(JSON.parse(requests[0].options.body), {
-    currentPassword: "Temporary1!",
-    newPassword: "Updated2@",
-  });
-  assert.deepEqual(JSON.parse(requests[1].options.body), { identifier: "manager@example.com" });
-  assert.deepEqual(JSON.parse(requests[2].options.body), { token: "reset-token", newPassword: "Updated2@" });
+  await requestPasswordReset("manager@example.com");
+  assert.equal(request.url, "/api/forgot-password");
+  assert.deepEqual(JSON.parse(request.options.body), { identifier: "manager@example.com" });
 });

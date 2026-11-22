@@ -251,6 +251,14 @@ td { border-top: 1px solid #f1e7ee; padding: 14px; font-size: 10px; }
 .dashboard-notifications { position: relative; display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border: 1px solid var(--line); border-radius: 10px; color: var(--text); }
 .dashboard-notifications:hover { border-color: var(--accent); background: #fff7fb; }
 .dashboard-notifications__dot { position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border: 1px solid var(--white); border-radius: 50%; background: #bd4d93; }
+.notification-center { overflow: hidden; }
+.notification-center .form-feedback { display: block; margin: 0 18px 12px; }
+.notification-list { display: grid; margin: 0; border-top: 1px solid var(--line); padding: 0; list-style: none; }
+.notification-list li { display: grid; grid-template-columns: minmax(100px, .3fr) minmax(0, 1fr) auto; align-items: center; gap: 12px; border-bottom: 1px solid #f1e7ee; padding: 13px 18px; font-size: 10px; }
+.notification-list__category { color: var(--primary); font-weight: 600; }
+.notification-list__message { min-width: 0; overflow-wrap: anywhere; }
+.notification-list time { color: var(--muted); font-size: 9px; }
+.notification-list__unread { background: #fff7fb; }
 .dashboard-profile-menu { position: relative; flex: 0 0 auto; }
 .dashboard-profile { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 4px 9px 4px 5px; color: var(--text); background: var(--white); text-align: left; }
 .dashboard-profile:hover, .dashboard-profile[aria-expanded="true"] { background: #fff7fb; }
@@ -405,6 +413,8 @@ td { border-top: 1px solid #f1e7ee; padding: 14px; font-size: 10px; }
   .dashboard-search { width: auto; min-width: 36px; flex: 1; height: 32px; padding: 0 8px; }
   .dashboard-search input { font-size: 9px; }
   .dashboard-notifications { width: 32px; height: 32px; }
+  .notification-center .panel__top { flex-wrap: wrap; }
+  .notification-list li { grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 12px 14px; }
   .dashboard-profile { border: 0; padding: 0; }
   .dashboard-profile > span:last-child { display: none; }
   .sidebar--dashboard { position: relative; top: auto; grid-column: 1; grid-row: 2; height: auto; min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); padding: 9px 12px; }

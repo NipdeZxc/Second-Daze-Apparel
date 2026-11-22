@@ -8,6 +8,7 @@ const roleNavigation = {
   Admin: [
     "2-admin-dashboard",
     "2.7-csv-import",
+    "2.9-data-export",
     "2.8-sales",
     "2.1-subaccounts",
     "2.2-access-approvals",
@@ -46,11 +47,11 @@ const roleNavigation = {
 const roleScreens = {
   Admin: [],
   "Sales Management": [
+    "2s-staff-dashboard",
     "3.1-checkout-pending-payment",
     "3.2-sale-completed",
     "3.4-new-refund-request",
     "3.5-refund-condition-review",
-    "3.6-approval-request-detail",
     "3.7-refund-completed",
     "3.8-checkout-gcash-payment",
     "3.10-order-detail-shipment",
@@ -66,6 +67,10 @@ const roleScreens = {
   "Inventory Management": ["4.1-stock-movement-saved"],
 };
 
+export function isSupportedRole(role) {
+  return Object.hasOwn(roleHomeScreens, normalizeRole(role));
+}
+
 export function normalizeRole(role) {
   return role === "Staff" ? "Sales Management" : role;
 }
@@ -75,7 +80,7 @@ export function homeScreenForRole(role) {
 }
 
 export function navigationForRole(role) {
-  return roleNavigation[normalizeRole(role)] || roleNavigation["Sales Management"];
+  return roleNavigation[normalizeRole(role)] || [];
 }
 
 export function canAccessScreen(role, screenId) {

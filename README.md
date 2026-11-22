@@ -16,46 +16,37 @@ Rheinwell Q. Palomares
 ## Second Daze Apparel frontend
 
 The deployable frontend is the React + Vite app in [`react_frontend`](./react_frontend/).
-It includes the admin workspace and an independently accessible mobile
-companion with its own sign-in and navigation. The original high-fidelity
-screenshots are retained in [`High Fidelity`](<./High%20Fidelity/>), and
+It provides separate Admin, Sales Management, and Inventory Management
+workspaces in one responsive app. The original high-fidelity screenshots are retained in [`High Fidelity`](<./High%20Fidelity/>), and
 [`second_daze_physical_schema.sql`](./second_daze_physical_schema.sql) is kept
 as a backend reference.
 
 ## Run locally
 
-Install Node.js 20.19 or newer, then from the repository root run:
+Install Node.js 20.19 or newer, then from the repository root install the
+dependencies and start the integrated frontend/API app:
 
 ```powershell
-cd react_frontend
 npm ci
-npm run dev
+npm --prefix react_frontend ci
+npx vercel dev
 ```
 
-Open the Vite URL printed in the terminal (usually `http://127.0.0.1:5173/`).
-The app opens on staff sign-in. In development, use `admin` / `admin` for the
-admin dashboard or `staff` / `staff` for the staff dashboard.
-Use `pending@demo.local` with any non-empty password to
-view the pending-approval screen. These demo credentials are not real
-authentication and must not be used to protect production data.
+Configure the required database and session environment variables before
+signing in. The app uses the server-backed login and session endpoints; it has
+no demo login or browser-local business data. A Vite-only `npm run dev` does not
+serve the `/api/*` functions.
 
-Admin and staff menus share the same header, sidebar, typography, and responsive
-layout across dashboards, orders, customers, and other workspace modules.
-Click the name (or avatar on small screens) in the top-right corner and choose
-**Log out** to return to sign-in.
-Use the sidebar to move between workspace modules. Dashboard queues,
-quick actions, and each page's related-workflow links connect common tasks—for
-example, a refund request leads to item review and approval, while order details
-lead to delivery confirmation. The mobile companion is a separate entry at
-`http://127.0.0.1:5173/mobile` (or `https://your-vercel-domain/mobile`); it has
-its own sign-in, Home/Approvals/Orders/Inventory navigation, notifications, and
-sign-out. There is no link between the two app shells. Sign in with the same
-backend account on either surface to use the same workspace.
+The workspace navigation and dashboards are specific to Admin, Sales
+Management, and Inventory Management. The same app reflows for desktop and
+mobile; the legacy `/mobile` URL redirects to the signed-in user's workspace.
+Use the sidebar (or its compact mobile navigation) to move between modules.
+Related-workflow links connect tasks such as creating a refund request,
+reviewing it, and recording the Admin decision.
 
-Both surfaces read the same database-backed endpoint, `GET /api/data/records`.
-They refresh it when opened, on demand, and every 30 seconds, so changes made on
-one surface appear on the other. Nothing is stored in the browser except a
-username/role hint; the session is an HttpOnly cookie validated by `/api/me`.
+Workspace records are loaded from `GET /api/data/records` and refreshed on
+demand and every 30 seconds. Authentication is restored from the server-validated
+HttpOnly session cookie; the browser does not persist user or business records.
 
 ## Database-backed features
 
@@ -130,7 +121,8 @@ Data tables include search, sortable columns, status filters, pagination, View,
 and the row actions allowed for the signed-in role. Admins can edit products and
 customers.
 
-Run the CSV validation and dashboard aggregation tests with
+Run the frontend, API-client, role-access, CSV validation, and dashboard
+aggregation tests with
 `npm --prefix react_frontend test` from the repository root.
 
 ## Export records
@@ -158,7 +150,8 @@ functions as well as the React frontend. The root `vercel.json` contains these
 build settings.
 
 The app uses hash-based routes, so direct navigation to a screen does not need
-extra Vercel rewrite rules. The Vercel rewrite serves the SPA at `/mobile`.
+extra Vercel rewrite rules. The legacy `/mobile` rewrite opens the same
+responsive app and routes to the signed-in user's role dashboard.
 
 ## Backend API
 
