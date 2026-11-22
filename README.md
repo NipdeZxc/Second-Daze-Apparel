@@ -107,7 +107,7 @@ rows and must be 2 MB or smaller. Select **Preview CSV**, review the first ten r
 Invalid rows and duplicate identifiers within the file reject the entire import.
 For products, a new product code creates a product with the CSV stock quantity;
 an existing product code adds that quantity to current stock and records a stock
-movement without changing the product details. Import each shipment only once.
+movement without changing the product details. A file whose product codes and quantities were already imported is rejected, even if renamed, so stock is never added twice; change the quantities to import a new shipment.
 Existing customer contact numbers are rejected rather than overwritten.
 
 For the files in [`dataset/`](./dataset/), use **Import multiple TiDB dataset

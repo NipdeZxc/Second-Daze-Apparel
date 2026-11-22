@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import handler, { normalizeDataRouteUrl } from "./[...route].js";
 import apiHandler from "../[...route].js";
-import { importProductRow } from "../_lib/routes/data.js";
+import { importProductRow, restockLabel } from "../_lib/routes/data.js";
 
 function fakeConnection(existingProducts = [], insertId = 12) {
   const calls = [];
@@ -136,4 +136,21 @@ test("CSV import creates new products and records their initial stock", async ()
   assert.match(conn.calls[1].sql, /INSERT INTO products/);
   assert.deepEqual(conn.calls[1].params, ["SKU-8", "Dress", null, null, 12, 24, 3, 2, 4]);
   assert.deepEqual(conn.calls[2].params, [12, "Stock In", 3, "Import", null, "new-products.csv", 4]);
+});
+
+
+test("re-importing the same restock file is rejected, even when renamed", async () => {
+  const records = [{ product_code: "SKU-7", stock_quantity: "5" }, { product_code: "SKU-8", stock_quantity: "3" }];
+  let tag;
+  const first = { async query() { return [[]]; } };
+  tag = (await restockLabel(first, records, "restock.csv")).split(" ").pop();
+  assert.match(tag, /^\[#[0-9a-f]{16}\]$/);
+
+  const seen = { async query(sql, params) { return [params[0] === `%${tag}` ? [{ 1: 1 }] : []]; } };
+  await assert.rejects(
+    restockLabel(seen, [...records].reverse(), "renamed.csv"),
+    (error) => error.status === 409 && /already imported/.test(error.message)
+  );
+  const changed = [{ product_code: "SKU-7", stock_quantity: "6" }, records[1]];
+  assert.match(await restockLabel(seen, changed, "restock.csv"), /^restock\.csv \[#/);
 });

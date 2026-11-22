@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { getPool } from "../../_db.js";
 import { HttpError, parseId, requireFields, sendJson } from "../http.js";
 import { audit, requireRole, requireUser } from "../auth.js";
@@ -440,6 +441,23 @@ function customerFields(source) {
   };
 }
 
+// The same restock file must not add its quantities twice. The content fingerprint is kept in the
+// Stock In remarks, so a repeated file is recognised even when it is renamed.
+export async function restockLabel(conn, records, fileName) {
+  const rows = records
+    .map((record) => [text(record.product_code).toLowerCase(), String(record.stock_quantity ?? "").trim()])
+    .sort(([a], [b]) => a.localeCompare(b));
+  const tag = `[#${crypto.createHash("sha256").update(JSON.stringify(rows)).digest("hex").slice(0, 16)}]`;
+  const [duplicate] = await conn.query(
+    `SELECT 1 FROM stock_movements WHERE reference_type = 'Import' AND remarks LIKE ? LIMIT 1`,
+    [`%${tag}`]
+  );
+  if (duplicate.length) {
+    throw new HttpError(409, "This product file was already imported, so its stock was not added again. Change the quantities to import a new shipment.");
+  }
+  return `${fileName.slice(0, 200)} ${tag}`;
+}
+
 export async function importRecords(req, res) {
   const admin = await requireRole(req, ADMIN);
   const { kind, records } = req.body;
@@ -451,6 +469,7 @@ export async function importRecords(req, res) {
 
   const summary = await withTransaction(async (conn) => {
     const seen = new Set();
+    const importLabel = kind === "products" ? await restockLabel(conn, records, fileName) : fileName;
     let created = 0;
     let stockAdded = 0;
     for (const [index, record] of records.entries()) {
@@ -460,7 +479,7 @@ export async function importRecords(req, res) {
           const key = fields.product_code.toLowerCase();
           if (seen.has(key)) throw new HttpError(409, `Duplicate product code ${fields.product_code}.`);
           seen.add(key);
-          const outcome = await importProductRow(conn, admin, fields, fileName);
+          const outcome = await importProductRow(conn, admin, fields, importLabel);
           if (outcome === "created") created += 1;
           stockAdded += fields.stock_quantity;
         } else {
