@@ -124,11 +124,20 @@ td { border-top: 1px solid #f1e7ee; padding: 14px; font-size: 10px; }
 .csv-import__preview { min-width: 0; margin-top: 20px; }
 .csv-import__preview h3 { font-size: 12px; }
 .csv-import__preview .button { margin-top: 14px; }
+.csv-import__batch { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 20px; }
+.csv-import__batch > h3 { margin: 0 0 8px; font-size: 12px; }
+.csv-import__batch ul { margin: 12px 0 0; padding-left: 20px; color: var(--muted); font-size: 10px; line-height: 1.8; }
+.csv-import__batch .button { margin-top: 14px; }
 .form-panel { padding-bottom: 17px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 3px 18px 18px; }
 .field { display: grid; gap: 6px; color: #675064; font-size: 10px; font-weight: 600; }
 .field--wide { grid-column: 1 / -1; }
 .field input, .field textarea, .field select { width: 100%; min-height: 39px; border: 1px solid #e8d8e3; border-radius: 8px; outline: 0; padding: 9px 11px; color: var(--text); background: #fffdfb; font-size: 10px; font-weight: 400; }
+.password-field { position: relative; }
+.password-field input { padding-right: 40px; }
+.password-visibility { position: absolute; top: 50%; right: 7px; display: grid; width: 30px; height: 30px; place-items: center; transform: translateY(-50%); border: 0; border-radius: 6px; padding: 0; color: var(--muted); background: transparent; cursor: pointer; }
+.password-visibility:hover { color: var(--primary); background: #f8e9f2; }
+.password-visibility:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .field textarea { resize: vertical; }
 .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(149,68,120,.09); }
 .field input::placeholder, .field textarea::placeholder { color: #b8a8b5; }
@@ -146,10 +155,19 @@ td { border-top: 1px solid #f1e7ee; padding: 14px; font-size: 10px; }
 .detail-placeholder strong { color: #685269; font-size: 10px; font-weight: 500; }
 .detail-panel--success .detail-panel__icon { color: #45876d; background: #e9f5ee; }
 .report-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.report-controls { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 14px; padding: 12px 17px; }
+.report-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.report-tab { border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; background: var(--white); color: var(--muted); cursor: pointer; font-size: 10px; }
+.report-tab--active { border-color: #a75f8e; background: #f8edf4; color: #704a64; }
+.report-view { display: grid; gap: 5px; color: var(--muted); font-size: 9px; }
+.report-view select { min-width: 150px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; background: var(--white); color: var(--ink); font-size: 10px; }
+.report-period { margin: 0 0 10px; color: var(--muted); font-size: 9px; }
 .report-card { min-height: 210px; padding: 17px; }
 .report-card .eyebrow { margin-bottom: 8px; font-size: 9px; }
 .report-card p { margin: 5px 0 0; color: var(--muted); font-size: 9px; }
 .report-card__empty { display: grid; min-height: 100px; place-items: center; margin-top: 16px; border-radius: 8px; color: #a08c9d; background: #fcf8fb; font-size: 9px; }
+.report-exports { margin-top: 14px; padding: 17px; }
+.report-export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .catalog-panel .empty-message { min-height: 300px; border-top: 1px solid var(--line); }
 
 /* Authentication preview */
@@ -336,6 +354,9 @@ td { border-top: 1px solid #f1e7ee; padding: 14px; font-size: 10px; }
 .record-actions { display: flex; gap: 5px; }
 .table-action { border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; color: var(--primary); background: var(--white); font-size: 8px; font-weight: 600; }
 .table-action:hover { border-color: var(--accent); background: #fff7fb; }
+.table-action--danger { color: #a42e4c; }
+.table-action--danger:hover { border-color: #d78191; background: #fff2f4; }
+.table-action:disabled { cursor: wait; opacity: .6; }
 .table-pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding: 10px 14px; color: var(--muted); font-size: 9px; }
 .table-pagination > div { display: flex; align-items: center; gap: 8px; }
 .table-pagination .button { min-height: 30px; padding: 0 9px; font-size: 8px; }
