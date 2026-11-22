@@ -21,9 +21,11 @@ export async function apiRequest(path, { method = "GET", body, headers = {}, sig
       : await response.text();
 
   if (!response.ok) {
-    const error = new Error(
-      data?.detail || data?.message || data?.error || `Request failed with status ${response.status}.`,
-    );
+    const detail = data?.error ?? data?.detail ?? data?.message ?? (typeof data === "string" ? data.slice(0, 200) : "");
+    const readable = typeof detail === "string"
+      ? detail
+      : detail?.message || detail?.code || JSON.stringify(detail);
+    const error = new Error(readable || `Request failed with status ${response.status}.`);
     error.status = response.status;
     error.data = data;
     throw error;

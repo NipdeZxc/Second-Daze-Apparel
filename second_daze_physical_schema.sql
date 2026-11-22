@@ -6,7 +6,7 @@
 --          Every column below traces to a field, label, status, or rule
 --          that appears on a screen. Other project files = context only.
 --  NOT used as basis: PDF pp. 7-13 (older template screens: branches,
---          Manager / Store Lead roles, Quotations, Transfers, evidence files).
+--          Manager / Store Lead roles, Transfers, evidence files).
 --          They conflict with the 3-role, single-business scope.
 --  Time zone: run the server/session in Asia/Manila (+08:00) so NOW()
 --          and the auto-void event match the "PHT" times in the UI.
@@ -202,7 +202,7 @@ CREATE TABLE reservations (
   reservation_id   INT UNSIGNED NOT NULL AUTO_INCREMENT,
   reservation_no   VARCHAR(20) NOT NULL,                  -- RSV-309
   customer_id      INT UNSIGNED NOT NULL,                 -- "Customer *"
-  fulfillment_type ENUM('Store Pickup','Delivery') NOT NULL DEFAULT 'Store Pickup',
+  fulfillment_type ENUM('Delivery') NOT NULL DEFAULT 'Delivery',
   requested_by     INT UNSIGNED NOT NULL,                 -- Sales (M. Santos)
   requested_at     DATETIME NOT NULL,                     -- "Request entered" (day 1)
   agreed_days      TINYINT UNSIGNED NOT NULL,             -- "Agreed days *" (user input, inclusive count)
@@ -217,7 +217,7 @@ CREATE TABLE reservations (
   approved_at      DATETIME NULL,
   hold_activated_at DATETIME NULL,                        -- stock hold starts on approval
   rejection_reason VARCHAR(255) NULL,                     -- "Required only when rejecting"
-  pickup_note      VARCHAR(255) NULL,                     -- "Pickup note"
+  reservation_note VARCHAR(255) NULL,                     -- "Reservation note"
   voided_at        DATETIME NULL,                         -- auto-void or cancel time
   voided_by        INT UNSIGNED NULL,                     -- NULL + status Expired = system auto-void
   void_reason      VARCHAR(255) NULL,

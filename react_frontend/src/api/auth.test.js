@@ -7,7 +7,7 @@ import {
   resetPassword,
   signIn,
   signOut,
-} from "../src/api/auth.js";
+} from "./auth.js";
 
 const originalFetch = globalThis.fetch;
 
@@ -22,7 +22,7 @@ function jsonResponse(body, status = 200) {
   });
 }
 
-test("login uses the Phase 1 endpoint and validates its user response", async () => {
+test("login posts to the session endpoint and returns the backend role", async () => {
   let request;
   globalThis.fetch = async (url, options) => {
     request = { url, options };
@@ -31,7 +31,7 @@ test("login uses the Phase 1 endpoint and validates its user response", async ()
     });
   };
 
-  const result = await signIn({ username: "manager", password: "example" });
+  const result = await signIn({ username: " manager ", password: "example" });
 
   assert.equal(request.url, "/api/login");
   assert.equal(request.options.method, "POST");
@@ -41,33 +41,36 @@ test("login uses the Phase 1 endpoint and validates its user response", async ()
   assert.equal(result.user.role, "Sales Management");
 });
 
-test("session restoration reads the Phase 1 current-user endpoint", async () => {
-  let request;
-  globalThis.fetch = async (url, options) => {
-    request = { url, options };
-    return jsonResponse({
-      user: { username: "admin", role: "Admin", mustChangePassword: true },
-    });
-  };
+test("login distinguishes pending, disabled, and invalid accounts", async () => {
+  globalThis.fetch = async () => jsonResponse({ error: "Pending", data: { status: "pending" } }, 403);
+  assert.equal((await signIn({ username: "new", password: "pw" })).status, "pending");
 
-  const user = await getCurrentUser();
+  globalThis.fetch = async () => jsonResponse({ error: "Disabled", data: { status: "disabled" } }, 403);
+  assert.equal((await signIn({ username: "old", password: "pw" })).status, "disabled");
 
-  assert.equal(request.url, "/api/me");
-  assert.equal(request.options.credentials, "include");
-  assert.equal(user.mustChangePassword, true);
+  globalThis.fetch = async () => jsonResponse({ error: "invalid" }, 401);
+  assert.equal((await signIn({ username: "new", password: "pw" })).status, "invalid");
 });
 
-test("logout calls the Phase 1 session endpoint", async () => {
-  let request;
+test("session restoration and logout use the Phase 1 endpoints", async () => {
+  const requests = [];
   globalThis.fetch = async (url, options) => {
-    request = { url, options };
-    return jsonResponse({ ok: true });
+    requests.push({ url, options });
+    return url === "/api/me"
+      ? jsonResponse({ user: { username: "admin", role: "Admin", mustChangePassword: true } })
+      : jsonResponse({ ok: true });
   };
 
+  const controller = new AbortController();
+  const user = await getCurrentUser({ signal: controller.signal });
   await signOut();
 
-  assert.equal(request.url, "/api/logout");
-  assert.equal(request.options.method, "POST");
+  assert.equal(requests[0].url, "/api/me");
+  assert.equal(requests[0].options.credentials, "include");
+  assert.equal(requests[0].options.signal, controller.signal);
+  assert.equal(user.mustChangePassword, true);
+  assert.equal(requests[1].url, "/api/logout");
+  assert.equal(requests[1].options.method, "POST");
 });
 
 test("password changes and recovery use the Phase 1 API contracts", async () => {

@@ -6,13 +6,16 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test",
+    "test": "node --test src/data/workspace.test.js src/data/formValidation.test.js src/api/auth.test.js src/api/workspace.test.js src/roles.test.js",
     "preview": "vite preview --host 127.0.0.1"
   },
   "engines": {
     "node": ">=20.19.0"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
+    "fflate": "^0.8.3",
+    "papaparse": "^5.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

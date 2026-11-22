@@ -16,76 +16,174 @@ Rheinwell Q. Palomares
 ## Second Daze Apparel frontend
 
 The deployable frontend is the React + Vite app in [`react_frontend`](./react_frontend/).
-It includes role-based Admin, Sales Management, and Inventory Management
-workspaces in one responsive app. The original high-fidelity
+It is one responsive workspace with role-specific navigation and dashboards for
+Admin, Sales Management, and Inventory Management. The same account and session
+work on desktop and in the compact `/mobile` view. The original high-fidelity
 screenshots are retained in [`High Fidelity`](<./High%20Fidelity/>), and
 [`second_daze_physical_schema.sql`](./second_daze_physical_schema.sql) is kept
 as a backend reference.
 
 ## Run locally
 
-Install Node.js 20.19 or newer and the Vercel CLI. The full application uses
-the React frontend and Phase 1 serverless functions in one origin so its secure,
-HttpOnly session cookie works. From the repository root:
+Install Node.js 20.19 or newer, then from the repository root run:
 
 ```powershell
+cd react_frontend
 npm ci
-npm --prefix react_frontend ci
-npx vercel dev
+npm run dev
 ```
 
-Configure the required database and mail environment variables in the local
-Vercel environment before signing in. The frontend no longer has demo accounts
-or browser-local business data. A Vite-only `npm run dev` starts the UI but not
-the `/api/*` functions.
+Open the Vite URL printed in the terminal (usually `http://127.0.0.1:5173/`).
+The app opens on staff sign-in and uses real backend accounts only. An Admin
+creates subaccounts and approves their access; there is no demo login.
 
-The same React app adapts across desktop and mobile, with separate Admin,
-Sales Management, and Inventory Management navigation. These client-side
-navigation rules are for usability only; the server enforces access. The old
-`/mobile` URL redirects to the unified app.
+Each role sees its own dashboard and navigation:
 
-Phase 1 provides authentication, password management, subaccounts, and CSV
-export. Product, customer, order, reservation, refund, reporting, and notification
-data endpoints are not in Phase 1, so those screens show unavailable/empty
-states and the forms only validate locally; they do not claim to save.
+- **Admin** — overview, approvals, reports, CSV/Excel export, staff accounts.
+- **Sales Management** — orders, customers, checkout, reservations, refunds.
+- **Inventory Management** — stock dashboard, inventory, low-stock alerts.
 
-Run the frontend tests with `npm --prefix react_frontend test` and build it with
-`npm run build`.
+Click the name (or avatar on small screens) in the top-right corner and choose
+**Log out** to return to sign-in. Use the sidebar to move between workspace
+modules. Dashboard queues, quick actions, and each page's related-workflow links
+connect common tasks—for example, a refund request leads to item review and
+approval, while order details lead to delivery confirmation.
+
+The compact view at `http://127.0.0.1:5173/mobile` (or
+`https://your-vercel-domain/mobile`) uses the same sign-in, session, and data as
+the desktop layout; it is a responsive view, not a separate account system.
+It opens on the signed-in role's own home screen and shows only that role's
+tabs and notification inbox. Both views read `GET /api/data/records`, refresh on
+demand, and poll every 30 seconds. Nothing is stored in the browser; the session
+is an HttpOnly cookie validated by `/api/me`.
+
+An Admin creates Sales or Inventory subaccounts from **Staff accounts**. The
+new account starts pending approval; the one-time temporary password is shown
+to the Admin and must be changed by the user at first sign-in.
+
+## Database-backed features
+
+Every list, dashboard, report, form and approval reads or writes the TiDB/MySQL
+database (schema: `Team10/second_daze_schema_tidb.sql`) through the `/api`
+serverless function (`api/[...route].js`). The business rules (stock holds,
+payment verification, document numbering, expiry, role checks) are enforced
+server-side in `api/_lib/routes/data.js`.
+
+Required environment variables on Vercel: `DB_HOST`, `DB_PORT`, `DB_USER`,
+`DB_PASSWORD`, `DB_NAME`, `SESSION_SECRET` (32+ characters). The database
+connector also accepts TiDB Marketplace's `TIDB_HOST`, `TIDB_PORT`, `TIDB_USER`,
+`TIDB_PASSWORD`, and `TIDB_DATABASE` variables directly. Optionally set
+`DB_SSL_CA` to a PEM CA certificate if your cluster requires it. Accounts are
+created only by an Admin through the staff-account screen; there are no demo or
+test logins.
+
+Workflow notes:
+
+- Orders, reservations, refunds and sales are created through their forms and
+  row actions (approve, record GCash payment, verify payment, pack, ship,
+  deliver, complete, cancel, refund). Admins can also load the provided
+  historical dataset CSVs for review through the separate batch-import option.
+- Products and customers can be bulk-added by an Admin through **Import CSV**.
+- Admins can permanently delete individual products, customers, orders,
+  reservations, and refunds from their record tables. A confirmation identifies
+  the selected record, and records with linked history cannot be deleted.
+- Expired reservations are voided and their stock released whenever data is
+  read; there is no scheduled job. Stock is only released against recorded
+  reservation holds. Historical imports without hold movements are voided
+  without changing inventory, with an audit entry and notification explaining
+  why.
+- The **Notifications** screen shows backend-generated low-stock, reservation,
+  payment, and approval messages with an unread count on the top bar. It also
+  lists the live approval and stock queues, and can mark notifications read.
+- Forms validate required fields, PH mobile numbers, money, quantities, agreed
+  reservation days, and refund **days of ownership** before a review-and-save
+  confirmation posts them to the API.
+- Forgot-password links, password reset, and forced password changes use the
+  backend API with the same strong-password rule the server enforces. Recorded holds with inconsistent balances require inventory reconciliation.
+
+## Import CSV data
+
+Sign in as an Admin, then select **Import CSV**. Choose a data type and
+download its header-only template:
+
+- **Products:** `product_code`, `product_name`, `cost_price`, `selling_price`,
+  `stock_quantity`, `low_stock_threshold`. Optional: `category`, `size`.
+- **Customers:** `full_name`, `contact_number`, `street_address`, `barangay`,
+  `city_municipality`, `province`.
+
+Prices must be non-negative plain numbers with at most two decimal places and
+quantities non-negative whole numbers. Each file may contain up to 5,000 data
+rows and must be 2 MB or smaller. Select **Preview CSV**, review the first ten rows, then **Import records**.
+Invalid rows and duplicate identifiers within the file reject the entire import.
+For products, a new product code creates a product with the CSV stock quantity;
+an existing product code adds that quantity to current stock and records a stock
+movement without changing the product details. A file whose product codes and quantities were already imported is rejected, even if renamed, so stock is never added twice; change the quantities to import a new shipment.
+Existing customer contact numbers are rejected rather than overwritten.
+
+For the files in [`dataset/`](./dataset/), use **Import multiple TiDB dataset
+files** and select one or more files at once. The files are named after the
+schema tables (for example `product.csv`, `orders.csv`, and
+`stock_movement.csv`). The importer validates their TiDB column headers, remaps
+IDs to avoid collisions, inserts tables in foreign-key order, and saves the
+whole selection in one transaction. If a file fails, none of the batch is
+saved. Include any files referenced by the selected rows (usually the full
+dataset) so remapped IDs preserve foreign-key relationships. Select no more
+than 15 files, 2 MB per file, 3 MB total, and 10,000 rows per batch.
+
+The legacy dataset is normalized to the TiDB enum and relationship rules.
+Legacy user roles map to the app's three roles; imported user passwords must be
+reset before those accounts can sign in. Duplicate purchase-order rows that
+violated the TiDB one-PO-per-order rule are omitted, and extra order-to-
+reservation links are cleared while retained in the order notes.
+
+Data tables include search, sortable columns, status filters, pagination, View,
+and the row actions allowed for the signed-in role. Admins can edit products and
+customers.
+
+Run the CSV validation and dashboard aggregation tests with
+`npm --prefix react_frontend test` from the repository root.
+
+## Export records
+
+Sign in as an Admin, then choose **Export records** from the sidebar or
+dashboard. **Download CSV** creates one UTF-8 CSV containing the shared
+workspace records; its `record_type` column identifies each row.
+**Download Excel** creates an `.xlsx` workbook with a separate sheet for each
+record type. Exports include products, customers, orders, sales, reservations,
+refunds, sales documents, and staff accounts. Exported columns match the
+workspace record lists. Staff accounts cannot access this screen.
 
 ## Deploy to Vercel
 
-Create a Vercel project connected to this repository and use the repository
-root as the project root. The root Vercel configuration builds the React app
-and exposes the Phase 1 API through `api/[...route].js`. Keep the uploaded
-`Second-Daze-Apparel-phase-1-backend-foundation` folder in the deployed source;
-the root API wrapper imports its serverless handlers. Configure:
+Create a Vercel project connected to this repository and set:
 
-- **Root Directory:** `.` (repository root)
+- **Root Directory:** repository root (`.`)
 - **Framework preset:** Vite
 - **Build command:** `npm --prefix react_frontend run build`
 - **Output directory:** `react_frontend/dist`
 - **Install command:** `npm ci && npm --prefix react_frontend ci`
 
-Set the database connection (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`,
-`DB_NAME`), a `SESSION_SECRET` of at least 32 characters, and the Gmail
-credentials (`GMAIL_USER`, `GMAIL_APP_PASSWORD`) required for password-reset
-email. Set `APP_URL` to the deployed HTTPS origin for reset links.
+Use the repository root so Vercel deploys the top-level `api` serverless
+functions as well as the React frontend. The root `vercel.json` contains these
+build settings.
 
-## Backend integration
+The app uses hash-based routes, so direct navigation to a screen does not need
+extra Vercel rewrite rules. The Vercel rewrite serves the SPA at `/mobile`.
 
-The frontend API helpers are in [`react_frontend/src/api`](./react_frontend/src/api/).
-They call the Phase 1 API on the same origin:
+## Backend API
+
+The frontend API helpers are in [`react_frontend/src/api/`](./react_frontend/src/api/).
+Leave `VITE_API_BASE_URL` empty to use the same origin.
 
 - `POST /api/login`, `POST /api/logout`, `GET /api/me`
-- `POST /api/change-password`
-- `POST /api/forgot-password` with `{ "identifier": "username or email" }`
-- `POST /api/reset-password` with `{ "token": "...", "newPassword": "..." }`
-- `GET /api/users`, `POST /api/users` (Admin subaccounts)
-- `POST /api/users/:id/approve`, `/disable`, `/enable`, and `/reset-password`
-- `GET /api/export/:name` for the backend's allowlisted CSV export tables
+- `GET /api/data/records` – all business data for the signed-in role, with the
+  actions each row currently allows
+- `POST /api/data/actions` – form submissions `{ screenId, values }`
+- `POST /api/data/import`, `PUT /api/data/:kind/:id`
+- `DELETE /api/data/:kind/:id` – Admin-only deletion of an unlinked individual record
+- `POST /api/data/import-batch` – Admin-only atomic TiDB dataset import
+- `POST /api/data/:kind/:id/:action` – row actions
+- `POST /api/data/notifications-read`
 
-Login sessions are secure, HttpOnly cookies. Deployment uses one Vercel origin
-for the frontend and API; the uploaded Phase 1 code does not configure
-cross-origin CORS. Do not set `VITE_API_BASE_URL` to a separate origin unless
-the backend is separately updated to support credentialed CORS and cookie
-policies. Business-data and notification APIs remain Phase 2–5 work.
+Every protected endpoint checks the session and role on the server;
+client-side navigation is UX only.
