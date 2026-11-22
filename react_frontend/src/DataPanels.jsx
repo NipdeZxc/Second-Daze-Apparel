@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { buildWeeklyReport, csvTemplate, datasets, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./data/workspace.js";
+import { buildReportChartData, buildWeeklyReport, csvTemplate, datasets, getReportChartDrilldown, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./data/workspace.js";
+import { matchesGlobalSearch } from "./data/globalSearch.js";
 import {
   datasetImportFiles,
   MAX_DATASET_BATCH_BYTES,
@@ -133,12 +134,12 @@ function printOrder(order) {
   win.print();
 }
 
-export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false, onRecordUpdated }) {
+export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false, onRecordUpdated, initialSearch = "" }) {
   const definition = datasets[kind];
   const editable = canEdit && definition.editable;
   const deletable = authUser?.role === "Admin" && ["products", "customers", "orders", "reservations", "refunds"].includes(kind);
   const editColumns = definition.columns.filter((column) => !column.readonly);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState("");
   const [sortKey, setSortKey] = useState(definition.key);
   const [sortDirection, setSortDirection] = useState("asc");
@@ -163,10 +164,8 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
   const hasStatus = kind === "products" || Boolean(statusColumn);
   const statuses = statusColumn?.values || [...new Set(rows.map(recordStatus).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const filteredRows = rows.filter((record) => {
-    const matchesQuery = !query.trim() || [
-      ...Object.values(record),
-      ...(hasStatus ? [recordStatus(record)] : []),
-    ].some((value) => String(value ?? "").toLowerCase().includes(query.trim().toLowerCase()));
+    const matchesQuery = matchesGlobalSearch(record, query)
+      || (hasStatus && matchesGlobalSearch({ status: recordStatus(record) }, query));
     return matchesQuery && (!statusFilter || recordStatus(record) === statusFilter);
   });
   const sortColumn = definition.columns.find((column) => column.key === sortKey);
@@ -186,14 +185,14 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
   const pageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize));
   const visibleRows = sortedRows.slice((page - 1) * pageSize, page * pageSize);
   useEffect(() => {
-    setQuery("");
+    setQuery(initialSearch);
     setStatusFilter("");
     setSortKey(definition.key);
     setSortDirection("asc");
     setPage(1);
     setMessage("");
     setDeleteError("");
-  }, [kind, definition.key]);
+  }, [kind, definition.key, initialSearch]);
   const closeDialog = () => {
     setSelectedRecord(null);
     setDialogMode("");
@@ -724,12 +723,131 @@ export function DataExportPanel({ authUser, records, onDeleted }) {
 }
 
 
+function formatReportTrendLabel(period, granularity) {
+  const [year, month, day] = period.split("-").map(Number);
+  const date = granularity === "day"
+    ? new Date(year, month - 1, day, 12)
+    : new Date(year, month - 1, 15, 12);
+  return date.toLocaleDateString([], granularity === "day"
+    ? { weekday: "short", month: "numeric", day: "numeric" }
+    : { month: "short", year: "2-digit" });
+}
+
+function ReportTrendChart({ chart, weekly, selectedKey, onSelect }) {
+  if (!chart.items.length) {
+    return <section className="panel report-chart-panel"><p className="report-chart-empty">No sales are available for this report period.</p></section>;
+  }
+  const maximum = Math.max(1, ...chart.items.map((item) => item.value));
+  const periodLabel = chart.period === "day" ? "daily sales for the Friday review week" : "monthly sales across all recorded data";
+  const chartDescription = chart.items.map((item) => `${formatReportTrendLabel(item.period, chart.period)}: ${formatMoney(item.value)}`).join(", ");
+  return (
+    <section className="panel report-chart-panel">
+      <div className="panel__top">
+        <div><h2>Sales trend</h2><p>{weekly ? "Daily totals for the Friday review week." : "Monthly totals across all recorded sales."} Select a bar to view its sales.</p></div>
+      </div>
+      <div className="report-trend__scroll">
+        <div
+          className="report-trend__chart"
+          style={{ gridTemplateColumns: `repeat(${chart.items.length}, minmax(56px, 1fr))` }}
+          role="group"
+          aria-label={`Sales trend, ${periodLabel}: ${chartDescription}`}
+        >
+          {chart.items.map((item) => (
+            <button
+              type="button"
+              className={selectedKey === item.period ? "report-trend__item report-trend__item--selected" : "report-trend__item"}
+              key={item.period}
+              aria-label={`Show sales records for ${formatReportTrendLabel(item.period, chart.period)}: ${formatMoney(item.value)}`}
+              aria-pressed={selectedKey === item.period}
+              onClick={() => onSelect(item)}
+            >
+              <span className="report-trend__amount" title={formatMoney(item.value)}>{formatMoney(item.value)}</span>
+              <span className="report-trend__bar-area">
+                <span className="report-trend__bar" style={{ height: `${(item.value / maximum) * 100}%` }} />
+              </span>
+              <span className="report-trend__label" title={item.period}>{formatReportTrendLabel(item.period, chart.period)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ReportBarsChart({ title, description, chart, selectedKey, onSelect }) {
+  if (!chart.items.length) {
+    return <section className="panel report-chart-panel"><p className="report-chart-empty">No data is available for this chart.</p></section>;
+  }
+  const maximum = Math.max(1, ...chart.items.map((item) => Math.abs(item.value)));
+  const formatValue = (value) => chart.format === "money" ? formatMoney(value) : String(value);
+  const chartDescription = chart.items.map((item) => `${item.label}: ${formatValue(item.value)}`).join(", ");
+  return (
+    <section className="panel report-chart-panel">
+      <div className="panel__top">
+        <div><h2>{title}</h2><p>{description} Select a bar to view its records.</p></div>
+      </div>
+      <div className="report-bars" role="group" aria-label={`${title}: ${chartDescription}`}>
+        {chart.items.map((item) => (
+          <button
+            type="button"
+            className={selectedKey === item.label ? "report-bars__row report-bars__row--selected" : "report-bars__row"}
+            key={item.label}
+            aria-label={`Show records for ${item.label}: ${formatValue(item.value)}`}
+            aria-pressed={selectedKey === item.label}
+            onClick={() => onSelect(item)}
+          >
+            <span className="report-bars__label">{item.label}</span>
+            <span className="report-bars__track">
+              <span
+                className={item.value < 0 ? "report-bars__fill report-bars__fill--negative" : "report-bars__fill"}
+                style={{ width: `${(Math.abs(item.value) / maximum) * 100}%` }}
+              />
+            </span>
+            <strong className="report-bars__value">{formatValue(item.value)}</strong>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const financialDrilldownColumns = [
+  { key: "record_type", label: "Record type", type: "text" },
+  { key: "reference", label: "Reference", type: "text" },
+  { key: "date", label: "Date", type: "date" },
+  { key: "net_sales", label: "Net sales", type: "money" },
+  { key: "recorded_cost", label: "Recorded cost", type: "money" },
+  { key: "profit_impact", label: "Profit impact", type: "money" },
+];
+
+function ReportDrilldown({ drilldown, onClose }) {
+  const financial = drilldown.kind === "financial";
+  const columns = financial
+    ? financialDrilldownColumns
+    : drilldown.kind === "products"
+      ? [...datasets.products.columns, { key: "report_stock_status", label: "Stock status", type: "text" }]
+      : datasets[drilldown.kind].columns;
+  const rowKey = financial ? "report_id" : datasets[drilldown.kind].key;
+  return (
+    <section className="panel report-drilldown" aria-live="polite">
+      <div className="panel__top">
+        <div><h2>{drilldown.title}</h2><p>{drilldown.rows.length} matching {drilldown.rows.length === 1 ? "record" : "records"}</p></div>
+        <button type="button" className="button button--outline" onClick={onClose}>Close details</button>
+      </div>
+      {drilldown.rows.length
+        ? <RecordRows columns={columns} rows={drilldown.rows} rowKey={rowKey} />
+        : <p className="report-chart-empty">No records contribute to this chart value.</p>}
+    </section>
+  );
+}
+
 export function DataReports({ overview, authUser }) {
   const [exporting, setExporting] = useState("");
   const [exportError, setExportError] = useState("");
   const [exportMessage, setExportMessage] = useState("");
   const [activeReport, setActiveReport] = useState("sales");
   const [view, setView] = useState("weekly");
+  const [selectedChartKey, setSelectedChartKey] = useState("");
   const metrics = overview?.metrics;
   const weekly = view === "weekly";
   const week = weekly && overview?.records ? buildWeeklyReport(overview.records) : null;
@@ -762,6 +880,16 @@ export function DataReports({ overview, authUser }) {
       ["Defective quantity", overview?.records?.products
         ?.reduce((sum, product) => sum + Number(product.defective_quantity || 0), 0) ?? "—"],
     ],
+  };
+  const chart = buildReportChartData(overview, activeReport, view);
+  const selectedItem = chart.items.find((item) =>
+    (chart.type === "trend" ? item.period : item.label) === selectedChartKey,
+  );
+  const drilldown = selectedItem ? getReportChartDrilldown(overview, activeReport, view, selectedItem) : null;
+  const chartTitles = {
+    financial: ["Financial breakdown", "Compare net sales, recorded costs, and profit."],
+    orders: ["Orders by status", weekly ? "Orders recorded during the Friday review week." : "All recorded orders grouped by current status."],
+    stock: ["Product stock status", "Products grouped by current stock health."],
   };
   const exports = [
     ["v_weekly_sales", "Weekly sales"],
@@ -817,7 +945,10 @@ export function DataReports({ overview, authUser }) {
                 aria-selected={activeReport === id}
                 className={activeReport === id ? "report-tab report-tab--active" : "report-tab"}
                 key={id}
-                onClick={() => setActiveReport(id)}
+                onClick={() => {
+                  setActiveReport(id);
+                  setSelectedChartKey("");
+                }}
               >
                 {label}
               </button>
@@ -826,7 +957,10 @@ export function DataReports({ overview, authUser }) {
         </div>
         <label className="report-view">
           <span>View</span>
-          <select value={view} onChange={(event) => setView(event.target.value)}>
+          <select value={view} onChange={(event) => {
+            setView(event.target.value);
+            setSelectedChartKey("");
+          }}>
             <option value="weekly">Friday review week</option>
             <option value="all">All-time</option>
           </select>
@@ -846,6 +980,21 @@ export function DataReports({ overview, authUser }) {
           </article>
         ))}
       </section>
+      {chart.type === "trend"
+        ? <ReportTrendChart
+          chart={chart}
+          weekly={weekly}
+          selectedKey={selectedChartKey}
+          onSelect={(item) => setSelectedChartKey((current) => current === item.period ? "" : item.period)}
+        />
+        : <ReportBarsChart
+          title={chartTitles[activeReport][0]}
+          description={chartTitles[activeReport][1]}
+          chart={chart}
+          selectedKey={selectedChartKey}
+          onSelect={(item) => setSelectedChartKey((current) => current === item.label ? "" : item.label)}
+        />}
+      {drilldown && <ReportDrilldown drilldown={drilldown} onClose={() => setSelectedChartKey("")} />}
       {authUser?.role === "Admin" && (
         <section className="panel report-exports">
           <div className="panel__top">

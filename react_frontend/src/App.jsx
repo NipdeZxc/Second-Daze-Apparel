@@ -3,6 +3,8 @@ import { formFields, screens, tableColumns } from "./screens.js";
 import { getCurrentUser, requestPasswordReset, signIn, signOut } from "./api/auth.js";
 import { getWorkspaceRecords, markNotificationsRead, submitWorkspaceAction } from "./api/workspace.js";
 import { approveUser, createUser, disableUser, enableUser, listUsers, resetUserPassword } from "./api/users.js";
+import { findGlobalSearchResults, matchesGlobalSearch } from "./data/globalSearch.js";
+import { buildOverdueWorkQueue } from "./data/overdueWork.js";
 import { buildOverview } from "./data/workspace.js";
 import { ApprovalQueue, CsvImportPanel, DataExportPanel, DataReports, formatMoney, RecordsTable, screenDatasets } from "./DataPanels.jsx";
 import { canAccessScreen, homeScreenForRole, navigationForRole, normalizeRole } from "./roles.js";
@@ -90,8 +92,10 @@ function homeId(user) {
   return homeScreenForRole(user?.role);
 }
 
-function DashboardTopbar({ authUser, search, onSearch, onSignOut, unreadCount = 0 }) {
+function DashboardTopbar({ authUser, search, onSearch, searchResults, searchReady, searchError, onSignOut, unreadCount = 0 }) {
   const [profileOpen, setProfileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef(null);
   const profileRef = useRef(null);
   const profileButtonRef = useRef(null);
   useEffect(() => {
@@ -115,22 +119,83 @@ function DashboardTopbar({ authUser, search, onSearch, onSignOut, unreadCount = 
       window.removeEventListener("hashchange", closeOnNavigation);
     };
   }, [profileOpen]);
+  useEffect(() => {
+    if (!searchOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!searchRef.current?.contains(event.target)) setSearchOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setSearchOpen(false);
+    };
+    const closeOnNavigation = () => setSearchOpen(false);
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("hashchange", closeOnNavigation);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("hashchange", closeOnNavigation);
+    };
+  }, [searchOpen]);
   const displayName = authUser?.username || "Staff";
   const initials = displayName.split(/[ .@_-]/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
   return (
     <header className="dashboard-topbar">
       <Brand compact to={`#/${homeId(authUser)}`} />
       {onSearch && (
-        <label className="dashboard-search">
-          <Icon name="search" size={15} />
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => onSearch(event.target.value)}
-            placeholder={authUser?.role === "Admin" ? "Search orders, requests, reports" : "Search tasks, orders, reservations"}
-            aria-label="Search dashboard"
-          />
-        </label>
+        <div className="dashboard-search" ref={searchRef}>
+          <label className="dashboard-search__field">
+            <Icon name="search" size={15} />
+            <input
+              type="search"
+              value={search}
+              onFocus={() => setSearchOpen(true)}
+              onChange={(event) => { onSearch(event.target.value); setSearchOpen(true); }}
+              onKeyDown={(event) => { if (event.key === "Escape") setSearchOpen(false); }}
+              placeholder="Search all records"
+              aria-label="Search all workspace records"
+              aria-autocomplete="list"
+              aria-controls="global-search-results"
+              aria-expanded={searchOpen}
+            />
+          </label>
+          {searchOpen && (
+            <div className="dashboard-search-results" id="global-search-results" aria-label="Global search results">
+              {search.trim().length < 2 ? (
+                <p className="dashboard-search-results__message" role="status">Type at least 2 characters to search records.</p>
+              ) : searchError ? (
+                <p className="dashboard-search-results__message" role="alert">Search is unavailable. Refresh workspace data and try again.</p>
+              ) : !searchReady ? (
+                <p className="dashboard-search-results__message" role="status">Loading workspace records…</p>
+              ) : searchResults.total ? (
+                <>
+                  <p className="dashboard-search-results__summary" role="status">
+                    Showing {searchResults.results.length} of {searchResults.total} matching records
+                  </p>
+                  <ul>
+                    {searchResults.results.map((result) => (
+                      <li key={result.id}>
+                        <a
+                          className="dashboard-search-result"
+                          href={`#/${result.screenId}?search=${encodeURIComponent(search.trim())}`}
+                          onClick={() => { onSearch(""); setSearchOpen(false); }}
+                        >
+                          <span className="dashboard-search-result__copy">
+                            <strong>{result.title}</strong>
+                            <small>{result.detail || result.category}</small>
+                          </span>
+                          <span className="dashboard-search-result__category">{result.category}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="dashboard-search-results__message" role="status">No records match “{search.trim()}”.</p>
+              )}
+            </div>
+          )}
+        </div>
       )}
       <ScreenLink className="dashboard-notifications" screen={screens.find((item) => item.id === "9-notifications")} aria-label={`Open notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}>
         <Icon name="bell" size={17} />
@@ -181,6 +246,11 @@ function routeId() {
   const hashRoute = decodeURIComponent(window.location.hash.replace(/^#\/?/, "").split("?")[0]);
   if (hashRoute) return hashRoute;
   return window.location.pathname.replace(/\/+$/, "") === "/mobile" ? "mobile" : "";
+}
+
+function searchFromCurrentHash() {
+  const query = window.location.hash.split("?")[1] || "";
+  return new URLSearchParams(query).get("search") || "";
 }
 
 const legacyRouteAliases = {
@@ -359,7 +429,7 @@ function PageHeader({ screen, authUser }) {
   );
 }
 
-function EmptyTable({ screen, overview, authUser, onRecordsChanged }) {
+function EmptyTable({ screen, overview, authUser, onRecordsChanged, initialSearch = "" }) {
   const kind = screenDatasets[screen.id];
   if (kind) {
     const records = overview?.records?.[kind];
@@ -373,6 +443,7 @@ function EmptyTable({ screen, overview, authUser, onRecordsChanged }) {
       authUser={authUser}
       canEdit={isAdmin(authUser)}
       onRecordUpdated={onRecordsChanged}
+      initialSearch={initialSearch}
     />;
   }
   const columns = tableColumns[screen.id] || ["Name", "Details", "Status", "Action"];
@@ -428,22 +499,39 @@ function dateKey(date) {
 }
 
 function getSalesSeries(overview, days) {
+  const dailySales = overview?.dailySales || [];
+  if (days === "all") {
+    const monthlySales = new Map();
+    for (const [day, amount] of dailySales) {
+      const month = day.slice(0, 7);
+      monthlySales.set(month, (monthlySales.get(month) || 0) + amount);
+    }
+    return [...monthlySales].sort(([left], [right]) => left.localeCompare(right));
+  }
+
   const endDate = new Date();
   endDate.setHours(0, 0, 0, 0);
   const startDate = new Date(endDate);
   startDate.setDate(startDate.getDate() - days + 1);
   const startKey = dateKey(startDate);
   const endKey = dateKey(endDate);
-  return (overview?.dailySales || []).filter(([day]) => day >= startKey && day <= endKey);
+  return dailySales.filter(([day]) => day >= startKey && day <= endKey);
+}
+
+function formatSalesChartLabel(period, days) {
+  if (days !== "all") return period.slice(5);
+  const [year, month] = period.split("-").map(Number);
+  return new Date(year, month - 1, 15).toLocaleDateString([], { month: "short", year: "2-digit" });
 }
 
 function SalesRangeControl({ value, onChange }) {
   return (
     <label className="dashboard-range">
       <span>Date range</span>
-      <select value={value} onChange={(event) => onChange(Number(event.target.value))}>
+      <select value={value} onChange={(event) => onChange(event.target.value === "all" ? "all" : Number(event.target.value))}>
         <option value="7">Last 7 days</option>
         <option value="30">Last 30 days</option>
+        <option value="all">All time</option>
       </select>
     </label>
   );
@@ -453,15 +541,15 @@ function SalesChart({ overview, days }) {
   const salesSeries = getSalesSeries(overview, days);
   const chartMaximum = Math.max(1, ...salesSeries.map(([, value]) => value));
   if (!salesSeries.length) {
-    return <div className="dashboard-chart-empty">No sales recorded in this period. Import sales data to display trends.</div>;
+    return <div className="dashboard-chart-empty">No paid sales are recorded for this range.</div>;
   }
   return (
-    <div className="dashboard-chart" style={{ gridTemplateColumns: `repeat(${salesSeries.length}, minmax(0, 1fr))` }} role="img" aria-label={`Sales by date for the last ${days} days: ${salesSeries.map(([day, value]) => `${day}: ${formatMoney(value)}`).join(", ")}`}>
+    <div className="dashboard-chart" style={{ gridTemplateColumns: `repeat(${salesSeries.length}, minmax(${days === "all" ? "44px" : "0"}, 1fr))` }} role="img" aria-label={`Sales by ${days === "all" ? "month for all recorded sales" : `date for the last ${days} days`}: ${salesSeries.map(([period, value]) => `${period}: ${formatMoney(value)}`).join(", ")}`}>
       {salesSeries.map(([day, value]) => (
         <div className="dashboard-chart__day" key={day}>
           <span className="dashboard-chart__amount" title={formatMoney(value)}>{formatMoney(value)}</span>
           <span className="dashboard-chart__bar" style={{ height: `${(value / chartMaximum) * 100}%` }} />
-          <span className="dashboard-chart__label" title={day}>{day.slice(5)}</span>
+          <span className="dashboard-chart__label" title={day}>{formatSalesChartLabel(day, days)}</span>
         </div>
       ))}
     </div>
@@ -472,7 +560,47 @@ function formatQueueCount(count, label = "item") {
   return `${count} ${count === 1 ? label : `${label}s`}`;
 }
 
-function Dashboard({ overviewState, onRefresh, search }) {
+function OverdueWorkQueue({ records, role }) {
+  const items = buildOverdueWorkQueue(records, role);
+  const visibleItems = items.slice(0, 8);
+  return (
+    <section className="panel dashboard-overdue dashboard-requests">
+      <div className="panel__top">
+        <div><h2>Overdue work</h2><p>Items beyond their response window or reservations expiring soon.</p></div>
+        <span className="quiet-tag">{items.length} need attention</span>
+      </div>
+      {!records ? (
+        <p className="dashboard-empty">Workspace records are not available.</p>
+      ) : items.length ? (
+        <>
+          <div className="dashboard-overdue__list">
+            {visibleItems.map((item) => (
+              <a
+                className="dashboard-overdue__item"
+                href={`#/${item.screenId}?search=${encodeURIComponent(item.searchTerm)}`}
+                key={item.id}
+              >
+                <span className="dashboard-overdue__copy">
+                  <span className="dashboard-overdue__category">{item.category}</span>
+                  <strong>{item.title}</strong>
+                  {item.detail && <small>{item.detail}</small>}
+                </span>
+                <span className={`dashboard-overdue__age dashboard-overdue__age--${item.urgency}`}>{item.ageLabel}</span>
+              </a>
+            ))}
+          </div>
+          {items.length > visibleItems.length && (
+            <p className="dashboard-overdue__more">Showing the {visibleItems.length} most urgent of {items.length} items.</p>
+          )}
+        </>
+      ) : (
+        <p className="dashboard-empty">No overdue work or reservations expiring within 24 hours.</p>
+      )}
+    </section>
+  );
+}
+
+function Dashboard({ overviewState, onRefresh, authUser }) {
   const [salesRange, setSalesRange] = useState(7);
   const queues = overviewState.data?.queues;
   const summary = overviewState.data?.metrics;
@@ -496,15 +624,11 @@ function Dashboard({ overviewState, onRefresh, search }) {
     title: activity.message,
     detail: formatUpdatedAt(activity.createdAt),
   }));
-  const filteredRequests = requests.filter((request) =>
-    `${request.title} ${request.detail}`.toLowerCase().includes(search.toLowerCase()),
-  );
   const orderStats = [
     { label: "Orders placed", value: summary?.ordersPlaced ?? "—", detail: "All imported orders" },
     { label: "Avg order value", value: formatMoney(summary?.averageOrderValue), detail: "Average imported order amount" },
     { label: "Fulfillment rate", value: typeof summary?.fulfillmentRate === "number" ? `${summary.fulfillmentRate.toFixed(1)}%` : "—", detail: "Completed / non-cancelled orders" },
   ];
-
   return (
     <div className="dashboard-workspace">
       <div className="dashboard-metrics">
@@ -519,6 +643,7 @@ function Dashboard({ overviewState, onRefresh, search }) {
           </ScreenLink>
         ))}
       </div>
+      <OverdueWorkQueue records={overviewState.data?.records} role={authUser?.role} />
       <div className="dashboard-overview-grid">
         <div className="dashboard-overview-main">
           <section className="panel dashboard-orders">
@@ -545,9 +670,9 @@ function Dashboard({ overviewState, onRefresh, search }) {
               <div><h2>Recent activity</h2><p>Latest recorded workspace activity</p></div>
               <ScreenLink className="text-link" screen={screens.find((item) => item.id === "2.6-reports")}>View reports</ScreenLink>
             </div>
-            {filteredRequests.length ? (
+            {requests.length ? (
               <div className="dashboard-request-list">
-                {filteredRequests.map((request, index) => {
+              {requests.map((request, index) => {
                   const content = (
                     <>
                       <span className="dashboard-request__icon"><Icon name={index === 0 ? "file" : index === 1 ? "refresh" : "calendar"} size={14} /></span>
@@ -562,7 +687,7 @@ function Dashboard({ overviewState, onRefresh, search }) {
                 })}
               </div>
             ) : (
-              <div className="dashboard-empty">{search ? "No activity matches your search." : "No recent activity is available."}</div>
+              <div className="dashboard-empty">No recent activity is available.</div>
             )}
           </section>
         </div>
@@ -595,7 +720,7 @@ function Dashboard({ overviewState, onRefresh, search }) {
   );
 }
 
-function StaffDashboard({ overviewState, onRefresh, search }) {
+function StaffDashboard({ overviewState, onRefresh, authUser }) {
   const [salesRange, setSalesRange] = useState(7);
   const queues = overviewState.data?.queues;
   const summary = overviewState.data?.metrics;
@@ -605,15 +730,13 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
     { label: "Today's sales", value: formatMoney(summary?.todaysSales), detail: "Sales recorded today", icon: "chart", screenId: "3.9-orders-status-tracking" },
     { label: "Active reservations", value: count(summary?.activeReservations), detail: "Unexpired holds awaiting action", icon: "calendar", screenId: "5-reservations" },
   ];
-  const matches = (item) => `${item.title} ${item.detail}`.toLowerCase().includes(search.toLowerCase());
   const tasks = (overviewState.data?.pendingOrders || []).map((order) => ({
     title: order.order_number, detail: `${order.customer_name} · ${formatMoney(order.total_amount)}`,
     status: order.status, screenId: "3.9-orders-status-tracking",
-  })).filter(matches);
+  }));
   const reservations = (overviewState.data?.reservations || []).map((reservation) => ({
     title: reservation.reservation_number, detail: `${reservation.customer_name} · ${reservation.status}${reservation.expires_at ? ` · expires ${new Date(reservation.expires_at).toLocaleDateString()}` : ""}`,
-  })).filter(matches);
-  const activity = (overviewState.data?.recentActivity || []).map((item) => ({ title: item.message, detail: formatUpdatedAt(item.createdAt) })).filter(matches);
+  }));
   const quickActions = [
     ["3-sales-catalog", "Start a sale", "bag"],
     ["3.4-new-refund-request", "New refund request", "refresh"],
@@ -634,6 +757,7 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
           </ScreenLink>
         ))}
       </div>
+      <OverdueWorkQueue records={overviewState.data?.records} role={authUser?.role} />
       <section className="panel dashboard-orders">
         <div className="panel__top">
           <div><h2>Sales trend</h2><p>Recorded sales during the selected period</p></div>
@@ -666,7 +790,7 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
                 })}
               </div>
             ) : (
-              <div className="dashboard-empty">{search ? "No tasks match your search." : overviewState.data ? "No recorded orders need follow-up." : "Order data is not available."}</div>
+              <div className="dashboard-empty">{overviewState.data ? "No recorded orders need follow-up." : "Order data is not available."}</div>
             )}
           </section>
         </div>
@@ -693,7 +817,7 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
                   <span className="dashboard-status__icon"><Icon name="clock" size={14} /></span>
                   <span><strong>{item.title}</strong><small>{item.detail}</small></span>
                 </ScreenLink>
-              )) : <div className="dashboard-empty">{search ? "No reservations match your search." : overviewState.data ? "No recorded active reservations." : "Reservation data is not available."}</div>}
+              )) : <div className="dashboard-empty">{overviewState.data ? "No recorded active reservations." : "Reservation data is not available."}</div>}
             </div>
           </section>
           <div className="dashboard-sync">
@@ -705,7 +829,7 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
   );
 }
 
-function UserManagementPanel({ screen }) {
+function UserManagementPanel({ screen, initialSearch = "" }) {
   const approvalsOnly = screen.id === "2.2-access-approvals";
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -714,6 +838,9 @@ function UserManagementPanel({ screen }) {
   const [message, setMessage] = useState("");
   const [temporaryCredentials, setTemporaryCredentials] = useState(null);
   const [formBusy, setFormBusy] = useState(false);
+  const [query, setQuery] = useState(initialSearch);
+
+  useEffect(() => setQuery(initialSearch), [initialSearch]);
 
   const refreshUsers = async (signal) => {
     setLoading(true);
@@ -789,6 +916,7 @@ function UserManagementPanel({ screen }) {
   };
 
   const visibleUsers = approvalsOnly ? users.filter((user) => user.status === "Pending Approval") : users;
+  const filteredUsers = visibleUsers.filter((user) => matchesGlobalSearch(user, query));
 
   return (
     <div className="account-management">
@@ -820,12 +948,18 @@ function UserManagementPanel({ screen }) {
           <div><h2>{approvalsOnly ? "Pending access approvals" : "Workspace accounts"}</h2><p>Account status and available Admin actions come from the backend.</p></div>
           <button type="button" className="button button--outline" onClick={() => refreshUsers()} disabled={loading}>Refresh</button>
         </div>
-        {loading ? <p className="empty-cell">Loading accounts…</p> : visibleUsers.length ? (
+        <div className="table-tools">
+          <label className="table-search">
+            <span>Search accounts</span>
+            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} />
+          </label>
+        </div>
+        {loading ? <p className="empty-cell">Loading accounts…</p> : filteredUsers.length ? (
           <div className="table-scroll">
             <table>
               <thead><tr><th>Full name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
-                {visibleUsers.map((user) => (
+                {filteredUsers.map((user) => (
                   <tr key={user.id}>
                     <td>{user.fullName}</td><td>{user.username}</td><td>{user.email || "—"}</td><td>{user.role}</td><td><span className="record-status">{user.status}</span></td>
                     <td className="record-actions">
@@ -839,13 +973,13 @@ function UserManagementPanel({ screen }) {
               </tbody>
             </table>
           </div>
-        ) : <p className="empty-cell">{approvalsOnly ? "There are no accounts awaiting approval." : "No accounts are available."}</p>}
+        ) : <p className="empty-cell">{query ? "No accounts match your search." : approvalsOnly ? "There are no accounts awaiting approval." : "No accounts are available."}</p>}
       </section>
     </div>
   );
 }
 
-function InventoryDashboard({ overviewState, onRefresh }) {
+function InventoryDashboard({ overviewState, onRefresh, authUser }) {
   const products = overviewState.data?.records?.products || [];
   const lowStock = overviewState.data?.lowStock || [];
   const stockUnits = products.reduce((sum, product) => sum + Number(product.stock_quantity || 0), 0);
@@ -854,7 +988,6 @@ function InventoryDashboard({ overviewState, onRefresh }) {
     { label: "Units available", value: stockUnits, detail: "Current recorded stock", screenId: "4-inventory-workspace" },
     { label: "Low-stock items", value: lowStock.length, detail: "At or below their threshold", screenId: "4.2-low-stock-alerts" },
   ];
-
   return (
     <div className="dashboard-workspace">
       <div className="dashboard-metrics">
@@ -866,6 +999,7 @@ function InventoryDashboard({ overviewState, onRefresh }) {
           </ScreenLink>
         ))}
       </div>
+      <OverdueWorkQueue records={overviewState.data?.records} role={authUser?.role} />
       <section className="panel dashboard-requests">
         <div className="panel__top">
           <div><h2>Restocking priorities</h2><p>Products at or below their low-stock threshold</p></div>
@@ -883,10 +1017,13 @@ function InventoryDashboard({ overviewState, onRefresh }) {
   );
 }
 
-function NotificationsPanel({ notifications = [], onRefresh }) {
+function NotificationsPanel({ notifications = [], onRefresh, initialSearch = "" }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const unreadCount = notifications.filter((notification) => !notification.is_read).length;
+  const filteredNotifications = notifications.filter((notification) =>
+    matchesGlobalSearch(notification, initialSearch, ["category", "message"]),
+  );
   const markAllRead = async () => {
     setBusy(true);
     setError("");
@@ -909,9 +1046,9 @@ function NotificationsPanel({ notifications = [], onRefresh }) {
         </button>
       </div>
       {error && <p className="inline-error form-feedback" role="alert">{error}</p>}
-      {notifications.length ? (
+      {filteredNotifications.length ? (
         <ul className="notification-list">
-          {notifications.map((notification) => (
+          {filteredNotifications.map((notification) => (
             <li className={notification.is_read ? "" : "notification-list__unread"} key={notification.id}>
               <span className="notification-list__category">{notification.category}</span>
               <span className="notification-list__message">{notification.message}</span>
@@ -919,6 +1056,8 @@ function NotificationsPanel({ notifications = [], onRefresh }) {
             </li>
           ))}
         </ul>
+      ) : notifications.length && initialSearch ? (
+        <div className="empty-message"><span className="empty-message__icon"><Icon name="search" /></span><p>No notifications match your search.</p></div>
       ) : (
         <div className="empty-message"><span className="empty-message__icon"><Icon name="bell" /></span><p>No notifications yet.</p></div>
       )}
@@ -1430,33 +1569,46 @@ function MobilePreview({ screen, onAuthenticated, authUser, onSignOut, overviewS
 }
 
 function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewState, onRefresh }) {
-  const [dashboardSearch, setDashboardSearch] = useState("");
+  const [dashboardSearch, setDashboardSearch] = useState(searchFromCurrentHash);
+  useEffect(() => {
+    setDashboardSearch(searchFromCurrentHash());
+  }, [screen.id]);
   if (screen.kind.startsWith("auth") || screen.kind === "pending") {
     return <AuthScreen key={screen.id} screen={screen} onAuthenticated={onAuthenticated} />;
   }
   const isDashboard = ["dashboard", "staff-dashboard", "sales-dashboard", "inventory-dashboard"].includes(screen.kind);
   const unreadCount = (overviewState.data?.records?.notifications || []).filter((item) => !item.is_read).length;
+  const searchResults = findGlobalSearchResults(dashboardSearch, overviewState.data?.records, authUser?.role);
   return (
     <div className="app-shell app-shell--dashboard">
-      <DashboardTopbar authUser={authUser} search={dashboardSearch} onSearch={isDashboard ? setDashboardSearch : undefined} onSignOut={onSignOut} unreadCount={unreadCount} />
+      <DashboardTopbar
+        authUser={authUser}
+        search={dashboardSearch}
+        onSearch={isDashboard ? setDashboardSearch : undefined}
+        searchResults={searchResults}
+        searchReady={Boolean(overviewState.data?.records)}
+        searchError={overviewState.error}
+        onSignOut={onSignOut}
+        unreadCount={unreadCount}
+      />
       <Sidebar active={screen.id} authUser={authUser} onSignOut={onSignOut} />
       <main className="workspace">
         <PageHeader screen={screen} authUser={authUser} />
         <div className="workspace__body">
           {overviewState.error && !isDashboard && <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />}
-          {screen.kind === "dashboard" && <Dashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
-          {(screen.kind === "staff-dashboard" || screen.kind === "sales-dashboard") && <StaffDashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
-          {screen.kind === "inventory-dashboard" && <InventoryDashboard overviewState={overviewState} onRefresh={onRefresh} />}
+          {screen.kind === "dashboard" && <Dashboard overviewState={overviewState} onRefresh={onRefresh} authUser={authUser} />}
+          {(screen.kind === "staff-dashboard" || screen.kind === "sales-dashboard") && <StaffDashboard overviewState={overviewState} onRefresh={onRefresh} authUser={authUser} />}
+          {screen.kind === "inventory-dashboard" && <InventoryDashboard overviewState={overviewState} onRefresh={onRefresh} authUser={authUser} />}
           {screen.kind === "csv-import" && <CsvImportPanel authUser={authUser} existingRecords={overviewState.data?.records} onImported={onRefresh} />}
           {screen.kind === "data-export" && <DataExportPanel authUser={authUser} records={overviewState.data?.records} onDeleted={onRefresh} />}
-          {["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <UserManagementPanel key={screen.id} screen={screen} />}
-          {screen.kind === "table" && !["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <EmptyTable screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
-          {screen.kind === "catalog" && <RecordsTable kind="products" rows={overviewState.data?.records?.products} title="Product catalog" />}
+          {["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <UserManagementPanel key={screen.id} screen={screen} initialSearch={searchFromCurrentHash()} />}
+          {screen.kind === "table" && !["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <EmptyTable screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} initialSearch={searchFromCurrentHash()} />}
+          {screen.kind === "catalog" && <RecordsTable kind="products" rows={overviewState.data?.records?.products} title="Product catalog" initialSearch={searchFromCurrentHash()} />}
           {screen.kind === "form" && <FormPanel key={screen.id} screen={screen} authUser={authUser} onActionSaved={onRefresh} />}
           {screen.kind === "detail" && <DetailPanel screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
           {screen.kind === "success" && <DetailPanel screen={screen} success overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
           {screen.kind === "reports" && <DataReports overview={overviewState.data} authUser={authUser} />}
-          {screen.kind === "notifications" && <NotificationsPanel notifications={overviewState.data?.records?.notifications} onRefresh={onRefresh} />}
+          {screen.kind === "notifications" && <NotificationsPanel notifications={overviewState.data?.records?.notifications} onRefresh={onRefresh} initialSearch={searchFromCurrentHash()} />}
           <WorkflowLinks screenId={screen.id} authUser={authUser} />
         </div>
         <footer className="workspace__footer"><span>Second Daze Apparel</span><span>Operations workspace</span></footer>

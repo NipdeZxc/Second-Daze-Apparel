@@ -196,6 +196,155 @@ export function buildWeeklyReport(records, now = new Date()) {
   };
 }
 
+function reportDatePeriod(value, granularity) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const day = date.toLocaleDateString("en-CA");
+  return granularity === "day" ? day : day.slice(0, 7);
+}
+
+function productStockStatus(product) {
+  if (product.status === "Inactive" || product.is_active === 0 || product.is_active === false) return "Inactive";
+  return Number(product.stock_quantity) <= Number(product.low_stock_threshold) ? "Low stock" : "In stock";
+}
+
+export function getReportChartDrilldown(overview, report, view, item) {
+  const records = overview?.records;
+  if (!records || !item) return null;
+
+  const weekly = view === "weekly";
+  if (report === "sales") {
+    const sales = weekly ? overview.fridayReview?.sales || [] : records.sales || [];
+    const period = weekly ? "day" : "month";
+    const rows = sales.filter((sale) => reportDatePeriod(sale.sold_at, period) === item.period);
+    return { kind: "sales", title: `Sales · ${item.period}`, rows };
+  }
+
+  if (report === "orders") {
+    const orders = weekly ? overview.fridayReview?.orders || [] : records.orders || [];
+    const rows = orders.filter((order) => (order.status || "Unknown") === item.label);
+    return { kind: "orders", title: `Orders · ${item.label}`, rows };
+  }
+
+  if (report === "stock") {
+    const rows = (records.products || [])
+      .filter((product) => productStockStatus(product) === item.label)
+      .map((product) => ({ ...product, report_stock_status: item.label }));
+    return { kind: "products", title: `Products · ${item.label}`, rows };
+  }
+
+  if (report === "financial") {
+    const sales = weekly ? overview.fridayReview?.sales || [] : records.sales || [];
+    const range = weekly && overview.fridayReview
+      ? { start: new Date(overview.fridayReview.start), end: new Date(overview.fridayReview.end) }
+      : null;
+    const refunds = (records.refunds || []).filter((refund) =>
+      refund.status === "Approved" && (!weekly || (range && dateInRange(refund.refund_date, range))),
+    );
+    const details = [
+      ...sales.map((sale, index) => {
+        const amount = Number(sale.amount || 0);
+        const cost = Number(sale.cost || 0);
+        return {
+          report_id: `sale-${sale.id ?? sale.sale_no ?? index}`,
+          record_type: "Sale",
+          reference: sale.sale_no || `Sale ${index + 1}`,
+          date: sale.sold_at,
+          net_sales: amount,
+          recorded_cost: cost,
+          profit_impact: amount - cost,
+        };
+      }),
+      ...refunds.map((refund, index) => {
+        const amount = Number(refund.amount || 0);
+        return {
+          report_id: `refund-${refund.id ?? refund.refund_number ?? index}`,
+          record_type: "Approved refund",
+          reference: refund.refund_number || `Refund ${index + 1}`,
+          date: refund.refund_date,
+          net_sales: -amount,
+          recorded_cost: 0,
+          profit_impact: -amount,
+        };
+      }),
+    ];
+    const rows = details.filter((detail) => {
+      if (item.label === "Recorded cost") return detail.recorded_cost !== 0;
+      if (item.label === "Profit") return detail.profit_impact !== 0;
+      return detail.net_sales !== 0;
+    });
+    return { kind: "financial", title: `${item.label} source records`, rows };
+  }
+
+  return null;
+}
+
+export function buildReportChartData(overview, report, view) {
+  const records = overview?.records;
+  if (!records) return { type: report === "sales" ? "trend" : "bars", format: report === "financial" ? "money" : "count", period: null, items: [] };
+
+  const weekly = view === "weekly";
+  if (report === "sales") {
+    const totals = new Map();
+    const sales = weekly ? overview.fridayReview?.sales || [] : records.sales || [];
+    for (const sale of sales) {
+      const period = reportDatePeriod(sale.sold_at, weekly ? "day" : "month");
+      if (!period) continue;
+      totals.set(period, (totals.get(period) || 0) + cents(sale.amount));
+    }
+    return {
+      type: "trend",
+      period: weekly ? "day" : "month",
+      items: [...totals].sort(([left], [right]) => left.localeCompare(right))
+        .map(([period, amount]) => ({ period, value: amount / 100 })),
+    };
+  }
+
+  if (report === "financial") {
+    const metrics = overview.metrics || {};
+    return {
+      type: "bars",
+      format: "money",
+      items: [
+        { label: "Net sales", value: weekly ? metrics.weeklySales ?? 0 : metrics.grossSales ?? 0 },
+        { label: "Recorded cost", value: weekly ? metrics.weeklyCost ?? 0 : metrics.totalCost ?? 0 },
+        { label: "Profit", value: weekly ? metrics.weeklyProfit ?? 0 : metrics.profit ?? 0 },
+      ],
+    };
+  }
+
+  if (report === "orders") {
+    const orders = weekly ? overview.fridayReview?.orders || [] : records.orders || [];
+    const counts = new Map();
+    for (const order of orders) {
+      const status = order.status || "Unknown";
+      counts.set(status, (counts.get(status) || 0) + 1);
+    }
+    return {
+      type: "bars",
+      format: "count",
+      items: [...counts].sort(([left], [right]) => left.localeCompare(right))
+        .map(([label, value]) => ({ label, value })),
+    };
+  }
+
+  if (report === "stock") {
+    const products = records.products || [];
+    const counts = new Map([["In stock", 0], ["Low stock", 0], ["Inactive", 0]]);
+    for (const product of products) {
+      const status = productStockStatus(product);
+      counts.set(status, counts.get(status) + 1);
+    }
+    return {
+      type: "bars",
+      format: "count",
+      items: [...counts].filter(([, value]) => value > 0).map(([label, value]) => ({ label, value })),
+    };
+  }
+
+  return { type: "bars", format: "count", period: null, items: [] };
+}
+
 function dateInRange(value, range) {
   if (!value) return false;
   const date = new Date(value);
@@ -269,7 +418,7 @@ export function buildOverview(records, now = new Date()) {
       lowStockItems: lowStock.length,
       unpaidReservations,
     },
-    dailySales: [...dailySales].sort(([a], [b]) => a.localeCompare(b)).slice(-30).map(([day, amount]) => [day, amount / 100]),
+    dailySales: [...dailySales].sort(([a], [b]) => a.localeCompare(b)).map(([day, amount]) => [day, amount / 100]),
     recentActivity: records.recentActivity,
     updatedAt: records.updatedAt,
   };

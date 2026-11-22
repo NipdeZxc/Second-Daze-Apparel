@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Papa from "papaparse";
 import { strFromU8, unzipSync } from "fflate";
-import { buildOverview, buildWeeklyReport, csvTemplate, datasets, emptyRecords, getFridayReviewWeek, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
+import { buildOverview, buildReportChartData, buildWeeklyReport, csvTemplate, datasets, emptyRecords, getFridayReviewWeek, getReportChartDrilldown, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
 import { datasetImportFiles, parseDatasetFile } from "./datasetImport.js";
 import { createWorkspaceExcel, serializeWorkspaceCsv } from "./export.js";
 
@@ -148,6 +148,117 @@ test("overview nets approved refunds, counts low stock and open orders", () => {
   assert.equal(overview.metrics.itemsForShipping, 4);
   assert.equal(overview.metrics.completedOrders, 1);
   assert.deepEqual(overview.queues, { accessApprovals: 2, ordersToFulfill: 1, lowStockItems: 1, unpaidReservations: 1 });
+});
+
+test("overview retains historical daily sales for the all-time chart", () => {
+  const sales = Array.from({ length: 35 }, (_, index) => ({
+    amount: index + 1,
+    sold_at: new Date(Date.UTC(2020, 0, index + 1, 12)).toISOString(),
+  }));
+  const overview = buildOverview({ ...emptyRecords(), sales }, new Date("2026-11-20T12:00:00Z"));
+
+  assert.equal(overview.dailySales.length, 35);
+  assert.equal(overview.dailySales[0][1], 1);
+  assert.equal(overview.dailySales.at(-1)[1], 35);
+});
+
+test("report chart data follows the selected report and period", () => {
+  const records = {
+    ...emptyRecords(),
+    sales: [
+      { amount: 100, cost: 40, sold_at: "2025-01-15T12:00:00Z" },
+      { amount: 50, cost: 20, sold_at: "2025-01-20T12:00:00Z" },
+      { amount: 25, cost: 10, sold_at: "2026-11-18T12:00:00Z" },
+    ],
+    orders: [
+      { status: "Completed", ordered_at: "2026-11-18T12:00:00Z" },
+      { status: "Pending Payment", ordered_at: "2026-11-19T12:00:00Z" },
+      { status: "Cancelled", ordered_at: "2025-01-20T12:00:00Z" },
+    ],
+    products: [
+      { status: "In stock", stock_quantity: 8, low_stock_threshold: 3 },
+      { status: "Low stock", stock_quantity: 2, low_stock_threshold: 3 },
+      { status: "Inactive", stock_quantity: 0, low_stock_threshold: 3 },
+    ],
+  };
+  const overview = buildOverview(records, new Date("2026-11-20T12:00:00Z"));
+  const weeklySales = buildReportChartData(overview, "sales", "weekly");
+  const allSales = buildReportChartData(overview, "sales", "all");
+  const financial = buildReportChartData(overview, "financial", "all");
+  const weeklyOrders = buildReportChartData(overview, "orders", "weekly");
+  const stock = buildReportChartData(overview, "stock", "all");
+
+  assert.equal(weeklySales.items.length, 1);
+  assert.equal(weeklySales.items[0].value, 25);
+  assert.deepEqual(allSales.items.map((item) => item.value), [150, 25]);
+  assert.deepEqual(financial.items.map((item) => item.value), [175, 70, 105]);
+  assert.deepEqual(weeklyOrders.items, [
+    { label: "Completed", value: 1 },
+    { label: "Pending Payment", value: 1 },
+  ]);
+  assert.deepEqual(stock.items, [
+    { label: "In stock", value: 1 },
+    { label: "Low stock", value: 1 },
+    { label: "Inactive", value: 1 },
+  ]);
+});
+
+test("report chart drilldowns return the records contributing to each selected value", () => {
+  const records = {
+    ...emptyRecords(),
+    sales: [
+      { id: 1, sale_no: "SALE-1", amount: 100, cost: 40, sold_at: "2026-11-18T12:00:00Z" },
+      { id: 2, sale_no: "SALE-2", amount: 50, cost: 20, sold_at: "2026-11-19T12:00:00Z" },
+      { id: 3, sale_no: "SALE-3", amount: 200, cost: 80, sold_at: "2025-01-15T12:00:00Z" },
+    ],
+    refunds: [
+      { id: 4, refund_number: "REF-1", status: "Approved", amount: 10, refund_date: "2026-11-19T12:00:00Z" },
+      { id: 5, refund_number: "REF-2", status: "Pending Approval", amount: 5, refund_date: "2026-11-19T12:00:00Z" },
+    ],
+    orders: [
+      { id: 6, order_number: "ORD-1", status: "Completed", ordered_at: "2026-11-18T12:00:00Z" },
+      { id: 7, order_number: "ORD-2", status: "Pending Payment", ordered_at: "2025-01-15T12:00:00Z" },
+    ],
+    products: [
+      { id: 8, product_code: "SKU-1", status: "Inactive", stock_quantity: 0, low_stock_threshold: 3 },
+      { id: 9, product_code: "SKU-2", stock_quantity: 2, low_stock_threshold: 3 },
+      { id: 10, product_code: "SKU-3", stock_quantity: 8, low_stock_threshold: 3 },
+    ],
+  };
+  const overview = buildOverview(records, new Date("2026-11-20T12:00:00Z"));
+  const salesChart = buildReportChartData(overview, "sales", "weekly");
+  const orderChart = buildReportChartData(overview, "orders", "weekly");
+  const stockChart = buildReportChartData(overview, "stock", "all");
+  const financialChart = buildReportChartData(overview, "financial", "weekly");
+
+  assert.deepEqual(
+    getReportChartDrilldown(overview, "sales", "weekly", salesChart.items[0]).rows.map((sale) => sale.sale_no),
+    ["SALE-1"],
+  );
+  assert.deepEqual(
+    getReportChartDrilldown(overview, "sales", "weekly", salesChart.items[1]).rows.map((sale) => sale.sale_no),
+    ["SALE-2"],
+  );
+  assert.deepEqual(
+    getReportChartDrilldown(overview, "orders", "weekly", orderChart.items[0]).rows.map((order) => order.order_number),
+    ["ORD-1"],
+  );
+  assert.deepEqual(
+    getReportChartDrilldown(overview, "stock", "all", stockChart.items.find((item) => item.label === "Low stock")).rows
+      .map((product) => product.product_code),
+    ["SKU-2"],
+  );
+  const financialRows = getReportChartDrilldown(
+    overview,
+    "financial",
+    "weekly",
+    financialChart.items.find((item) => item.label === "Profit"),
+  ).rows;
+  assert.deepEqual(financialRows.map((row) => [row.reference, row.profit_impact]), [
+    ["SALE-1", 60],
+    ["SALE-2", 30],
+    ["REF-1", -10],
+  ]);
 });
 
 test("Friday review week returns Monday through the most recent Friday", () => {

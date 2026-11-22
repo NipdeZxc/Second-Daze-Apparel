@@ -234,6 +234,7 @@ export async function getRecords(req, res) {
             ORDER BY o.order_date DESC, o.order_id DESC`),
     query(`SELECT r.reservation_id AS id, r.reservation_number, c.full_name AS customer_name,
                   r.reservation_status AS status, r.expiry_date AS expires_at, r.reservation_days,
+                  r.created_at,
                   (SELECT GROUP_CONCAT(CONCAT(p.product_name, ' x', ri.quantity) SEPARATOR ', ')
                      FROM reservation_items ri JOIN products p ON p.product_id = ri.product_id
                     WHERE ri.reservation_id = r.reservation_id) AS items,
@@ -279,6 +280,7 @@ export async function getRecords(req, res) {
     total_amount: num(order.total_amount),
     cost: num(order.cost),
     ordered_at: iso(order.ordered_at),
+    verified_at: iso(order.verified_at),
     payment_status: order.payment_status || "Unpaid",
   }));
   const sales = orderRows
@@ -318,11 +320,11 @@ export async function getRecords(req, res) {
     sales,
     dashboard,
     reservations: withActions("reservations", reservations.map((r) => ({
-      ...r, expires_at: iso(r.expires_at), amount: num(r.amount), items: r.items || "",
+      ...r, expires_at: iso(r.expires_at), created_at: iso(r.created_at), amount: num(r.amount), items: r.items || "",
     }))),
     refunds: withActions("refunds", refunds.map((f) => ({ ...f, amount: num(f.amount), refund_date: iso(f.refund_date) }))),
     documents: documents.map((d) => ({ ...d, issued_at: iso(d.issued_at) })),
-    accounts: withActions("accounts", accounts.map((a) => ({ ...a, last_login_at: iso(a.last_login_at) }))),
+    accounts: withActions("accounts", accounts.map((a) => ({ ...a, last_login_at: iso(a.last_login_at), created_at: iso(a.created_at) }))),
     notifications: notifications.map((n) => ({ ...n, is_read: Boolean(n.is_read), created_at: iso(n.created_at) })),
     recentActivity: activity.map((a) => ({
       id: String(a.audit_id),
