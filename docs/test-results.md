@@ -25,7 +25,7 @@ Acceptance test run for Second Daze Apparel, covering US-01 to US-07 and task-li
 | 2. Local server | `scripts/local-server.mjs` on http://localhost:3000 | working tree with all Phase 7 fixes | 79 Pass / 0 Fail / 1 Blocked / 2 Not run. TC-17 was fixed afterwards. |
 | 3. Live site, after the fix | https://second-daze-apparel.vercel.app (Vercel, commit `77c42bc`) | deployed fix, same database | **80 Pass / 0 Fail / 0 Blocked / 2 Not run: same as Run 2.** 71 API checks (`phase7-live-test.mjs`, [live-site-run3.json](./test-results/live-site-run3.json)) + 8 browser checks (`phase7-ui-test.mjs`, [live-ui-checks.json](./test-results/live-ui-checks.json)) + TC-17 (live check below) + the 2 SEC checks inside the API script. Screenshots: [screenshots/live/](./screenshots/live/) |
 
-Both runs used the **real TiDB Cloud database** (`second_daze`) that the Vercel deployment uses, so data, schema and stock rules were the production ones. The local server sends every `/api/*` request to the same router file the Vercel functions use; only the Vercel URL-to-file matching is skipped.
+All three runs used the **real TiDB Cloud database** (`second_daze`) that the Vercel deployment uses, so data, schema and stock rules were the production ones. The local server sends every `/api/*` request to the same router file the Vercel functions use; only the Vercel URL-to-file matching is skipped.
 
 - **API tests** (TC-01 to TC-76, SEC-08, SEC-10): `scripts/phase7-live-test.mjs` signs in as each role over HTTP, performs every workflow step and checks the result in the API response **and** in the database (stock, reserved and defective quantities, notifications, documents, audit log).
 - **Browser tests** (TC-13, TC-14, TC-43, TC-67, TC-68, TC-77, TC-78, TC-79) and screenshots: `scripts/phase7-ui-test.mjs`, Microsoft Edge driven by Playwright, desktop 1440×900 and phone 375×812. Run on the local server (Run 2) and again on the live site (Run 3).
@@ -46,7 +46,7 @@ Both runs used the **real TiDB Cloud database** (`second_daze`) that the Vercel 
 
 ### Security findings from the Phase 7.3 review
 
-On the live site, TC-09, TC-15, TC-16, TC-16b, TC-75 and SEC-10 also failed, but only as a knock-on effect of DEF-01: the QA Sales and Inventory accounts could not be approved, so their requests got *401 Please log in*. The live site therefore could not show whether the security fixes are needed there; the code review found that the deployed code lets Inventory submit sales forms and receive customer contact details. All of these pass on the fixed code (Run 2). Details: [security-review.md](./security-review.md).
+In Run 1 (before the fix), TC-09, TC-15, TC-16, TC-16b, TC-75 and SEC-10 also failed on the live site, but only as a knock-on effect of DEF-01: the QA Sales and Inventory accounts could not be approved, so their requests got *401 Please log in*. After the fix they pass on both the local server (Run 2) and the live site (Run 3). Details: [security-review.md](./security-review.md).
 
 ## Results per test
 
@@ -71,7 +71,7 @@ Live, Run 1 = deployed site before the fix. Live, Run 3 = deployed site after th
 | TC-15 | Sales cannot call Admin APIs | Fail | **Pass** | **Pass** | GET users → 403; POST data/import → 403; GET export/customers → 403; POST users → 403 |
 | TC-16 | Inventory cannot submit sales forms | Fail | **Pass** | **Pass** | HTTP 403 "You do not have access to this." |
 | TC-16b | Inventory does not receive customer contact details | Fail | **Pass** | **Pass** | customers empty; orders have no contact number or address. |
-| TC-17 | Inventory adds a product manually | Blocked | **Pass** | **Pass** (after fix) | No form existed during the runs. The *Add product* form was then built (Admin and Inventory). Checked against the real database: TEST-ADD-1 saved with stock 6 and a Stock In movement; a repeated code gave HTTP 409. The test product was deleted. Not yet re-tested in the browser. |
+| TC-17 | Inventory adds a product manually | Blocked | **Pass** | **Pass** (after fix) | No form existed during the runs. The *Add product* form was then built (Admin and Inventory). Checked against the real database: TEST-ADD-1 saved with stock 6 and a Stock In movement; a repeated code gave HTTP 409. The test product was deleted. Re-tested on the live site in Run 3 (see *Run 3: live check of TC-17*). |
 | TC-18 | Admin imports the TEST products | Pass | **Pass** | **Pass** | Imported 2 rows, created 2, stock added 14. TEST-001 stock 10, TEST-002 stock 4. |
 | TC-19 | Same product file cannot be imported twice | Pass | **Pass** | **Pass** | HTTP 409 "This product file was already imported, so its stock was not added again. Change the quantities to import a new shipment."; stock unchanged (10). |
 | TC-20 | Inventory sees product details | Fail | **Pass** | **Pass** | TEST-001: TEST Denim jacket, Outerwear, M, cost 200, price 500, stock 10, In stock. |
@@ -139,7 +139,7 @@ Live, Run 1 = deployed site before the fix. Live, Run 3 = deployed site after th
 
 ## Screenshots
 
-All screenshots were taken during Run 2 with the TEST data in place. They are stored in [screenshots/](./screenshots/).
+Most screenshots were taken during Run 2 (local server) with the TEST data in place and are stored in [screenshots/](./screenshots/). The live site was re-checked in Run 3 and its screenshots are in [screenshots/live/](./screenshots/live/): [30](./screenshots/live/30-sales-home.png), [40](./screenshots/live/40-inventory-home.png), [17](./screenshots/live/17-order-detail.png), [17b](./screenshots/live/17b-print-for-packer.png), [22b](./screenshots/live/22b-reports-weekly.png), [22c](./screenshots/live/22c-reports-all-time.png) and the four report tabs. The Add product screens are [42b](./screenshots/42b-inventory-add-product-button.png), [42c](./screenshots/42c-add-product-form-filled.png) and [42d](./screenshots/42d-add-product-confirm.png).
 
 | Screen | Desktop | Notes |
 |---|---|---|
@@ -157,7 +157,7 @@ All screenshots were taken during Run 2 with the TEST data in place. They are st
 | Sales role screens | [30](./screenshots/30-sales-home.png), [31](./screenshots/31-sales-new-customer.png), [32](./screenshots/32-sales-new-order.png), [33](./screenshots/33-sales-new-reservation.png), [34](./screenshots/34-sales-refund-request.png) | TC-12, TC-13 |
 | Inventory role screens | [40](./screenshots/40-inventory-home.png), [41](./screenshots/41-inventory-products.png), [42](./screenshots/42-inventory-low-stock.png) | TC-12, TC-14 (no Orders/Customers in the menu) |
 | Phone 375 px | [50](./screenshots/50-sign-in-375px.png), [51](./screenshots/51-dashboard-375px.png), [52](./screenshots/52-approvals-375px.png), [53](./screenshots/53-orders-375px.png), [54](./screenshots/54-low-stock-375px.png), [57](./screenshots/57-new-order-375px.png), [58](./screenshots/58-new-reservation-375px.png), [59](./screenshots/59-inventory-375px.png) | TC-78, TC-79 |
-| Live-site defect | [60](./screenshots/60-live-nested-api-404.png) | DEF-01 |
+| Live-site defect (Run 1, before the fix) | [60](./screenshots/60-live-nested-api-404.png) | DEF-01 |
 
 ## Open items for the team
 
@@ -165,9 +165,9 @@ All screenshots were taken during Run 2 with the TEST data in place. They are st
 2. ~~TC-17~~ Done: tested on the live site as Inventory (see *Run 3: live check of TC-17*).
 3. **TC-69 / TC-74 (Not run):** run *Delete all data* only on a copy of the database, or right before go-live.
 4. **TC-78:** also check on a real phone (only 375 px emulation was done).
-5. Set `CRON_SECRET` in Vercel so the daily expiry job runs (TC-58 correct-secret case was tested locally only).
+5. `CRON_SECRET` is set in Vercel (confirmed by the team). The correct-secret case of TC-58 was tested locally only; the maintenance endpoint now answers 401 without the secret on the live site.
 6. Rotate the TiDB password (it was shared in chat during testing).
-7. **Create a real Admin** with `node scripts/create-admin.js`. The weak `admin`/`staff` accounts were disabled after testing (see *Cleanup*).
+7. ~~Create a real Admin~~ Done: Admin `sd_admin` was created (temporary password, must be changed at first sign-in). The weak `admin`/`staff` accounts were disabled after testing (see *Cleanup*).
 
 ## How to re-run
 
@@ -186,6 +186,11 @@ $env:QA_ADMIN_PASSWORD="<strong password>"
 $env:QA_CREDS_FILE="C:\temp\qa-creds.json"             # outside the repo
 $env:QA_RESULTS_FILE="docs/test-results/live-site-run.json"
 node scripts/phase7-live-test.mjs
+
+# browser checks (TC-13, 14, 43, 67, 68, 77, 78, 79); Playwright is installed outside the repo
+$env:PLAYWRIGHT_DIR="C:\temp\pw"; $env:BASE_URL=$env:LIVE_URL   # npm i playwright-core in that folder
+$env:SHOT_DIR="docs/screenshots/live"; $env:UI_RESULTS_FILE="docs/test-results/live-ui-checks.json"
+node scripts/phase7-ui-test.mjs
 
 node scripts/phase7-cleanup.mjs --free-names   # remove TEST data, disable QA accounts
 ```

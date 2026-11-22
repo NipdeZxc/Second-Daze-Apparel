@@ -31,24 +31,24 @@ No high-risk item is unresolved.
 
 ## Evidence from acceptance testing (Phase 7.1)
 
-Results from running the checks against the real database, see [test-results.md](./test-results.md). "Fixed code" = the working tree with the fixes above, run locally against the production database; the live site still runs the older code.
+Results from running the checks against the real database, see [test-results.md](./test-results.md). "Fixed code" = Run 2 (local server, production database). "Live site" = Run 3 (deployed site, commit `77c42bc`, same database). Both give the same results.
 
 | Check | Test | Fixed code | Live site |
 |---|---|---|---|
 | Lockout after 5 failed logins (#8) | SEC-08 | Pass: 6th try gets HTTP 423, 5 `login_failed` audit entries | Pass |
 | Signed-out users get no data (#3) | TC-07 | Pass: HTTP 401 | Pass |
-| Sales cannot use Admin APIs (#3) | TC-15, TC-75 | Pass: HTTP 403 | Not testable (DEF-01) |
-| Inventory cannot submit sales forms (#3) | TC-16 | Pass: HTTP 403 | Not testable (DEF-01); code review shows the deployed code allows it |
-| Inventory gets no customer data (#11) | TC-16b | Pass: no customers, no contact/address on orders | Not testable (DEF-01); deployed code sends it |
-| Reset link single use, expiry, same reply (#7) | TC-09 | Pass | Not testable (DEF-01) |
+| Sales cannot use Admin APIs (#3) | TC-15, TC-75 | Pass: HTTP 403 | Pass: HTTP 403 |
+| Inventory cannot submit sales forms (#3) | TC-16 | Pass: HTTP 403 | Pass: HTTP 403 |
+| Inventory gets no customer data (#11) | TC-16b | Pass: no customers, no contact/address on orders | Pass: same |
+| Reset link single use, expiry, same reply (#7) | TC-09 | Pass | Pass |
 | Copied cookie after logout (#4) | TC-08 | Still accepted (HTTP 200), as documented | — |
-| Long input / markup (#10) | SEC-10 | Pass: HTTP 400 over 100 characters; markup shown as text | Not testable (DEF-01) |
+| Long input / markup (#10) | SEC-10 | Pass: HTTP 400 over 100 characters; markup shown as text | Pass: same |
 | Formula cells in exports (#10) | TC-71 | Pass: `=1+1` exported as `'=1+1` | Pass |
-| Cron secret (#12) | TC-58 | Pass: none 401, wrong 401, correct 200 | 404: the endpoint is unreachable (DEF-01), so the daily expiry job has not been running on production |
+| Cron secret (#12) | TC-58 | Pass: none 401, wrong 401, correct 200 | Pass: none 401, wrong 401 (the endpoint is reachable now). Correct secret not tried live because the secret is only in Vercel. Before the fix the endpoint returned 404, so the daily expiry job had not been running on production |
 
 **Found during testing:** the `users` table on production had active accounts `admin` / `admin` and `staff` / `staff` (weak passwords). **Fixed after testing:** both were disabled and their password hashes made unusable. Both logins now return HTTP 401 on the live site. They were the only Admin logins with known passwords, so the team must create a real Admin with `node scripts/create-admin.js` (using the database settings) before using the Admin screens.
 
-**Deployed:** the fixes and DEF-01 are live (commit `77c42bc`). Run 3 on the live site passed the security checks that DEF-01 had made untestable (TC-15, TC-16, TC-16b, TC-09, TC-58, TC-75, SEC-10).
+**Deployed:** the fixes and DEF-01 are live (commit `77c42bc`). Run 3 on the live site passed all the security checks that DEF-01 had made untestable (TC-15, TC-16, TC-16b, TC-09, TC-58, TC-75, SEC-10), so the live results equal the fixed-code results.
 
 ## Team checks before go-live
 
