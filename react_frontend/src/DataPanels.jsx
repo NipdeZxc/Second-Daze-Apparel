@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { csvTemplate, datasets, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./data/workspace.js";
+import { buildWeeklyReport, csvTemplate, datasets, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./data/workspace.js";
 import {
   datasetImportFiles,
   MAX_DATASET_BATCH_BYTES,
@@ -693,22 +693,23 @@ export function DataReports({ overview, authUser }) {
   const [view, setView] = useState("weekly");
   const metrics = overview?.metrics;
   const weekly = view === "weekly";
+  const week = weekly && overview?.records ? buildWeeklyReport(overview.records) : null;
+  const refundedTotal = overview?.records?.refunds
+    ?.filter((refund) => refund.status === "Approved")
+    .reduce((sum, refund) => sum + Number(refund.amount || 0), 0);
   const reports = {
     sales: [
-      ["Weekly sales", formatMoney(metrics?.weeklySales)],
-      ["Weekly transactions", weekly ? metrics?.weeklyOrders ?? "—" : metrics?.ordersPlaced ?? "—"],
+      [weekly ? "Weekly sales" : "Gross sales", formatMoney(weekly ? metrics?.weeklySales : metrics?.grossSales)],
+      [weekly ? "Weekly transactions" : "Recorded sales", weekly ? week?.sales.transactions ?? "�" : overview?.records?.sales?.length ?? "�"],
       ["Today's sales", formatMoney(metrics?.todaysSales)],
       ["Average order value", formatMoney(metrics?.averageOrderValue)],
     ],
     financial: [
-      ["Gross sales", formatMoney(weekly ? metrics?.weeklySales : metrics?.grossSales)],
+      ["Net sales", formatMoney(weekly ? metrics?.weeklySales : metrics?.grossSales)],
       ["Recorded cost", formatMoney(weekly ? metrics?.weeklyCost : metrics?.totalCost)],
-      ["Gross profit", formatMoney(weekly ? metrics?.weeklyProfit : metrics?.profit)],
-      ["Refunded sales", formatMoney(overview?.records?.refunds
-        ?.filter((refund) => refund.status === "Approved")
-        .reduce((sum, refund) => sum + Number(refund.amount || 0), 0))],
-    ],
-    orders: [
+      ["Profit", formatMoney(weekly ? metrics?.weeklyProfit : metrics?.profit)],
+      ["Refunded sales", formatMoney(weekly ? week?.financial.refunds : refundedTotal)],
+    ],    orders: [
       ["Orders in view", weekly ? metrics?.weeklyOrders ?? "—" : metrics?.ordersPlaced ?? "—"],
       ["Pending orders", metrics?.pendingOrders ?? "—"],
       ["Items for shipping", metrics?.itemsForShipping ?? "—"],
