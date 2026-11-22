@@ -91,7 +91,7 @@ export const importColumns = (kind) => definitionFor(kind).columns.filter((colum
 export function emptyRecords() {
   return {
     ...Object.fromEntries(Object.keys(datasets).map((kind) => [kind, []])),
-    notifications: [], recentActivity: [], pendingAccess: 0, updatedAt: null,
+    notifications: [], recentActivity: [], pendingAccess: 0, dashboard: null, updatedAt: null,
   };
 }
 
@@ -117,12 +117,16 @@ export function validateRecords(kind, records, existing = emptyRecords()) {
   const definition = definitionFor(kind);
   const columns = importColumns(kind);
   if (!records.length || records.length > MAX_ROWS) throw new Error(`Import between 1 and ${MAX_ROWS} rows at a time.`);
-  const seen = new Set((existing[kind] || []).map((record) => String(record[definition.importKey]).toLowerCase()));
+  const existingIds = new Set((existing[kind] || []).map((record) => String(record[definition.importKey]).toLowerCase()));
+  const seen = new Set();
   return records.map((record, index) => {
     try {
       const normalized = Object.fromEntries(columns.map((column) => [column.key, normalizeValue(record[column.key], column)]));
       const id = String(normalized[definition.importKey]).toLowerCase();
-      if (seen.has(id)) throw new Error(`Duplicate ${definition.importKey}: ${normalized[definition.importKey]}. Existing records are not overwritten.`);
+      if (seen.has(id)) throw new Error(`Duplicate ${definition.importKey}: ${normalized[definition.importKey]} within this file.`);
+      if (kind !== "products" && existingIds.has(id)) {
+        throw new Error(`Duplicate ${definition.importKey}: ${normalized[definition.importKey]}. Existing records are not overwritten.`);
+      }
       seen.add(id);
       return normalized;
     } catch (error) {
@@ -156,15 +160,72 @@ export function parseImport(kind, csv, existing = emptyRecords()) {
 const cents = (value) => Math.round(Number(value || 0) * 100);
 const CLOSED_ORDERS = ["Delivered", "Completed", "Cancelled", "Voided"];
 
+export function fridayReviewRange(now = new Date()) {
+  const friday = new Date(now);
+  friday.setUTCHours(23, 59, 59, 999);
+  const offsetFromFriday = (friday.getUTCDay() - 5 + 7) % 7;
+  friday.setUTCDate(friday.getUTCDate() - offsetFromFriday);
+  const monday = new Date(friday);
+  monday.setUTCDate(friday.getUTCDate() - 4);
+  monday.setUTCHours(0, 0, 0, 0);
+  return { start: monday, end: friday };
+}
+
+export const getFridayReviewWeek = fridayReviewRange;
+
+export function buildWeeklyReport(records, now = new Date()) {
+  const range = fridayReviewRange(now);
+  const sales = records.sales.filter((sale) => dateInRange(sale.sold_at, range));
+  const orders = records.orders.filter((order) => dateInRange(order.ordered_at, range));
+  const refunds = records.refunds.filter((refund) =>
+    refund.status === "Approved" && dateInRange(refund.refund_date, range),
+  );
+  const salesCents = sales.reduce((sum, sale) => sum + cents(sale.amount), 0);
+  const costCents = sales.reduce((sum, sale) => sum + cents(sale.cost), 0);
+  const refundCents = refunds.reduce((sum, refund) => sum + cents(refund.amount), 0);
+  const lowStock = records.products.filter((product) =>
+    product.status !== "Inactive" && Number(product.stock_quantity) <= Number(product.low_stock_threshold),
+  );
+  return {
+    range,
+    sales: { transactions: sales.length, grossSales: salesCents / 100, cost: costCents / 100 },
+    financial: { grossSales: (salesCents - refundCents) / 100, cost: costCents / 100, refunds: refundCents / 100 },
+    orders: { count: orders.length, pending: orders.filter((order) => ["Pending Approval", "Pending Payment"].includes(order.status)).length },
+    stock: { lowStockCount: lowStock.length, lowStock },
+  };
+}
+
+function dateInRange(value, range) {
+  if (!value) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && date >= range.start && date <= range.end;
+}
+
 export function buildOverview(records, now = new Date()) {
   const refunded = records.refunds.filter((refund) => refund.status === "Approved").reduce((sum, refund) => sum + cents(refund.amount), 0);
   const salesTotal = records.sales.reduce((sum, sale) => sum + cents(sale.amount), 0);
   const totalCost = records.sales.reduce((sum, sale) => sum + cents(sale.cost), 0);
   const grossSales = salesTotal - refunded;
+  const fridayRange = fridayReviewRange(now);
+  const weeklySales = records.sales.filter((sale) => dateInRange(sale.sold_at, fridayRange));
+  const weeklySalesCents = weeklySales.reduce((sum, sale) => sum + cents(sale.amount), 0);
+  const weeklyCostCents = weeklySales.reduce((sum, sale) => sum + cents(sale.cost), 0);
+  const weeklyRefundCents = records.refunds
+    .filter((refund) => refund.status === "Approved" && dateInRange(refund.refund_date, fridayRange))
+    .reduce((sum, refund) => sum + cents(refund.amount), 0);
+  const weeklyOrders = records.orders.filter((order) => dateInRange(order.ordered_at, fridayRange));
   const pendingOrders = records.orders.filter((order) => !CLOSED_ORDERS.includes(order.status));
+  const pendingOrderCount = records.dashboard?.pendingOrders
+    ?? records.orders.filter((order) => ["Pending Approval", "Pending Payment"].includes(order.status)).length;
   const lowStock = records.products.filter((product) => product.status !== "Inactive" && Number(product.stock_quantity) <= Number(product.low_stock_threshold));
   const reservations = records.reservations.filter((item) => ["Pending Approval", "Active"].includes(item.status)
     && (!item.expires_at || Date.parse(item.expires_at) > now.getTime()));
+  const activeReservationCount = records.reservations.filter((item) =>
+    item.status === "Active"
+    && (!item.expires_at || Date.parse(item.expires_at) > now.getTime()),
+  ).length;
+  const unpaidReservations = records.dashboard?.unpaidReservations
+    ?? records.reservations.filter((item) => ["Pending Approval", "Active"].includes(item.status)).length;
   const dateKey = (value) => new Date(value).toLocaleDateString("en-CA");
   const dailySales = new Map();
   for (const sale of records.sales) {
@@ -177,14 +238,36 @@ export function buildOverview(records, now = new Date()) {
     records, lowStock, reservations, pendingOrders,
     metrics: {
       grossSales: grossSales / 100, totalCost: totalCost / 100, profit: (grossSales - totalCost) / 100,
+      weeklySales: (weeklySalesCents - weeklyRefundCents) / 100,
+      weeklyCost: weeklyCostCents / 100,
+      weeklyProfit: (weeklySalesCents - weeklyRefundCents - weeklyCostCents) / 100,
+      weeklyOrders: weeklyOrders.length,
+      pendingOrders: pendingOrderCount,
+      unpaidReservations,
+      itemsForShipping: records.dashboard?.itemsForShipping ?? null,
+      completedOrders: records.dashboard?.completedOrders
+        ?? records.orders.filter((order) => order.status === "Completed").length,
       todaysSales: records.sales.filter((sale) => dateKey(sale.sold_at) === dateKey(now)).reduce((sum, sale) => sum + cents(sale.amount), 0) / 100,
       ordersPlaced: records.orders.length,
       averageOrderValue: records.orders.length ? orderedTotal / 100 / records.orders.length : null,
       fulfillmentRate: countedOrders.length
         ? countedOrders.filter((order) => ["Delivered", "Completed"].includes(order.status)).length / countedOrders.length * 100 : null,
-      activeReservations: reservations.length,
+      activeReservations: activeReservationCount,
     },
-    queues: { accessApprovals: records.pendingAccess, ordersToFulfill: pendingOrders.length, lowStockItems: lowStock.length },
+    fridayReview: {
+      start: fridayRange.start.toISOString(),
+      end: fridayRange.end.toISOString(),
+      salesCount: weeklySales.length,
+      orders: weeklyOrders,
+      sales: weeklySales,
+      lowStock,
+    },
+    queues: {
+      accessApprovals: records.pendingAccess,
+      ordersToFulfill: pendingOrders.length,
+      lowStockItems: lowStock.length,
+      unpaidReservations,
+    },
     dailySales: [...dailySales].sort(([a], [b]) => a.localeCompare(b)).slice(-30).map(([day, amount]) => [day, amount / 100]),
     recentActivity: records.recentActivity,
     updatedAt: records.updatedAt,
