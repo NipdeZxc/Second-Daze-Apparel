@@ -29,6 +29,10 @@ export function deleteRecord(kind, id) {
   return apiRequest(`/api/data/${kind}/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+export function deleteAllData(confirm) {
+  return apiRequest("/api/data/delete-all", { method: "POST", body: { confirm } });
+}
+
 export function runRowAction(path, value) {
   return apiRequest(`/api/${path}`, { method: "POST", body: value === undefined ? {} : { value } });
 }

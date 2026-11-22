@@ -94,6 +94,27 @@ test("record deletion route requires an authenticated admin", async () => {
   assert.deepEqual(res.body, { error: "Please log in." });
 });
 
+test("delete-all route requires an authenticated admin", async () => {
+  const req = { url: "/api/data/delete-all", method: "POST", headers: {}, body: { confirm: "DELETE ALL DATA" } };
+  const res = {
+    statusCode: 0,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    setHeader() {
+      return this;
+    },
+    json(body) {
+      this.body = body;
+    },
+  };
+
+  await apiHandler(req, res);
+
+  assert.equal(res.statusCode, 401);
+});
+
 test("CSV import adds stock to an existing product and records the stock movement", async () => {
   const conn = fakeConnection([{ product_id: 7 }]);
   const admin = { user_id: 4 };

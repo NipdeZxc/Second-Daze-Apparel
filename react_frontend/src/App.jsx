@@ -1448,7 +1448,7 @@ function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewSta
           {(screen.kind === "staff-dashboard" || screen.kind === "sales-dashboard") && <StaffDashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
           {screen.kind === "inventory-dashboard" && <InventoryDashboard overviewState={overviewState} onRefresh={onRefresh} />}
           {screen.kind === "csv-import" && <CsvImportPanel authUser={authUser} existingRecords={overviewState.data?.records} onImported={onRefresh} />}
-          {screen.kind === "data-export" && <DataExportPanel authUser={authUser} records={overviewState.data?.records} />}
+          {screen.kind === "data-export" && <DataExportPanel authUser={authUser} records={overviewState.data?.records} onDeleted={onRefresh} />}
           {["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <UserManagementPanel key={screen.id} screen={screen} />}
           {screen.kind === "table" && !["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <EmptyTable screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
           {screen.kind === "catalog" && <RecordsTable kind="products" rows={overviewState.data?.records?.products} title="Product catalog" />}

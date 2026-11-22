@@ -644,6 +644,38 @@ export async function deleteRecord(req, res, { kind, id }) {
   sendJson(res, 200, { ok: true });
 }
 
+export const DELETE_ALL_CONFIRMATION = "DELETE ALL DATA";
+
+// Child tables first so foreign keys never block the wipe. Accounts, roles and the audit log are kept.
+const WIPE_ORDER = [
+  "notifications", "stock_movements", "refund_items", "refunds", "delivery_receipts", "shipments",
+  "invoices", "purchase_orders", "payments", "order_items", "orders", "reservation_items",
+  "reservations", "products", "customers", "import_batches", "document_counters",
+];
+
+export async function deleteAllData(req, res) {
+  const admin = await requireRole(req, ADMIN);
+  if (req.body?.confirm !== DELETE_ALL_CONFIRMATION) {
+    throw new HttpError(400, `Type "${DELETE_ALL_CONFIRMATION}" to confirm.`);
+  }
+
+  const deleted = {};
+  await withTransaction(async (conn) => {
+    for (const table of WIPE_ORDER) {
+      const [result] = await conn.query(`DELETE FROM \`${table}\``);
+      deleted[table] = result.affectedRows;
+    }
+    const total = Object.values(deleted).reduce((sum, count) => sum + count, 0);
+    await conn.query(
+      `INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, created_at)
+       VALUES (?, 'delete_all_data', 'workspace', NULL, ?, ?)`,
+      [admin.user_id, `All business data permanently deleted (${total} rows)`, new Date()]
+    );
+  });
+
+  sendJson(res, 200, { ok: true, deleted });
+}
+
 // ---- Row actions (approve, verify payment, ship, ...) ----------------------------------
 
 async function lockOrder(conn, id) {

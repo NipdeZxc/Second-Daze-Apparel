@@ -14,6 +14,7 @@ import { importDatasetBatch } from "./_lib/routes/dataset-import.js";
 import { runOperationsMaintenance } from "./_lib/routes/operations.js";
 import {
   getRecords,
+  deleteAllData,
   deleteRecord,
   importRecords,
   markNotificationsRead,
@@ -41,6 +42,7 @@ const routes = [
   ["GET", "operations/maintenance", runOperationsMaintenance],
   ["POST", "data/import", importRecords],
   ["POST", "data/import-batch", importDatasetBatch],
+  ["POST", "data/delete-all", deleteAllData],
   ["DELETE", "data/:kind/:id", deleteRecord],
   ["POST", "data/actions", runFormAction],
   ["POST", "data/notifications-read", markNotificationsRead],

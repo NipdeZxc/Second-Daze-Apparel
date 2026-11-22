@@ -7,7 +7,7 @@ import {
   MAX_DATASET_FILE_BYTES,
   parseDatasetFile,
 } from "./data/datasetImport.js";
-import { deleteRecord, exportWorkspaceData, importDatasetBatch, importRecords, runRowAction, updateRecord } from "./api/workspace.js";
+import { deleteAllData, deleteRecord, exportWorkspaceData, importDatasetBatch, importRecords, runRowAction, updateRecord } from "./api/workspace.js";
 import { createWorkspaceExcel, serializeWorkspaceCsv } from "./data/export.js";
 
 export const screenDatasets = {
@@ -629,10 +629,14 @@ function downloadFile(contents, mimeType, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function DataExportPanel({ authUser, records }) {
+export function DataExportPanel({ authUser, records, onDeleted }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [confirmText, setConfirmText] = useState("");
+  const [wiping, setWiping] = useState(false);
+  const [wipeError, setWipeError] = useState("");
+  const [wipeMessage, setWipeMessage] = useState("");
 
   if (authUser?.role !== "Admin") return <p role="alert">Only an Admin can export workspace data.</p>;
   if (!records) return <p className="data-notice" role="status">Workspace records are not loaded yet. Refresh and try again.</p>;
@@ -658,6 +662,25 @@ export function DataExportPanel({ authUser, records }) {
     }
   };
 
+  const wipeAll = async (event) => {
+    event.preventDefault();
+    if (!window.confirm("Permanently delete ALL products, customers, orders, reservations, refunds, documents, stock history and notifications?\n\nStaff accounts are kept. This cannot be undone.")) return;
+    setWipeError("");
+    setWipeMessage("");
+    setWiping(true);
+    try {
+      const result = await deleteAllData(confirmText.trim());
+      const total = Object.values(result.deleted || {}).reduce((sum, count) => sum + count, 0);
+      setWipeMessage(`Deleted ${total} records. Staff accounts were kept.`);
+      setConfirmText("");
+      onDeleted?.();
+    } catch (wipeFailure) {
+      setWipeError(wipeFailure.message || "The data could not be deleted.");
+    } finally {
+      setWiping(false);
+    }
+  };
+
   return (
     <section className="panel csv-import">
       <div className="panel__top">
@@ -679,6 +702,22 @@ export function DataExportPanel({ authUser, records }) {
         </div>
         {error && <p className="inline-error" role="alert">{error}</p>}
         {message && <p className="form-note" role="status">{message}</p>}
+        <form className="csv-import__batch" onSubmit={wipeAll}>
+          <h3>Delete all data</h3>
+          <p className="data-notice">
+            Permanently removes every product, customer, order, payment, shipment, invoice, reservation, refund,
+            stock movement and notification. Staff accounts and the audit log are kept. Download an export first; this cannot be undone.
+          </p>
+          <label className="field">
+            <span>Type DELETE ALL DATA to confirm</span>
+            <input value={confirmText} onChange={(event) => setConfirmText(event.target.value)} autoComplete="off" disabled={wiping} />
+          </label>
+          <button type="submit" className="button button--pink" disabled={wiping || confirmText.trim() !== "DELETE ALL DATA"}>
+            {wiping ? "Deleting…" : "Delete all data"}
+          </button>
+          {wipeError && <p className="inline-error" role="alert">{wipeError}</p>}
+          {wipeMessage && <p className="form-note" role="status">{wipeMessage}</p>}
+        </form>
       </div>
     </section>
   );
