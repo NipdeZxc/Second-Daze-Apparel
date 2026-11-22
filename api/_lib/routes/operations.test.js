@@ -10,3 +10,14 @@ test("maintenance job rejects requests without the cron secret", async () => {
   );
   delete process.env.CRON_SECRET;
 });
+
+test("maintenance job rejects a wrong cron secret of any length", async () => {
+  process.env.CRON_SECRET = "secret";
+  for (const authorization of ["Bearer secreT", "Bearer s", "secret"]) {
+    await assert.rejects(
+      runOperationsMaintenance({ headers: { authorization } }, {}),
+      (error) => error.status === 401
+    );
+  }
+  delete process.env.CRON_SECRET;
+});

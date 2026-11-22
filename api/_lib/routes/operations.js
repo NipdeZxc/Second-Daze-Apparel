@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { getPool } from "../../_db.js";
 import { HttpError, sendJson } from "../http.js";
 import { notify, voidExpiredReservations, withTransaction } from "./data.js";
@@ -36,7 +37,11 @@ export async function sendExpiryReminders() {
 // Scheduled job (Vercel Cron): voids unpaid reservations past their agreed days, releases stock and notifies.
 export async function runOperationsMaintenance(req, res) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.authorization !== `Bearer ${secret}`) throw new HttpError(401, "Unauthorized.");
+  const given = Buffer.from(String(req.headers.authorization || ""));
+  const expected = Buffer.from(`Bearer ${secret}`);
+  if (!secret || given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+    throw new HttpError(401, "Unauthorized.");
+  }
   await voidExpiredReservations();
   const reminders = await sendExpiryReminders();
   sendJson(res, 200, { ok: true, reminders });

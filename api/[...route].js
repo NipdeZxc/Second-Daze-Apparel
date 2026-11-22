@@ -23,8 +23,9 @@ import {
   updateRecord,
 } from "./_lib/routes/data.js";
 
-// One catch-all function keeps the project under Vercel's function limit.
-const routes = [
+// One shared router keeps the project under Vercel's function limit. On Vercel a [...route] file
+// matches only one path segment, so deeper paths need their own files (see api/data/route.test.js).
+export const routes = [
   ["POST", "login", login],
   ["POST", "logout", logout],
   ["GET", "me", me],
@@ -77,7 +78,8 @@ export default async function handler(req, res) {
     await found.handler(req, res, found.params);
   } catch (error) {
     if (error instanceof HttpError) return sendJson(res, error.status, { error: error.message });
-    console.error(error);
+    // Log only the code/name: database errors can carry SQL with customer data in it.
+    console.error("Request failed:", error?.code || error?.name || "Error");
     sendJson(res, 500, { error: "Something went wrong." });
   }
 }

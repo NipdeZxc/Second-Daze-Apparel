@@ -222,7 +222,7 @@ async function insertChunk(conn, spec, records, start) {
   try {
     await conn.query(`INSERT INTO \`${spec.table}\` (${columns}) VALUES ${placeholders}`, values);
   } catch (error) {
-    console.error(`Dataset import failed for ${spec.file}, rows ${start}-${start + records.length - 1}:`, error);
+    console.error(`Dataset import failed for ${spec.file}, rows ${start}-${start + records.length - 1}:`, error.code || "Error");
     const status = error.code === "ER_DUP_ENTRY" ? 409 : 400;
     throw new HttpError(status, `${spec.file} failed at rows ${start}-${start + records.length - 1}. Check unique values, statuses, and referenced IDs.`);
   }
@@ -268,6 +268,8 @@ export async function importDatasetBatch(req, res) {
           });
           row.created_by = null;
           row.approved_by = null;
+          // Imported password hashes were not checked against the password policy.
+          row.must_change_password = 1;
         }
       }
 

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import handler, { normalizeDataRouteUrl } from "./[...route].js";
-import apiHandler from "../[...route].js";
+import apiHandler, { routes } from "../[...route].js";
 import { importProductRow, restockLabel } from "../_lib/routes/data.js";
 
 function fakeConnection(existingProducts = [], insertId = 12) {
@@ -18,6 +21,30 @@ function fakeConnection(existingProducts = [], insertId = 12) {
     },
   };
 }
+
+// The deployed site returned Vercel's own 404 for /api/users/:id/approve and /api/data/:kind/:id/:action
+// because a [...route] file there matches exactly one segment. Every route needs a file that serves it.
+test("every API route has a Vercel function file that serves its path", () => {
+  const apiDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+  const files = [];
+  (function walk(dir, prefix) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith("_") || entry.name.startsWith(".")) continue;
+      if (entry.isDirectory()) walk(path.join(dir, entry.name), [...prefix, entry.name]);
+      else if (entry.name.endsWith(".js") && !entry.name.endsWith(".test.js")) {
+        const name = entry.name.slice(0, -3);
+        files.push(name === "index" ? prefix : [...prefix, name]);
+      }
+    }
+  })(apiDir, []);
+  const serves = (file, segments) => file.length === segments.length
+    && file.every((part, i) => part.startsWith("[") || part === segments[i]);
+  const missing = routes
+    .map(([method, pattern]) => [method, pattern.split("/").map((part) => (part.startsWith(":") ? "1" : part))])
+    .filter(([, segments]) => !files.some((file) => serves(file, segments)))
+    .map(([method, segments]) => `${method} /api/${segments.join("/")}`);
+  assert.deepEqual(missing, []);
+});
 
 test("nested API route preserves full Vercel request paths", () => {
   assert.equal(normalizeDataRouteUrl("/api/data/records?fresh=1"), "/api/data/records?fresh=1");
@@ -174,4 +201,37 @@ test("re-importing the same restock file is rejected, even when renamed", async 
   );
   const changed = [{ product_code: "SKU-7", stock_quantity: "6" }, records[1]];
   assert.match(await restockLabel(seen, changed, "restock.csv"), /^restock\.csv \[#/);
+});
+test("Inventory users cannot submit sales form actions or see customer contact details", async () => {
+  const { getPool } = await import("../_db.js");
+  const { setSession } = await import("../_lib/auth.js");
+  process.env.SESSION_SECRET = "x".repeat(32);
+  const inventoryUser = { user_id: 3, role_id: 3, role_name: "Inventory Management", account_status: "Active", password_hash: "h", must_change_password: 0 };
+  let cookie = "";
+  setSession({ setHeader: (_name, value) => { cookie = value.split(";")[0]; } }, inventoryUser);
+  const pool = getPool();
+  const originalQuery = pool.query;
+  pool.query = async (sql) => {
+    if (sql.includes("FROM users u JOIN roles")) return [[inventoryUser], []];
+    if (sql.includes("FROM customers c ORDER BY")) return [[{ id: 1, full_name: "Ana", contact_number: "09123456789", info_verified: 1 }], []];
+    if (sql.includes("FROM orders o JOIN customers")) return [[{ id: 1, order_number: "ORD-1", status: "Paid", contact_number: "09123456789", address: "Manila" }], []];
+    return [[], []];
+  };
+  const call = async (method, url, body = {}) => {
+    const res = { statusCode: 0, status(code) { this.statusCode = code; return this; }, setHeader() { return this; }, json(data) { this.body = data; } };
+    await apiHandler({ url, method, headers: { cookie }, body }, res);
+    return res;
+  };
+  try {
+    const form = await call("POST", "/api/data/actions", { screenId: "3.14-confirm-delivery", values: {} });
+    assert.equal(form.statusCode, 403);
+    const records = await call("GET", "/api/data/records");
+    assert.equal(records.statusCode, 200);
+    assert.deepEqual(records.body.customers, []);
+    assert.equal(records.body.orders[0].contact_number, undefined);
+    assert.equal(records.body.orders[0].address, undefined);
+  } finally {
+    pool.query = originalQuery;
+    delete process.env.SESSION_SECRET;
+  }
 });

@@ -1,0 +1,453 @@
+{
+  "site": "https://second-daze-apparel.vercel.app",
+  "started": "2026-11-22T11:23:54.823Z",
+  "finished": "2026-11-22T11:24:09.804Z",
+  "dashboardBefore": {
+    "totalSales": 152407.44,
+    "totalProfit": 26623.82,
+    "pendingOrders": 42,
+    "unpaidReservations": 26,
+    "itemsForShipping": 33,
+    "completedOrders": 46
+  },
+  "results": [
+    {
+      "id": "TC-01",
+      "title": "Admin creates Sales and Inventory subaccounts",
+      "status": "Pass",
+      "actual": "201 Created for both; status Pending Approval; 12-character temporary password returned once (e.g. length 12)."
+    },
+    {
+      "id": "TC-02",
+      "title": "Pending account cannot sign in",
+      "status": "Pass",
+      "actual": "HTTP 403 \"This account is not active. Please contact the Admin.\""
+    },
+    {
+      "id": "TC-03",
+      "title": "Admin approves both accounts",
+      "status": "Fail",
+      "actual": "HTTP 404 / HTTP 404"
+    },
+    {
+      "id": "TC-04",
+      "title": "First sign-in forces a password change",
+      "status": "Fail",
+      "actual": "HTTP 403 \"This account is not active. Please contact the Admin.\""
+    },
+    {
+      "id": "TC-05",
+      "title": "Weak new password is rejected",
+      "status": "Fail",
+      "actual": "HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-06",
+      "title": "Wrong password is refused",
+      "status": "Pass",
+      "actual": "HTTP 401 \"Invalid username or password.\""
+    },
+    {
+      "id": "TC-07",
+      "title": "Signed-out user gets no data",
+      "status": "Pass",
+      "actual": "GET /api/data/records → HTTP 401 \"Please log in.\"; site root → HTTP 200 (sign-in screen, see screenshot)."
+    },
+    {
+      "id": "TC-08",
+      "title": "Logout ends the browser session",
+      "status": "Pass",
+      "actual": "Logout cleared the cookie; /api/me → HTTP 401 \"Please log in.\". Replaying a copied old cookie → HTTP 401 (accepted risk, see security review #4)."
+    },
+    {
+      "id": "TC-09",
+      "title": "Forgot / reset password",
+      "status": "Fail",
+      "actual": "cannot sign in with reset password"
+    },
+    {
+      "id": "TC-10",
+      "title": "Disabled account cannot sign in; re-enable restores it",
+      "status": "Fail",
+      "actual": "disable failed"
+    },
+    {
+      "id": "TC-11",
+      "title": "Admin resets a password; old sessions end",
+      "status": "Fail",
+      "actual": "HTTP 404"
+    },
+    {
+      "id": "SEC-08",
+      "title": "Five failed logins lock the account",
+      "status": "Pass",
+      "actual": "After 5 wrong passwords the correct password gets HTTP 423 \"Too many failed attempts. Try again in a few minutes.\"; 5 login_failed audit entries. (Unlocked in the DB afterwards.)"
+    },
+    {
+      "id": "TC-12",
+      "title": "Each role signs in with its own role",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'role')"
+    },
+    {
+      "id": "TC-15",
+      "title": "Sales cannot call Admin APIs",
+      "status": "Fail",
+      "actual": "GET users 401, POST data/import 401, GET export/customers 401, POST users 401"
+    },
+    {
+      "id": "TC-16",
+      "title": "Inventory cannot submit sales forms",
+      "status": "Fail",
+      "actual": "HTTP 401 \"Please log in.\" — the request passed the role check (fixed in code, not yet deployed)"
+    },
+    {
+      "id": "TC-16b",
+      "title": "Inventory does not receive customer contact details",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'length')"
+    },
+    {
+      "id": "TC-75",
+      "title": "Sales cannot run Delete all data",
+      "status": "Fail",
+      "actual": "HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-17",
+      "title": "Inventory adds a product manually",
+      "status": "Blocked",
+      "actual": "No manual add-product form or API exists; products are added only by Admin CSV import (known gap, US-02)."
+    },
+    {
+      "id": "TC-18",
+      "title": "Admin imports the TEST products",
+      "status": "Pass",
+      "actual": "Imported 2 rows, created 2, stock added 14. TEST-001 stock 10, TEST-002 stock 4."
+    },
+    {
+      "id": "TC-19",
+      "title": "Same product file cannot be imported twice",
+      "status": "Pass",
+      "actual": "HTTP 409 \"This product file was already imported, so its stock was not added again. Change the quantities to import a new shipment.\"; stock unchanged (10)."
+    },
+    {
+      "id": "TC-20",
+      "title": "Inventory sees product details",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'find')"
+    },
+    {
+      "id": "TC-21",
+      "title": "Inventory adds stock",
+      "status": "Fail",
+      "actual": "HTTP 404"
+    },
+    {
+      "id": "TC-22",
+      "title": "Invalid stock quantities are refused",
+      "status": "Fail",
+      "actual": "0 → 404, -1 → 404, abc → 404"
+    },
+    {
+      "id": "TC-24",
+      "title": "Non-admins cannot edit products",
+      "status": "Fail",
+      "actual": "401/401/404"
+    },
+    {
+      "id": "TC-28",
+      "title": "New customer with 09 number",
+      "status": "Fail",
+      "actual": "HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-29",
+      "title": "New customer with +63 number and spaces",
+      "status": "Fail",
+      "actual": "HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-30",
+      "title": "Invalid mobile numbers are refused",
+      "status": "Fail",
+      "actual": "12345 → 401, 0817123456 → 401, (02) 8123 4567 → 401"
+    },
+    {
+      "id": "TC-31",
+      "title": "Missing address fields are refused",
+      "status": "Fail",
+      "actual": "401/401"
+    },
+    {
+      "id": "TC-32",
+      "title": "Duplicate number (other format) is refused",
+      "status": "Fail",
+      "actual": "HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "SEC-10",
+      "title": "Long text and markup in input",
+      "status": "Fail",
+      "actual": "long name HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-34",
+      "title": "Sales creates a multi-item purchase order",
+      "status": "Fail",
+      "actual": "HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-35",
+      "title": "Order larger than stock is refused",
+      "status": "Fail",
+      "actual": "HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-36",
+      "title": "Bad additional-items format is refused",
+      "status": "Fail",
+      "actual": "HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-37",
+      "title": "Admin approves the order",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_id')"
+    },
+    {
+      "id": "TC-38",
+      "title": "Sales records a GCash payment",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_id')"
+    },
+    {
+      "id": "TC-40",
+      "title": "Admin rejects the payment",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_id')"
+    },
+    {
+      "id": "TC-39",
+      "title": "Duplicate GCash reference is refused",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_id')"
+    },
+    {
+      "id": "TC-41",
+      "title": "Verified payment deducts stock and issues the invoice",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_id')"
+    },
+    {
+      "id": "TC-26",
+      "title": "Low stock notification for Inventory",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'some')"
+    },
+    {
+      "id": "TC-25",
+      "title": "Low-stock list",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'find')"
+    },
+    {
+      "id": "TC-42",
+      "title": "Sales documents: PO and invoice only after payment",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'filter')"
+    },
+    {
+      "id": "TC-44",
+      "title": "Cancel an unpaid order",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_id')"
+    },
+    {
+      "id": "TC-45",
+      "title": "Cannot ship to an unverified customer",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_id')"
+    },
+    {
+      "id": "TC-33",
+      "title": "Sales verifies the customer",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'customer_id')"
+    },
+    {
+      "id": "TC-46",
+      "title": "Ship with tracking number",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_id')"
+    },
+    {
+      "id": "TC-47",
+      "title": "Mark in transit",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_id')"
+    },
+    {
+      "id": "TC-48",
+      "title": "Confirm delivery issues a delivery receipt",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_number')"
+    },
+    {
+      "id": "TC-50",
+      "title": "Complete the delivered order",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_id')"
+    },
+    {
+      "id": "TC-49",
+      "title": "Returned parcel",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'customer_id')"
+    },
+    {
+      "id": "TC-51",
+      "title": "Sales creates a reservation",
+      "status": "Fail",
+      "actual": "reserve: HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-52",
+      "title": "Invalid agreed days are refused",
+      "status": "Fail",
+      "actual": "\"0\" → 401, \"256\" → 401, \"\" → 401"
+    },
+    {
+      "id": "TC-53",
+      "title": "Approval holds stock and sets expiry",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'reservation_id')"
+    },
+    {
+      "id": "TC-54",
+      "title": "Rejecting a reservation leaves stock alone",
+      "status": "Fail",
+      "actual": "reserve: HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-55",
+      "title": "Cancelling an active reservation releases stock",
+      "status": "Fail",
+      "actual": "reserve: HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-56",
+      "title": "Reservation converted to a paid order",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'reservation_id')"
+    },
+    {
+      "id": "TC-57",
+      "title": "Expired reservation is voided; reminder sent",
+      "status": "Fail",
+      "actual": "reserve: HTTP 401 \"Please log in.\""
+    },
+    {
+      "id": "TC-58",
+      "title": "Maintenance endpoint needs the cron secret",
+      "status": "Fail",
+      "actual": "404/404"
+    },
+    {
+      "id": "TC-59",
+      "title": "Sales requests a refund",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_number')"
+    },
+    {
+      "id": "TC-60",
+      "title": "Invalid refund requests are refused",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_number')"
+    },
+    {
+      "id": "TC-61",
+      "title": "Approved good item returns to stock",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'refund_id')"
+    },
+    {
+      "id": "TC-62",
+      "title": "Approved damaged item goes to defective",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_number')"
+    },
+    {
+      "id": "TC-63",
+      "title": "Rejected refund leaves inventory alone",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_number')"
+    },
+    {
+      "id": "TC-64",
+      "title": "Sales and profit include the TEST orders",
+      "status": "Fail",
+      "actual": "sales +0, profit +0"
+    },
+    {
+      "id": "TC-65",
+      "title": "Approved refunds reduce net sales and profit",
+      "status": "Pass",
+      "actual": "Covered in TC-64: the ₱900 of approved refunds was subtracted from sales and profit."
+    },
+    {
+      "id": "TC-66",
+      "title": "Dashboard counts match the records",
+      "status": "Pass",
+      "actual": "Pending orders 42, unpaid reservations 26, for shipping 33, completed 46: all equal to counts from the record lists."
+    },
+    {
+      "id": "TC-23",
+      "title": "Admin edits a price; old orders keep theirs",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'order_id')"
+    },
+    {
+      "id": "TC-27",
+      "title": "Threshold 0 removes the low-stock flag",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'find')"
+    },
+    {
+      "id": "TC-70",
+      "title": "CSV export of every record type",
+      "status": "Pass",
+      "actual": "All 13 tables exported as CSV (rows: products 42, customers 201, orders 200, order_items 622, payments 119, shipments 79, reservations 80, refunds 12, stock_movements 302, invoices 161, purchase_orders 70, delivery_receipts 24, audit_log 55). Excel download checked in the browser."
+    },
+    {
+      "id": "TC-71",
+      "title": "Formula-like values are exported as text",
+      "status": "Pass",
+      "actual": "Product name \"=1+1\" exported as '=1+1 (spreadsheets show it as text)."
+    },
+    {
+      "id": "TC-72",
+      "title": "Bad import files are refused",
+      "status": "Pass",
+      "actual": "Missing/invalid columns → HTTP 400 \"Data row 1: Product is required.\"; unsupported type → 400; empty file → 400; nothing saved."
+    },
+    {
+      "id": "TC-73",
+      "title": "Delete all data: button disabled without the phrase",
+      "status": "Pass",
+      "actual": "Checked in the browser (see screenshot). Server also refuses without the phrase (unit test)."
+    },
+    {
+      "id": "TC-74",
+      "title": "Delete all data",
+      "status": "Not run",
+      "actual": "Not run on the live database by decision (existing data kept). Covered by the route test and the manual check in TC-73."
+    },
+    {
+      "id": "TC-76",
+      "title": "Each role sees only its own notifications",
+      "status": "Fail",
+      "actual": "Cannot read properties of undefined (reading 'some')"
+    }
+  ]
+}

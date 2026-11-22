@@ -64,7 +64,7 @@ const roleScreens = {
     "5.3-reservation-approved",
     "6.1-sales-inventory-reports-v2",
   ],
-  "Inventory Management": ["4.1-stock-movement-saved"],
+  "Inventory Management": ["4.1-stock-movement-saved", "4.4-add-product"],
 };
 
 export function isSupportedRole(role) {

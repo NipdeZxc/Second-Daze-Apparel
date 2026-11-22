@@ -4,6 +4,7 @@ import { HttpError, requireFields, sendJson } from "../http.js";
 import { assertStrongPassword, hashPassword } from "../password.js";
 import { audit } from "../auth.js";
 import { appUrl, sendPasswordResetEmail } from "../mailer.js";
+import { withTransaction } from "./data.js";
 
 const TOKEN_MINUTES = 30;
 const COOLDOWN_SECONDS = 60;
@@ -52,20 +53,24 @@ export async function forgotPassword(req, res) {
 export async function resetPassword(req, res) {
   requireFields(req.body, ["token", "newPassword"]);
   assertStrongPassword(req.body.newPassword);
-  const db = getPool();
+  const tokenHash = sha256(req.body.token);
+  const passwordHash = await hashPassword(req.body.newPassword);
 
-  const [rows] = await db.query(
-    `SELECT reset_id, user_id FROM password_resets WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?`,
-    [sha256(req.body.token), new Date()]
-  );
-  if (!rows[0]) throw new HttpError(400, "This reset link is invalid or has expired.");
-
-  await db.query(
-    `UPDATE users SET password_hash = ?, must_change_password = 0, failed_login_count = 0, locked_until = NULL
-      WHERE user_id = ?`,
-    [await hashPassword(req.body.newPassword), rows[0].user_id]
-  );
-  await db.query(`UPDATE password_resets SET used_at = ? WHERE reset_id = ?`, [new Date(), rows[0].reset_id]);
-  await audit(rows[0].user_id, "reset_password_by_email", "user", rows[0].user_id);
+  // Claim the token with one conditional UPDATE so two requests cannot both use it.
+  const userId = await withTransaction(async (conn) => {
+    const [claim] = await conn.query(
+      `UPDATE password_resets SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?`,
+      [new Date(), tokenHash, new Date()]
+    );
+    if (claim.affectedRows !== 1) throw new HttpError(400, "This reset link is invalid or has expired.");
+    const [[row]] = await conn.query(`SELECT user_id FROM password_resets WHERE token_hash = ?`, [tokenHash]);
+    await conn.query(
+      `UPDATE users SET password_hash = ?, must_change_password = 0, failed_login_count = 0, locked_until = NULL
+        WHERE user_id = ?`,
+      [passwordHash, row.user_id]
+    );
+    return row.user_id;
+  });
+  await audit(userId, "reset_password_by_email", "user", userId);
   sendJson(res, 200, { ok: true });
 }

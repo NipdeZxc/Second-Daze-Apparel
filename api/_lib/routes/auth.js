@@ -9,15 +9,19 @@ const LOCK_MINUTES = 15;
 const SELECT_USER = `SELECT u.*, r.role_name FROM users u JOIN roles r ON r.role_id = u.role_id`;
 
 // Testing only: with ENABLE_TEST_ACCOUNTS=true the weak admin/admin and staff/staff
-// logins are created in the database on first use. Leave it unset in production.
+// logins are created in the database on first use. Always ignored on the production deployment.
 const TEST_ACCOUNTS = {
   admin: { role: "Admin", fullName: "Test Admin" },
   staff: { role: "Sales Management", fullName: "Test Staff" },
 };
 
+export function testAccountsEnabled(env = process.env) {
+  return env.ENABLE_TEST_ACCOUNTS === "true" && env.VERCEL_ENV !== "production" && env.NODE_ENV !== "production";
+}
+
 async function ensureTestAccount(db, username, password) {
   const account = Object.hasOwn(TEST_ACCOUNTS, username) ? TEST_ACCOUNTS[username] : null;
-  if (process.env.ENABLE_TEST_ACCOUNTS !== "true" || !account || password !== username) return;
+  if (!testAccountsEnabled() || !account || password !== username) return;
   const [existing] = await db.query(`SELECT 1 FROM users WHERE username = ?`, [username]);
   if (existing.length) return;
   await db.query(

@@ -1,0 +1,56 @@
+[
+  {
+    "id": "TC-13",
+    "title": "Sales cannot open Admin screens by URL",
+    "status": "Pass",
+    "actual": "Redirected: 2.1-subaccounts → #/3-sales-dashboard; 2.7-csv-import → #/3-sales-dashboard; 2.9-data-export → #/3-sales-dashboard; 7-staff-accounts → #/3-sales-dashboard"
+  },
+  {
+    "id": "TC-14",
+    "title": "Inventory cannot open customer/order/reservation screens by URL",
+    "status": "Pass",
+    "actual": "Redirected: 3.11-customers → #/4-inventory-dashboard; 3.9-orders-status-tracking → #/4-inventory-dashboard; 5-reservations → #/4-inventory-dashboard; 3.13-create-purchase-order → #/4-inventory-dashboard"
+  },
+  {
+    "id": "TC-43",
+    "title": "Print for packer",
+    "status": "Pass",
+    "actual": "Print page (opened by Sales) shows TEST Ana Cruz, 123 Test St., TEST-001, TEST-002; quantities: shown."
+  },
+  {
+    "id": "TC-67",
+    "title": "Reports weekly view",
+    "status": "Pass",
+    "actual": "Friday review: 11/16/2026 – 11/21/2026. Switching Friday review week → All-time changes the totals (different)."
+  },
+  {
+    "id": "TC-68",
+    "title": "Sales, Financial, Order and Stock reports load",
+    "status": "Pass",
+    "actual": "Sales: loaded; Financial: loaded; Orders: loaded; Stock: loaded; browser console errors: 0."
+  },
+  {
+    "id": "TC-77",
+    "title": "No quotation wording, no pickup fields",
+    "status": "Pass",
+    "actual": "Checked Sales documents, Reservations, New reservation, New purchase order and Catalog: no \"quotation\", no pickup fields."
+  },
+  {
+    "id": "TC-78",
+    "title": "375 px layout",
+    "status": "Pass",
+    "actual": "Edge 375×812 emulation: qa_admin 2-admin-dashboard: page width 375/375; qa_admin 3.9-orders-status-tracking: page width 375/375; qa_sales 3-sales-dashboard: page width 375/375; qa_sales 3.13-create-purchase-order: page width 375/375; qa_sales 5.1-new-reservation: page width 375/375; qa_inventory 4-inventory-dashboard: page width 375/375; qa_inventory 4-inventory-workspace: page width 375/375. Wide tables scroll inside their own box. Real-phone check still to do by the team."
+  },
+  {
+    "id": "TC-79",
+    "title": "/mobile opens the same app",
+    "status": "Pass",
+    "actual": "/mobile → sign-in form (no hash); after sign-in as Sales → #/3-sales-dashboard."
+  },
+  {
+    "id": "TC-69",
+    "title": "Empty database shows zeros",
+    "status": "Not run",
+    "actual": "Needs Delete all data on the shared database; not run by decision (existing data kept). No automated test covers it yet."
+  }
+]

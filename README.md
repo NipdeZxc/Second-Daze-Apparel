@@ -63,8 +63,9 @@ connector also accepts TiDB Marketplace's `TIDB_HOST`, `TIDB_PORT`, `TIDB_USER`,
 `DB_SSL_CA` to a PEM CA certificate if your cluster requires it. For the class
 test logins set `ENABLE_TEST_ACCOUNTS=true`: signing in as `admin` / `admin` or
 `staff` / `staff` then creates those accounts in the database on first use.
-These credentials are deliberately weak; **remove the flag before handling real
-data**.
+These credentials are deliberately weak. The server ignores the flag on the
+Vercel production deployment (`VERCEL_ENV=production`), so use it only locally or
+on preview deployments, and **remove it before handling real data**.
 
 Workflow notes:
 
@@ -123,7 +124,13 @@ customers.
 
 Run the frontend, API-client, role-access, CSV validation, and dashboard
 aggregation tests with
-`npm --prefix react_frontend test` from the repository root.
+`npm --prefix react_frontend test` from the repository root. Run the backend
+API and workflow tests with
+`node --test api/_lib/routes/*.test.js api/data/route.test.js`.
+
+Phase 7 documents: [test cases](./docs/test-cases.md),
+[security and privacy review](./docs/security-review.md),
+[user guide](./docs/user-guide.md) and the [Phase 7 guide](./docs/PHASE_7_GUIDE.md).
 
 ## Export records
 
@@ -161,7 +168,7 @@ Leave `VITE_API_BASE_URL` empty to use the same origin.
 - `POST /api/login`, `POST /api/logout`, `GET /api/me`
 - `GET /api/data/records` – all business data for the signed-in role, with the
   actions each row currently allows
-- `POST /api/data/actions` – form submissions `{ screenId, values }`
+- `POST /api/data/actions` – form submissions `{ screenId, values }` (Admin and Sales only)
 - `POST /api/data/import`, `PUT /api/data/:kind/:id`
 - `DELETE /api/data/:kind/:id` – Admin-only deletion of an unlinked individual record
 - `POST /api/data/import-batch` – Admin-only atomic TiDB dataset import

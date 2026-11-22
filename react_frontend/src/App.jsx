@@ -274,7 +274,7 @@ const workflowLinks = {
   "3.13-create-purchase-order": [["Review orders", "3.9-orders-status-tracking"], ["Return to sales documents", "3.3-sales-documents"]],
   "3.14-confirm-delivery": [["View sales documents", "3.3-sales-documents"], ["View orders", "3.9-orders-status-tracking"]],
   "3.15-payment-not-received": [["Retry payment", "3.8-checkout-gcash-payment"], ["Review orders", "3.9-orders-status-tracking"]],
-  "4-inventory-workspace": [["Review low stock", "4.2-low-stock-alerts"], ["Edit product", "4.3-edit-product-admin-only"]],
+  "4-inventory-workspace": [["Add product", "4.4-add-product"], ["Review low stock", "4.2-low-stock-alerts"], ["Edit product", "4.3-edit-product-admin-only"]],
   "4.2-low-stock-alerts": [["Update product stock", "4.3-edit-product-admin-only"], ["Open inventory", "4-inventory-workspace"]],
   "4.3-edit-product-admin-only": [["Review inventory", "4-inventory-workspace"], ["Check low-stock items", "4.2-low-stock-alerts"]],
   "5-reservations": [["Create reservation", "5.1-new-reservation"]],
@@ -934,6 +934,7 @@ const formCancelTargets = {
   "3.13-create-purchase-order": "3.9-orders-status-tracking",
   "3.14-confirm-delivery": "3.9-orders-status-tracking",
   "4.3-edit-product-admin-only": "4-inventory-workspace",
+  "4.4-add-product": "4-inventory-workspace",
   "5.1-new-reservation": "5-reservations",
 };
 

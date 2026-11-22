@@ -276,6 +276,8 @@ export async function getRecords(req, res) {
   const withActions = (kind, rows) => rows.map((row) => ({ ...row, actions: rowActions(kind, row, role) }));
   const orderRows = orders.map((order) => ({
     ...order,
+    // Inventory has no customer or order screens, so it does not receive customer contact details.
+    ...(role === INVENTORY ? { contact_number: undefined, address: undefined } : {}),
     total_amount: num(order.total_amount),
     cost: num(order.cost),
     ordered_at: iso(order.ordered_at),
@@ -313,7 +315,7 @@ export async function getRecords(req, res) {
       selling_price: num(p.selling_price),
       status: !p.is_active ? "Inactive" : p.stock_quantity <= p.low_stock_threshold ? "Low stock" : "In stock",
     }))),
-    customers: withActions("customers", customers.map((c) => ({ ...c, status: c.info_verified ? "Verified" : "Unverified" }))),
+    customers: role === INVENTORY ? [] : withActions("customers", customers.map((c) => ({ ...c, status: c.info_verified ? "Verified" : "Unverified" }))),
     orders: withActions("orders", orderRows),
     sales,
     dashboard,
@@ -693,7 +695,7 @@ function expectStatus(current, allowed, label) {
   if (!allowed.includes(current)) throw new HttpError(409, `${label} is already ${current}.`);
 }
 
-const reservationActions = {
+export const reservationActions = {
   async approve(conn, user, id) {
     const [[reservation]] = await conn.query(`SELECT * FROM reservations WHERE reservation_id = ? FOR UPDATE`, [id]);
     if (!reservation) throw new HttpError(404, "Reservation not found.");
@@ -787,7 +789,7 @@ async function applyPaidStock(conn, order, user) {
   }
 }
 
-const orderActions = {
+export const orderActions = {
   async approve(conn, user, id) {
     const order = await lockOrder(conn, id);
     expectStatus(order.order_status, ["Pending Approval"], "This order");
@@ -914,7 +916,7 @@ async function decideRefund(conn, user, id, approve, note) {
   return approve ? "approve_refund" : "reject_refund";
 }
 
-const refundActions = {
+export const refundActions = {
   approve: (conn, user, id, value) => decideRefund(conn, user, id, true, text(value)),
   reject: (conn, user, id, value) => decideRefund(conn, user, id, false, cleanText(value, "Reason", 255)),
 };
@@ -943,7 +945,7 @@ const productActions = {
 
 const rowActionTable = {
   products: { handlers: productActions, roles: [ADMIN, INVENTORY], entity: "product" },
-  customers: { handlers: customerActions, roles: [ADMIN, SALES, INVENTORY], entity: "customer" },
+  customers: { handlers: customerActions, roles: [ADMIN, SALES], entity: "customer" },
   reservations: { handlers: reservationActions, roles: [ADMIN, SALES, INVENTORY], adminOnly: ["approve", "reject"], entity: "reservation" },
   orders: { handlers: orderActions, roles: [ADMIN, SALES, INVENTORY], adminOnly: ["approve", "verify-payment", "reject-payment"], entity: "order" },
   refunds: { handlers: refundActions, roles: [ADMIN], entity: "refund" },
@@ -993,7 +995,7 @@ async function findProduct(conn, term) {
   return rows[0];
 }
 
-const formActions = {
+export const formActions = {
   async "3.12-new-customer-validation"(conn, user, v) {
     const fields = customerFields({
       full_name: v["Full name"], contact_number: v["Contact number"], street_address: v["Address"],
@@ -1110,6 +1112,32 @@ const formActions = {
     return { action: "confirm_delivery", entity: "order", id: order.order_id };
   },
 
+  async "4.4-add-product"(conn, user, v) {
+    if (![ADMIN, INVENTORY].includes(user.role_name)) throw new HttpError(403, "Only Admin or Inventory can add products.");
+    const fields = productFields({
+      product_code: v["Product code"], product_name: v["Product name"], category: v.Category, size: v.Size,
+      cost_price: v["Cost price"], selling_price: v["Selling price"], stock_quantity: v["Starting stock"],
+      low_stock_threshold: v["Low-stock threshold"],
+    }, { creating: true });
+    const [existing] = await conn.query(`SELECT 1 FROM products WHERE product_code = ? FOR UPDATE`, [fields.product_code]);
+    if (existing.length) throw new HttpError(409, "A product with this code already exists. Use Add stock to restock it.");
+    const [result] = await conn.query(
+      `INSERT INTO products (product_code, product_name, category, size, cost_price, selling_price,
+                             stock_quantity, low_stock_threshold, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [fields.product_code, fields.product_name, fields.category, fields.size, fields.cost_price,
+        fields.selling_price, fields.stock_quantity, fields.low_stock_threshold, user.user_id]
+    );
+    if (fields.stock_quantity > 0) {
+      await moveStock(conn, {
+        productId: result.insertId, type: "Stock In", change: fields.stock_quantity,
+        refType: "Manual", refId: null, remarks: "New product", userId: user.user_id,
+      });
+    }
+    await notifyIfLow(conn, result.insertId);
+    return { action: "add_product", entity: "product", id: result.insertId };
+  },
+
   async "4.3-edit-product-admin-only"(conn, user, v) {
     if (user.role_name !== ADMIN) throw new HttpError(403, "Only an Admin can edit products.");
     const [rows] = await conn.query(`SELECT product_id FROM products WHERE product_code = ? FOR UPDATE`, [text(v["Product code"])]);
@@ -1189,8 +1217,10 @@ const formActions = {
 formActions["8.6-mobile-new-reservation"] = formActions["5.1-new-reservation"];
 
 export async function runFormAction(req, res) {
-  const user = await requireUser(req);
+  // Form actions are sales workflows; Inventory may only submit the add-product form.
+  const user = await requireRole(req, ADMIN, SALES, INVENTORY);
   requireFields(req.body, ["screenId"]);
+  if (user.role_name === INVENTORY && req.body.screenId !== "4.4-add-product") throw new HttpError(403, "You do not have access to this.");
   const handler = Object.hasOwn(formActions, req.body.screenId) ? formActions[req.body.screenId] : null;
   if (!handler) throw new HttpError(404, "This form is not available.");
   const values = req.body.values && typeof req.body.values === "object" ? req.body.values : {};
