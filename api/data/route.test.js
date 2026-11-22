@@ -3,7 +3,7 @@ import test from "node:test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import handler, { normalizeDataRouteUrl } from "./[...route].js";
+import handler, { normalizeDataRouteUrl } from "./[kind].js";
 import apiHandler, { routes } from "../[...route].js";
 import { importProductRow, restockLabel } from "../_lib/routes/data.js";
 
@@ -44,6 +44,21 @@ test("every API route has a Vercel function file that serves its path", () => {
     .filter(([, segments]) => !files.some((file) => serves(file, segments)))
     .map(([method, segments]) => `${method} /api/${segments.join("/")}`);
   assert.deepEqual(missing, []);
+});
+
+// Vercel refuses to build when a [...catch-all] file has files below its folder (conflicting paths).
+test("no catch-all API file shares a folder with nested route files", () => {
+  const apiDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+  const conflicts = [];
+  (function walk(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true }).filter((entry) => !entry.name.startsWith("_"));
+    const catchAll = entries.some((entry) => entry.isFile() && /^\[\.\.\..+\]\.js$/.test(entry.name));
+    if (catchAll && dir !== apiDir && entries.some((entry) => entry.isDirectory() || !/^\[\.\.\./.test(entry.name))) {
+      conflicts.push(path.relative(apiDir, dir));
+    }
+    for (const entry of entries) if (entry.isDirectory()) walk(path.join(dir, entry.name));
+  })(apiDir);
+  assert.deepEqual(conflicts, []);
 });
 
 test("nested API route preserves full Vercel request paths", () => {
