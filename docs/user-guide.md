@@ -80,6 +80,7 @@ Always sign out on shared devices. Sessions also end automatically after 8 hours
 
 ### Import and export
 - **Import CSV**: choose Products or Customers, click **Download template** for the right columns, fill it in, then **Preview CSV** and **Import**. Importing an existing product code adds stock. The same file can't be imported twice.
+- **Full TiDB dataset import**: use this only to add a dataset batch once. An identical batch is rejected, and customer contact numbers already in the database cannot be imported again.
 - **Export records**: **Download CSV** or **Download Excel** to back up everything. Do this every week after the Friday review and keep the files somewhere private.
 - **Delete all data**: permanently removes all business records but keeps staff accounts. Export first. Type `DELETE ALL DATA` to enable the button. Use this only to clear test data.
 

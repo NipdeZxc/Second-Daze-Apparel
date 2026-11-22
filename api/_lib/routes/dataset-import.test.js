@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { supportedDatasetFiles, validateDatasetBatchFiles } from "./dataset-import.js";
+import {
+  assertUniqueCustomerContacts,
+  datasetFingerprint,
+  supportedDatasetFiles,
+  validateDatasetBatchFiles,
+} from "./dataset-import.js";
 
 const productRecord = {
   product_id: "1",
@@ -35,6 +40,38 @@ const userRecord = {
   approved_at: null,
   created_at: "2025-01-01 00:00:00",
 };
+
+test("customer imports reject duplicate contact numbers in either local or international format", () => {
+  assert.throws(() => assertUniqueCustomerContacts([
+    { contact_number: "09990001001" },
+    { contact_number: "+639990001001" },
+  ]), /duplicate contact numbers/);
+  assert.throws(() => assertUniqueCustomerContacts(
+    [{ contact_number: "09990001001" }],
+    ["+639990001001"],
+  ), /already exist/);
+  assert.doesNotThrow(() => assertUniqueCustomerContacts(
+    [{ contact_number: "09990001002" }],
+    ["+639990001001"],
+  ));
+});
+
+test("dataset fingerprint is stable across file and column order changes", () => {
+  const reverseKeys = (record) => Object.fromEntries(Object.entries(record).reverse());
+  const first = [
+    { fileName: "product.csv", table: "products", records: [productRecord] },
+    { fileName: "user.csv", table: "users", records: [userRecord] },
+  ];
+  const reordered = [
+    { fileName: "user.csv", table: "users", records: [reverseKeys(userRecord)] },
+    { fileName: "product.csv", table: "products", records: [reverseKeys(productRecord)] },
+  ];
+  assert.equal(datasetFingerprint(first), datasetFingerprint(reordered));
+  assert.notEqual(datasetFingerprint(first), datasetFingerprint([
+    { ...first[0], records: [{ ...productRecord, product_code: "SKU-000002" }] },
+    first[1],
+  ]));
+});
 
 test("batch importer exposes all TiDB dataset files", () => {
   assert.equal(supportedDatasetFiles.length, 15);

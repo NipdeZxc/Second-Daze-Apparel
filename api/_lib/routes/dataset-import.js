@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { HttpError, sendJson } from "../http.js";
 import { requireRole } from "../auth.js";
 import { withTransaction } from "./data.js";
@@ -177,6 +178,45 @@ export function validateDatasetBatchFiles(files) {
   return { totalRows, seenTables };
 }
 
+function normalizeContactNumber(value) {
+  const phone = String(value ?? "").replace(/[\s-]/g, "");
+  return phone.startsWith("+63") ? `0${phone.slice(3)}` : phone;
+}
+
+export function assertUniqueCustomerContacts(records, existingContacts = []) {
+  const existing = new Set(existingContacts.map(normalizeContactNumber));
+  const seen = new Set();
+  for (const record of records) {
+    const contact = normalizeContactNumber(record.contact_number);
+    if (!/^09\d{9}$/.test(contact)) {
+      throw new HttpError(400, "customer.csv contains an invalid contact number.");
+    }
+    if (seen.has(contact)) {
+      throw new HttpError(409, "customer.csv contains duplicate contact numbers.");
+    }
+    if (existing.has(contact)) {
+      throw new HttpError(409, "Some customer contact numbers already exist. Import only new customers.");
+    }
+    seen.add(contact);
+  }
+}
+
+export function datasetFingerprint(files) {
+  const canonical = [...files]
+    .sort((left, right) => left.table.localeCompare(right.table))
+    .map((file) => {
+      const spec = byTable.get(file.table);
+      const records = file.records
+        .map((record) => Object.fromEntries(
+          Object.entries(record).sort(([left], [right]) => left.localeCompare(right))
+        ))
+        .sort((left, right) => sourceId(left[spec.primaryKey], spec.primaryKey)
+          .localeCompare(sourceId(right[spec.primaryKey], spec.primaryKey)));
+      return { fileName: file.fileName, table: file.table, records };
+    });
+  return crypto.createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+}
+
 async function allocateIds(conn, files) {
   const maps = new Map();
   for (const table of importOrder) {
@@ -232,8 +272,25 @@ export async function importDatasetBatch(req, res) {
   const admin = await requireRole(req, ADMIN);
   const { totalRows, seenTables } = validateDatasetBatchFiles(req.body.files);
   const filesByTable = new Map(req.body.files.map((file) => [file.table, file]));
+  const fingerprint = datasetFingerprint(req.body.files);
 
   const counts = await withTransaction(async (conn) => {
+    const fingerprintMarker = `dataset_sha256=${fingerprint}`;
+    const [[priorImport]] = await conn.query(
+      `SELECT 1 FROM audit_log WHERE action = 'import_dataset' AND LOCATE(?, details) > 0 LIMIT 1`,
+      [fingerprintMarker]
+    );
+    if (priorImport) throw new HttpError(409, "This dataset batch has already been imported.");
+
+    const customerFile = filesByTable.get("customers");
+    if (customerFile) {
+      const [existingContacts] = await conn.query(`SELECT contact_number FROM customers FOR UPDATE`);
+      assertUniqueCustomerContacts(
+        customerFile.records,
+        existingContacts.map((row) => row.contact_number)
+      );
+    }
+
     const idMaps = await allocateIds(conn, filesByTable);
     if (filesByTable.has("users")) {
       const [roleRows] = await conn.query(`SELECT role_id, role_name FROM roles`);
@@ -288,7 +345,7 @@ export async function importDatasetBatch(req, res) {
       }
     }
 
-    const details = Object.entries(imported).map(([table, count]) => `${table}=${count}`).join(", ");
+    const details = `${fingerprintMarker}; ${Object.entries(imported).map(([table, count]) => `${table}=${count}`).join(", ")}`;
     await conn.query(
       `INSERT INTO audit_log (user_id, action, entity_type, details, created_at)
        VALUES (?, 'import_dataset', 'dataset', ?, ?)`,
