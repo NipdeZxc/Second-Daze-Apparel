@@ -50,7 +50,8 @@ export const datasets = {
   reservations: {
     label: "Reservations", key: "reservation_number",
     columns: [
-      text("reservation_number", "Reservation"), text("customer_name", "Customer"), text("items", "Items", { optional: true }),
+      text("reservation_number", "Reservation"), text("customer_name", "Customer"),
+      quantity("reservation_days", "Agreed days"), text("items", "Items", { optional: true }),
       money("amount", "Amount"),
       status(["Pending Approval", "Active", "Paid", "Voided", "Cancelled", "Rejected"]),
       date("expires_at", "Expires at", { optional: true }),

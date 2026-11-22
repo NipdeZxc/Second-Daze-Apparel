@@ -993,7 +993,7 @@ const formActions = {
     const number = await nextDocumentNumber(conn, "RES");
     const [result] = await conn.query(
       `INSERT INTO reservations (reservation_number, customer_id, reservation_days, notes, created_by) VALUES (?, ?, ?, ?, ?)`,
-      [number, customer.customer_id, days, cleanText(v["Pickup note"], "Pickup note", 255, { optional: true }), user.user_id]
+      [number, customer.customer_id, days, "", user.user_id]
     );
     await conn.query(
       `INSERT INTO reservation_items (reservation_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?)`,

@@ -2,8 +2,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import { formFields, screens, tableColumns } from "./screens.js";
 import { getCurrentUser, requestPasswordReset, signIn, signOut } from "./api/auth.js";
 import { getWorkspaceRecords, markNotificationsRead, submitWorkspaceAction } from "./api/workspace.js";
+import { approveUser, createUser, disableUser, enableUser, listUsers, resetUserPassword } from "./api/users.js";
 import { buildOverview } from "./data/workspace.js";
 import { ApprovalQueue, CsvImportPanel, DataExportPanel, DataReports, formatMoney, RecordsTable, screenDatasets } from "./DataPanels.jsx";
+import { canAccessScreen, homeScreenForRole, navigationForRole, normalizeRole } from "./roles.js";
+import { isValidPhilippineMobileNumber, normalizePhilippineMobileNumber } from "./formValidation.js";
 
 const mainScreens = screens.filter((screen) => screen.group === "Main system");
 const mobileScreens = screens.filter((screen) => screen.group === "Mobile companion");
@@ -79,17 +82,15 @@ function PasswordField({ autoComplete = "current-password" }) {
   );
 }
 
-const adminOnlyIds = new Set(["2-admin-dashboard", "2.1-subaccounts", "2.2-access-approvals", "2.6-reports", "2.7-csv-import", "2.8-sales", "2.9-data-export", "4.3-edit-product-admin-only", "7-staff-accounts"]);
-
 function isAdmin(user) {
   return user?.role === "Admin";
 }
 
 function homeId(user) {
-  return isAdmin(user) ? "2-admin-dashboard" : "2s-staff-dashboard";
+  return homeScreenForRole(user?.role);
 }
 
-function DashboardTopbar({ authUser, search, onSearch, onSignOut }) {
+function DashboardTopbar({ authUser, search, onSearch, onSignOut, unreadCount = 0 }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
   const profileButtonRef = useRef(null);
@@ -114,7 +115,6 @@ function DashboardTopbar({ authUser, search, onSearch, onSignOut }) {
       window.removeEventListener("hashchange", closeOnNavigation);
     };
   }, [profileOpen]);
-  const admin = isAdmin(authUser);
   const displayName = authUser?.username || "Staff";
   const initials = displayName.split(/[ .@_-]/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
   return (
@@ -127,13 +127,14 @@ function DashboardTopbar({ authUser, search, onSearch, onSignOut }) {
             type="search"
             value={search}
             onChange={(event) => onSearch(event.target.value)}
-            placeholder={admin ? "Search orders, requests, reports" : "Search tasks, orders, reservations"}
+            placeholder={authUser?.role === "Admin" ? "Search orders, requests, reports" : "Search tasks, orders, reservations"}
             aria-label="Search dashboard"
           />
         </label>
       )}
-      <ScreenLink className="dashboard-notifications" screen={screens.find((item) => item.id === (admin ? "9-overlay-notifications-admin" : "9.1-overlay-notifications-sales"))} aria-label="Open notifications">
+      <ScreenLink className="dashboard-notifications" screen={screens.find((item) => item.id === "9-notifications")} aria-label={`Open notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}>
         <Icon name="bell" size={17} />
+        {unreadCount > 0 && <span className="dashboard-notifications__dot" aria-hidden="true" />}
       </ScreenLink>
       <div className="dashboard-profile-menu" ref={profileRef} onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setProfileOpen(false);
@@ -166,7 +167,7 @@ function DashboardTopbar({ authUser, search, onSearch, onSignOut }) {
 }
 
 function screenIcon(screen) {
-  if (screen.id === "2-admin-dashboard" || screen.id === "2s-staff-dashboard") return "home";
+  if (screen.id.endsWith("-dashboard")) return "home";
   if (screen.group === "Mobile companion") return "smartphone";
   if (screen.group === "Mobile overlays") return "bell";
   if (screen.id === "2.4-refunds" || screen.id.startsWith("2.3-")) return "bag";
@@ -176,29 +177,27 @@ function screenIcon(screen) {
   return { 1: "key", 2: "users", 3: "bag", 4: "box", 5: "calendar", 6: "chart", 7: "users" }[section] || "grid";
 }
 
-// The signed session lives in an HttpOnly cookie; this only remembers who to show until /api/me confirms it.
-function readAuthUser() {
-  const username = localStorage.getItem("second-daze-username");
-  if (!username) return null;
-  return { username, role: localStorage.getItem("second-daze-role") || "Staff" };
-}
-
-function saveAuthUser(user) {
-  localStorage.setItem("second-daze-username", user.username);
-  localStorage.setItem("second-daze-role", user.role || "Staff");
-}
-
-function clearAuthUser() {
-  localStorage.removeItem("second-daze-username");
-  localStorage.removeItem("second-daze-role");
-  localStorage.removeItem("second-daze-demo");
-}
-
 function routeId() {
   const hashRoute = decodeURIComponent(window.location.hash.replace(/^#\/?/, "").split("?")[0]);
   if (hashRoute) return hashRoute;
   return window.location.pathname.replace(/\/+$/, "") === "/mobile" ? "mobile" : "";
 }
+
+const legacyRouteAliases = {
+  mobile: "__role-home",
+  "2s-staff-dashboard": "3-sales-dashboard",
+  "8-mobile-sign-in": "1-staff-sign-in",
+  "8.1-mobile-admin-dashboard": "__role-home",
+  "8.2-mobile-approvals": "2.2-access-approvals",
+  "8.3-mobile-checkout-gcash": "3.8-checkout-gcash-payment",
+  "8.4-mobile-orders": "3.9-orders-status-tracking",
+  "8.5-mobile-low-stock": "4.2-low-stock-alerts",
+  "8.6-mobile-new-reservation": "5.1-new-reservation",
+  "9-overlay-notifications-admin": "9-notifications",
+  "9.1-overlay-notifications-sales": "9-notifications",
+  "9.2-overlay-notifications-inventory": "9-notifications",
+  "9.3-overlay-confirm-approve": "2.2-access-approvals",
+};
 
 function ScreenLink({ screen, children, className = "", ...linkProps }) {
   return (
@@ -219,9 +218,7 @@ function Brand({ compact = false, to = "#/1-staff-sign-in" }) {
 
 function Sidebar({ active, authUser, onSignOut }) {
   const admin = isAdmin(authUser);
-  const dashboardNavIds = admin
-    ? ["2-admin-dashboard", "2.7-csv-import", "2.9-data-export", "2.8-sales", "2.1-subaccounts", "2.2-access-approvals", "2.3-sales-documents", "2.4-refunds", "2.5-reservations", "2.6-reports", "3-sales-catalog", "3.9-orders-status-tracking", "3.11-customers", "4-inventory-workspace", "4.2-low-stock-alerts", "7-staff-accounts"]
-    : ["2s-staff-dashboard", "3-sales-catalog", "3.9-orders-status-tracking", "3.11-customers", "3.3-sales-documents", "4-inventory-workspace", "4.2-low-stock-alerts", "5-reservations"];
+  const dashboardNavIds = navigationForRole(authUser?.role);
 
   return (
     <aside className="sidebar sidebar--dashboard">
@@ -242,7 +239,7 @@ function Sidebar({ active, authUser, onSignOut }) {
       </nav>
       <div className="dashboard-sidebar__focus">
         <strong>Today's focus</strong>
-        <span>{admin ? "Review pending approvals and the sales and inventory summary." : "Complete pending orders, restock low items, and confirm today's reservations."}</span>
+        <span>{admin ? "Review pending approvals and the sales and inventory summary." : authUser?.role === "Inventory Management" ? "Monitor stock levels and resolve low-stock items." : "Complete orders, support customers, and manage reservations."}</span>
       </div>
       <div className="sidebar__bottom">
         <button className="nav-link sidebar__sign-out" type="button" onClick={() => onSignOut()} aria-label={`Sign out ${authUser?.username || ""}`}>
@@ -295,8 +292,10 @@ const workflowLinks = {
   "8.6-mobile-new-reservation": [["Review approvals", "8.2-mobile-approvals"]],
 };
 
-function WorkflowLinks({ screenId, mobile = false }) {
-  const links = workflowLinks[screenId] || [];
+function WorkflowLinks({ screenId, mobile = false, authUser }) {
+  const links = (workflowLinks[screenId] || []).filter(([, targetId]) =>
+    !authUser || canAccessScreen(authUser.role, targetId),
+  );
   if (!links.length) return null;
 
   return (
@@ -318,15 +317,16 @@ function WorkflowLinks({ screenId, mobile = false }) {
 }
 
 function PageHeader({ screen, authUser }) {
-  const staffHome = screen.kind === "staff-dashboard";
+  const staffHome = ["staff-dashboard", "sales-dashboard"].includes(screen.kind);
   const adminHome = screen.kind === "dashboard";
+  const inventoryHome = screen.kind === "inventory-dashboard";
   return (
     <header className="page-header">
       <div>
         <p className="eyebrow">{adminHome ? "WORKSPACE OVERVIEW" : staffHome ? "MY WORKSPACE" : "SECOND DAZE / WORKSPACE"}</p>
         <div className="page-header__title-row">
           <span className="page-header__icon"><Icon name={screenIcon(screen)} size={19} /></span>
-          <h1>{adminHome ? "Admin dashboard" : staffHome ? "Staff dashboard" : screen.title}</h1>
+          <h1>{adminHome ? "Admin dashboard" : staffHome ? "Sales dashboard" : inventoryHome ? "Inventory dashboard" : screen.title}</h1>
         </div>
         <p>{adminHome ? "Approvals, reporting, and operational oversight for Second Daze Apparel." : screen.description}</p>
       </div>
@@ -603,16 +603,12 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
   const metrics = [
     { label: "Orders to fulfill", value: count(queues?.ordersToFulfill), detail: "Awaiting packing or dispatch", icon: "bag", screenId: "3.9-orders-status-tracking" },
     { label: "Today's sales", value: formatMoney(summary?.todaysSales), detail: "Sales recorded today", icon: "chart", screenId: "3.9-orders-status-tracking" },
-    { label: "Low stock items", value: count(queues?.lowStockItems), detail: "At or below threshold", icon: "box", screenId: "4.2-low-stock-alerts" },
     { label: "Active reservations", value: count(summary?.activeReservations), detail: "Unexpired holds awaiting action", icon: "calendar", screenId: "5-reservations" },
   ];
   const matches = (item) => `${item.title} ${item.detail}`.toLowerCase().includes(search.toLowerCase());
   const tasks = (overviewState.data?.pendingOrders || []).map((order) => ({
     title: order.order_number, detail: `${order.customer_name} · ${formatMoney(order.total_amount)}`,
     status: order.status, screenId: "3.9-orders-status-tracking",
-  })).filter(matches);
-  const lowStock = (overviewState.data?.lowStock || []).map((product) => ({
-    title: product.product_name, detail: `${product.product_code} · ${product.stock_quantity} left · threshold ${product.low_stock_threshold}`,
   })).filter(matches);
   const reservations = (overviewState.data?.reservations || []).map((reservation) => ({
     title: reservation.reservation_number, detail: `${reservation.customer_name} · ${reservation.status}${reservation.expires_at ? ` · expires ${new Date(reservation.expires_at).toLocaleDateString()}` : ""}`,
@@ -622,7 +618,6 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
     ["3-sales-catalog", "Start a sale", "bag"],
     ["3.4-new-refund-request", "New refund request", "refresh"],
     ["3.12-new-customer-validation", "Add customer", "users"],
-    ["4-inventory-workspace", "View inventory", "box"],
   ];
 
   return (
@@ -674,24 +669,6 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
               <div className="dashboard-empty">{search ? "No tasks match your search." : overviewState.data ? "No recorded orders need follow-up." : "Order data is not available."}</div>
             )}
           </section>
-          <section className="panel dashboard-requests">
-            <div className="panel__top">
-              <div><h2>Low stock</h2><p>Restock these items before they sell out</p></div>
-              <ScreenLink className="text-link" screen={screens.find((item) => item.id === "4.2-low-stock-alerts")}>View all</ScreenLink>
-            </div>
-            {lowStock.length ? (
-              <div className="dashboard-request-list">
-                {lowStock.map((item) => (
-                  <ScreenLink className="dashboard-request" screen={screens.find((screen) => screen.id === "4.2-low-stock-alerts")} key={item.title}>
-                    <span className="dashboard-request__icon"><Icon name="box" size={14} /></span>
-                    <span className="dashboard-request__copy"><strong>{item.title}</strong><small>{item.detail}</small></span>
-                  </ScreenLink>
-                ))}
-              </div>
-            ) : (
-              <div className="dashboard-empty">{search ? "No low-stock items match your search." : overviewState.data ? "No items are below their threshold." : "Inventory data is not available."}</div>
-            )}
-          </section>
         </div>
         <aside className="dashboard-overview-side">
           <section className="panel dashboard-approvals">
@@ -728,6 +705,227 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
   );
 }
 
+function UserManagementPanel({ screen }) {
+  const approvalsOnly = screen.id === "2.2-access-approvals";
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [temporaryCredentials, setTemporaryCredentials] = useState(null);
+  const [formBusy, setFormBusy] = useState(false);
+
+  const refreshUsers = async (signal) => {
+    setLoading(true);
+    setError("");
+    try {
+      setUsers(await listUsers({ signal }));
+    } catch (requestError) {
+      if (requestError.name !== "AbortError") setError(requestError.message || "Unable to load accounts.");
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    refreshUsers(controller.signal);
+    return () => controller.abort();
+  }, []);
+
+  const performAction = async (user, action) => {
+    const confirmation = {
+      approve: "Approve this account?",
+      disable: "Disable this account? The user will lose access.",
+      enable: "Re-enable this account?",
+      reset: "Reset this user's password? They will need to change it at next sign-in.",
+    }[action];
+    if (!window.confirm(confirmation)) return;
+    setBusyId(String(user.id));
+    setError("");
+    setMessage("");
+    setTemporaryCredentials(null);
+    try {
+      if (action === "approve") await approveUser(user.id);
+      if (action === "disable") await disableUser(user.id);
+      if (action === "enable") await enableUser(user.id);
+      if (action === "reset") {
+        const result = await resetUserPassword(user.id);
+        setTemporaryCredentials({ username: result.username, password: result.temporaryPassword });
+      }
+      setMessage(action === "reset" ? "Password reset. Deliver the temporary credential securely." : "Account updated.");
+      await refreshUsers();
+    } catch (requestError) {
+      setError(requestError.message || "Unable to update this account.");
+    } finally {
+      setBusyId("");
+    }
+  };
+
+  const createAccount = async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    setError("");
+    setMessage("");
+    setTemporaryCredentials(null);
+    setFormBusy(true);
+    try {
+      const result = await createUser({
+        fullName: String(data.get("fullName") || "").trim(),
+        username: String(data.get("username") || "").trim(),
+        email: String(data.get("email") || "").trim(),
+        role: String(data.get("role") || ""),
+      });
+      setTemporaryCredentials({ username: result.username, password: result.temporaryPassword });
+      setMessage("Account created in Pending Approval status. Share the temporary password securely.");
+      form.reset();
+      await refreshUsers();
+    } catch (requestError) {
+      setError(requestError.message || "Unable to create the account.");
+    } finally {
+      setFormBusy(false);
+    }
+  };
+
+  const visibleUsers = approvalsOnly ? users.filter((user) => user.status === "Pending Approval") : users;
+
+  return (
+    <div className="account-management">
+      {!approvalsOnly && (
+        <form className="panel account-create" onSubmit={createAccount}>
+          <div className="panel__top"><div><h2>Create subaccount</h2><p>New accounts require Admin approval before sign-in.</p></div></div>
+          <div className="form-grid">
+            <label className="field"><span>Full name *</span><input name="fullName" required maxLength={100} /></label>
+            <label className="field"><span>Username *</span><input name="username" required minLength={3} maxLength={50} pattern="[A-Za-z0-9._-]+" /></label>
+            <label className="field"><span>Email (optional)</span><input name="email" type="email" /></label>
+            <label className="field"><span>Role *</span><select name="role" required defaultValue=""><option value="" disabled>Select role</option><option>Sales Management</option><option>Inventory Management</option></select></label>
+          </div>
+          <div className="form-actions"><button type="submit" className="button button--primary" disabled={formBusy}>{formBusy ? "Creating…" : "Create account"}</button></div>
+        </form>
+      )}
+      {temporaryCredentials && (
+        <section className="panel temporary-credential" role="status">
+          <strong>Temporary password (shown once)</strong>
+          <p>Username: <code>{temporaryCredentials.username}</code></p>
+          <p>Password: <code>{temporaryCredentials.password}</code></p>
+          <span>Copy and deliver this securely. Do not send it through an unapproved channel.</span>
+          <button type="button" className="button button--outline" onClick={() => setTemporaryCredentials(null)}>Dismiss</button>
+        </section>
+      )}
+      {error && <p className="inline-error" role="alert">{error}</p>}
+      {message && <p className="form-note" role="status">{message}</p>}
+      <section className="panel table-panel">
+        <div className="panel__top">
+          <div><h2>{approvalsOnly ? "Pending access approvals" : "Workspace accounts"}</h2><p>Account status and available Admin actions come from the backend.</p></div>
+          <button type="button" className="button button--outline" onClick={() => refreshUsers()} disabled={loading}>Refresh</button>
+        </div>
+        {loading ? <p className="empty-cell">Loading accounts…</p> : visibleUsers.length ? (
+          <div className="table-scroll">
+            <table>
+              <thead><tr><th>Full name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                {visibleUsers.map((user) => (
+                  <tr key={user.id}>
+                    <td>{user.fullName}</td><td>{user.username}</td><td>{user.email || "—"}</td><td>{user.role}</td><td><span className="record-status">{user.status}</span></td>
+                    <td className="record-actions">
+                      {user.role !== "Admin" && user.status === "Pending Approval" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "approve")}>Approve</button>}
+                      {user.role !== "Admin" && user.status === "Active" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "disable")}>Disable</button>}
+                      {user.role !== "Admin" && user.status === "Disabled" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "enable")}>Enable</button>}
+                      {user.role !== "Admin" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "reset")}>Reset password</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="empty-cell">{approvalsOnly ? "There are no accounts awaiting approval." : "No accounts are available."}</p>}
+      </section>
+    </div>
+  );
+}
+
+function InventoryDashboard({ overviewState, onRefresh }) {
+  const products = overviewState.data?.records?.products || [];
+  const lowStock = overviewState.data?.lowStock || [];
+  const stockUnits = products.reduce((sum, product) => sum + Number(product.stock_quantity || 0), 0);
+  const metrics = [
+    { label: "Products", value: products.length, detail: "Active and inactive records", screenId: "4-inventory-workspace" },
+    { label: "Units available", value: stockUnits, detail: "Current recorded stock", screenId: "4-inventory-workspace" },
+    { label: "Low-stock items", value: lowStock.length, detail: "At or below their threshold", screenId: "4.2-low-stock-alerts" },
+  ];
+
+  return (
+    <div className="dashboard-workspace">
+      <div className="dashboard-metrics">
+        {metrics.map((metric) => (
+          <ScreenLink className="panel dashboard-metric dashboard-metric--link" screen={screens.find((item) => item.id === metric.screenId)} key={metric.label}>
+            <div className="dashboard-metric__top"><span>{metric.label}</span><span className="dashboard-metric__icon"><Icon name="box" size={15} /></span></div>
+            <strong>{metric.value}</strong>
+            <p>{metric.detail}</p>
+          </ScreenLink>
+        ))}
+      </div>
+      <section className="panel dashboard-requests">
+        <div className="panel__top">
+          <div><h2>Restocking priorities</h2><p>Products at or below their low-stock threshold</p></div>
+          <ScreenLink className="text-link" screen={screens.find((item) => item.id === "4.2-low-stock-alerts")}>View low stock</ScreenLink>
+        </div>
+        <RecordsTable
+          kind="products"
+          rows={lowStock}
+          title="Low-stock items"
+          onRecordUpdated={onRefresh}
+        />
+      </section>
+      <div className="dashboard-sync"><WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} /></div>
+    </div>
+  );
+}
+
+function NotificationsPanel({ notifications = [], onRefresh }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const unreadCount = notifications.filter((notification) => !notification.is_read).length;
+  const markAllRead = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await markNotificationsRead();
+      onRefresh();
+    } catch (requestError) {
+      setError(requestError.message || "Unable to update notifications.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="panel notification-center">
+      <div className="panel__top">
+        <div><h2>Workspace notifications</h2><p>Low-stock, reservation, and approval updates for your role.</p></div>
+        <button className="button button--outline" type="button" onClick={markAllRead} disabled={!unreadCount || busy}>
+          {busy ? "Updating…" : "Mark all as read"}
+        </button>
+      </div>
+      {error && <p className="inline-error form-feedback" role="alert">{error}</p>}
+      {notifications.length ? (
+        <ul className="notification-list">
+          {notifications.map((notification) => (
+            <li className={notification.is_read ? "" : "notification-list__unread"} key={notification.id}>
+              <span className="notification-list__category">{notification.category}</span>
+              <span className="notification-list__message">{notification.message}</span>
+              <time dateTime={notification.created_at}>{notification.created_at ? new Date(notification.created_at).toLocaleString() : ""}</time>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="empty-message"><span className="empty-message__icon"><Icon name="bell" /></span><p>No notifications yet.</p></div>
+      )}
+    </section>
+  );
+}
+
 const formCancelTargets = {
   "3.4-new-refund-request": "2.4-refunds",
   "3.5-refund-condition-review": "2.4-refunds",
@@ -757,7 +955,7 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
   const [submitting, setSubmitting] = useState(false);
   const formRef = useRef(null);
   const fields = formFields[screen.id] || ["Customer", "Order reference", "Details"];
-  const cancelScreenId = formCancelTargets[screen.id] || (mobile ? "8.1-mobile-admin-dashboard" : "2-admin-dashboard");
+  const cancelScreenId = formCancelTargets[screen.id] || homeId(authUser);
   const submitForm = (event) => {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -768,14 +966,19 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
       const optional = normalized.includes("note") || ["social media handle", "email", "postal code", "additional items"].includes(normalized);
       if (!optional && !value) {
         nextErrors[field] = `${field} is required.`;
-      } else if (normalized.includes("quantity") || normalized.includes("agreed days")) {
-        if (value && (!/^\d+$/.test(value) || Number(value) < 1)) nextErrors[field] = `${field} must be a whole number greater than zero.`;
+      } else if (normalized.includes("quantity") || normalized.includes("days")) {
+        const minimum = normalized.includes("ownership") ? 0 : 1;
+        if (value && (!/^\d+$/.test(value) || Number(value) < minimum)) {
+          nextErrors[field] = `${field} must be a whole number ${minimum ? "greater than zero" : "zero or greater"}.`;
+        }
       } else if (normalized.includes("amount") || normalized.includes("price")) {
         if (value && (!/^\d+(\.\d{1,2})?$/.test(value) || Number(value) < 0)) nextErrors[field] = `${field} must be a non-negative amount with up to two decimal places.`;
       } else if (normalized === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
         nextErrors[field] = "Enter a valid email address.";
-      } else if (normalized.includes("contact number") && value && !/^(09|\+639)\d{9}$/.test(value.replace(/[\s-]/g, ""))) {
+      } else if (normalized.includes("contact number") && value && !isValidPhilippineMobileNumber(value)) {
         nextErrors[field] = "Contact number must look like 09XXXXXXXXX or +639XXXXXXXXX.";
+      } else if (normalized.includes("contact number") && value) {
+        values[field] = normalizePhilippineMobileNumber(value);
       }
     }
     setErrors(nextErrors);
@@ -809,7 +1012,7 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
     const normalized = field.toLowerCase();
     if (normalized.includes("date and time")) return "datetime-local";
     if (normalized.includes("date")) return "date";
-    if (normalized.includes("quantity") || normalized.includes("agreed days")) return "number";
+    if (normalized.includes("quantity") || normalized.includes("days")) return "number";
     if (normalized.includes("amount") || normalized.includes("price")) return "number";
     if (normalized.includes("email")) return "email";
     if (normalized.includes("contact number")) return "tel";
@@ -847,7 +1050,7 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
                     name={field}
                     type={fieldInputType(field)}
                     required={!optional}
-                    min={fieldInputType(field) === "number" ? (normalized.includes("quantity") || normalized.includes("days") ? 1 : 0) : undefined}
+                    min={fieldInputType(field) === "number" ? (normalized.includes("ownership") ? 0 : normalized.includes("quantity") || normalized.includes("days") ? 1 : 0) : undefined}
                     step={normalized.includes("amount") || normalized.includes("price") ? "0.01" : normalized.includes("quantity") || normalized.includes("days") ? "1" : undefined}
                     aria-invalid={Boolean(errors[field])}
                     aria-describedby={errors[field] ? `${id}-error` : undefined}
@@ -1117,6 +1320,7 @@ function MobileContent({ screen, onAuthenticated, overviewState, onRefresh, auth
 }
 
 function MobilePreview({ screen, onAuthenticated, authUser, onSignOut, overviewState, onRefresh }) {
+  const [notificationError, setNotificationError] = useState("");
   const isOverlay = screen.group === "Mobile overlays";
   const confirm = screen.kind === "confirm";
   const returnScreenIds = {
@@ -1201,7 +1405,16 @@ function MobilePreview({ screen, onAuthenticated, authUser, onSignOut, overviewS
                     <li key={item.id}><strong>{item.category}</strong><small>{item.message}</small></li>
                   ))}
                 </ul>
-                <button className="button button--subtle" type="button" onClick={() => markNotificationsRead().then(onRefresh).catch(() => {})}>Mark all as read</button>
+                <button className="button button--subtle" type="button" onClick={async () => {
+                  setNotificationError("");
+                  try {
+                    await markNotificationsRead();
+                    onRefresh();
+                  } catch (error) {
+                    setNotificationError(error.message || "Unable to update notifications.");
+                  }
+                }}>Mark all as read</button>
+                {notificationError && <p className="inline-error" role="alert">{notificationError}</p>}
               </>
             ) : (
               <div className="mobile-empty mobile-empty--overlay">
@@ -1221,26 +1434,30 @@ function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewSta
   if (screen.kind.startsWith("auth") || screen.kind === "pending") {
     return <AuthScreen key={screen.id} screen={screen} onAuthenticated={onAuthenticated} />;
   }
-  const isDashboard = screen.kind === "dashboard" || screen.kind === "staff-dashboard";
+  const isDashboard = ["dashboard", "staff-dashboard", "sales-dashboard", "inventory-dashboard"].includes(screen.kind);
+  const unreadCount = (overviewState.data?.records?.notifications || []).filter((item) => !item.is_read).length;
   return (
     <div className="app-shell app-shell--dashboard">
-      <DashboardTopbar authUser={authUser} search={dashboardSearch} onSearch={isDashboard ? setDashboardSearch : undefined} onSignOut={onSignOut} />
+      <DashboardTopbar authUser={authUser} search={dashboardSearch} onSearch={isDashboard ? setDashboardSearch : undefined} onSignOut={onSignOut} unreadCount={unreadCount} />
       <Sidebar active={screen.id} authUser={authUser} onSignOut={onSignOut} />
       <main className="workspace">
         <PageHeader screen={screen} authUser={authUser} />
         <div className="workspace__body">
           {overviewState.error && !isDashboard && <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />}
           {screen.kind === "dashboard" && <Dashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
-          {screen.kind === "staff-dashboard" && <StaffDashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
+          {(screen.kind === "staff-dashboard" || screen.kind === "sales-dashboard") && <StaffDashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
+          {screen.kind === "inventory-dashboard" && <InventoryDashboard overviewState={overviewState} onRefresh={onRefresh} />}
           {screen.kind === "csv-import" && <CsvImportPanel authUser={authUser} existingRecords={overviewState.data?.records} onImported={onRefresh} />}
           {screen.kind === "data-export" && <DataExportPanel authUser={authUser} records={overviewState.data?.records} />}
-          {screen.kind === "table" && <EmptyTable screen={screen} overview={overviewState.data} />}
+          {["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <UserManagementPanel key={screen.id} screen={screen} />}
+          {screen.kind === "table" && !["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <EmptyTable screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
           {screen.kind === "catalog" && <RecordsTable kind="products" rows={overviewState.data?.records?.products} title="Product catalog" />}
           {screen.kind === "form" && <FormPanel key={screen.id} screen={screen} authUser={authUser} onActionSaved={onRefresh} />}
           {screen.kind === "detail" && <DetailPanel screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
           {screen.kind === "success" && <DetailPanel screen={screen} success overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
           {screen.kind === "reports" && <DataReports overview={overviewState.data} authUser={authUser} />}
-          <WorkflowLinks screenId={screen.id} />
+          {screen.kind === "notifications" && <NotificationsPanel notifications={overviewState.data?.records?.notifications} onRefresh={onRefresh} />}
+          <WorkflowLinks screenId={screen.id} authUser={authUser} />
         </div>
         <footer className="workspace__footer"><span>Second Daze Apparel</span><span>Operations workspace</span></footer>
       </main>
@@ -1249,7 +1466,8 @@ function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewSta
 }
 
 export default function App() {
-  const [authUser, setAuthUser] = useState(readAuthUser);
+  const [authUser, setAuthUser] = useState(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [currentId, setCurrentId] = useState(() => routeId());
   const [authError, setAuthError] = useState("");
   const [overviewState, setOverviewState] = useState({ status: "loading", data: null, error: "" });
@@ -1260,25 +1478,22 @@ export default function App() {
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
   useEffect(() => {
-    const syncAuth = (event) => {
-      if (event.key === null || event.key.startsWith("second-daze-")) setAuthUser(readAuthUser());
-    };
-    window.addEventListener("storage", syncAuth);
-    return () => window.removeEventListener("storage", syncAuth);
-  }, []);
-  useEffect(() => {
-    if (!authUser) return undefined;
     let cancelled = false;
     getCurrentUser().then((user) => {
-      if (cancelled) return;
-      if (!user) { clearAuthUser(); setAuthUser(null); return; }
-      const verified = { username: user.username, role: user.role };
-      saveAuthUser(verified);
-      setAuthUser((previous) => (previous?.username === verified.username && previous?.role === verified.role ? previous : verified));
-    }).catch(() => {});
+      if (user && !cancelled) {
+        setAuthUser({ username: user.username, role: normalizeRole(user.role) });
+      }
+    }).catch((error) => {
+      if (!cancelled && error.status !== 401) {
+        setAuthError(error.message || "Unable to restore the workspace session.");
+      }
+    }).finally(() => {
+      if (!cancelled) setSessionLoading(false);
+    });
     return () => { cancelled = true; };
-  }, [authUser?.username]);
+  }, []);
   useEffect(() => {
+    if (sessionLoading) return undefined;
     if (!authUser) {
       setOverviewState({ status: "idle", data: null, error: "" });
       return undefined;
@@ -1298,7 +1513,6 @@ export default function App() {
       } catch (error) {
         if (error.name === "AbortError") return;
         if (error.status === 401) {
-          clearAuthUser();
           setAuthUser(null);
           return;
         }
@@ -1316,44 +1530,38 @@ export default function App() {
       controller.abort();
       window.clearInterval(intervalId);
     };
-  }, [authUser?.username, overviewRefresh]);
+  }, [authUser?.username, overviewRefresh, sessionLoading]);
 
   const authenticateUser = (user) => {
-    const normalizedUser = { username: user.username, role: user.role || "Staff" };
-    saveAuthUser(normalizedUser);
+    const normalizedUser = { username: user.username, role: normalizeRole(user.role || "Staff") };
     setAuthUser(normalizedUser);
     setAuthError("");
   };
-  const handleSignOut = async (returnTo = "1-staff-sign-in") => {
+  const handleSignOut = async () => {
     try {
       await signOut();
-      clearAuthUser();
       setAuthUser(null);
       setAuthError("");
-      window.location.hash = `/${returnTo}`;
+      window.location.hash = "/1-staff-sign-in";
     } catch (error) {
       setAuthError(error.message || "Unable to sign out.");
     }
   };
 
+  const alias = legacyRouteAliases[currentId] || currentId;
   const requestedId = !currentId || currentId === "screens"
     ? authUser ? homeId(authUser) : "1-staff-sign-in"
-    : currentId === "mobile" ? "8-mobile-sign-in" : currentId;
+    : alias === "__role-home"
+      ? authUser ? homeId(authUser) : "1-staff-sign-in"
+      : alias;
   const requestedScreen = screens.find((item) => item.id === requestedId)
     || screens.find((item) => item.id === "1-staff-sign-in");
-  const wrongRole = authUser && requestedScreen.group === "Main system" && (
-    (!isAdmin(authUser) && adminOnlyIds.has(requestedScreen.id))
-    || (isAdmin(authUser) && requestedScreen.id === "2s-staff-dashboard")
-  );
+  const wrongRole = authUser && requestedScreen.group === "Main system"
+    && !canAccessScreen(authUser.role, requestedScreen.id);
   const publicScreen = requestedScreen.kind.startsWith("auth") || requestedScreen.kind === "pending";
-  const mobileScreen = requestedScreen.group !== "Main system";
-  const signInRoute = mobileScreen ? "8-mobile-sign-in" : "1-staff-sign-in";
-  const requiresAuthentication = !publicScreen && requestedScreen.id !== "8-mobile-sign-in";
+  const requiresAuthentication = !publicScreen;
   useEffect(() => {
-    if (authUser && requestedScreen.id === "8-mobile-sign-in") {
-      window.location.hash = "/8.1-mobile-admin-dashboard";
-      return;
-    }
+    if (sessionLoading) return;
     if (authUser && requestedScreen.id === "1-staff-sign-in") {
       window.location.hash = `/${homeId(authUser)}`;
       return;
@@ -1363,30 +1571,18 @@ export default function App() {
       return;
     }
     if (!authUser && requiresAuthentication) {
-      window.location.hash = `/${signInRoute}`;
+      window.location.hash = "/1-staff-sign-in";
     }
-  }, [authUser, requestedId, requestedScreen.id, requiresAuthentication, signInRoute, wrongRole]);
+  }, [authUser, requestedId, requestedScreen.id, requiresAuthentication, sessionLoading, wrongRole]);
+
+  if (sessionLoading) {
+    return <main className="session-loading" role="status">Checking your session…</main>;
+  }
 
   const screen = !authUser && requiresAuthentication
-    ? screens.find((item) => item.id === signInRoute)
+    ? screens.find((item) => item.id === "1-staff-sign-in")
     : wrongRole ? screens.find((item) => item.id === homeId(authUser)) : requestedScreen;
 
-  if (screen.group !== "Main system") {
-    return (
-      <>
-        {authError && <p className="global-error" role="alert">{authError}</p>}
-        <MobilePreview
-          key={screen.id}
-          screen={screen}
-          onAuthenticated={authenticateUser}
-          authUser={authUser}
-          onSignOut={() => handleSignOut("8-mobile-sign-in")}
-          overviewState={overviewState}
-          onRefresh={() => setOverviewRefresh((current) => current + 1)}
-        />
-      </>
-    );
-  }
   return (
     <>
       {authError && <p className="global-error" role="alert">{authError}</p>}
