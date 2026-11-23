@@ -8,6 +8,11 @@
 **Members:** Emmanuel M. Carurucan, Armhel G. Mayao, Marc Iñigo P. Orozco,
 Rheinwell Q. Palomares
 
+## Deployment links
+
+- [Live website (Vercel)](https://second-daze-apparel.vercel.app/)
+- [TiDB Cloud console](https://tidbcloud.com/)
+
 ## Instructional materials
 
 - [BSIS Agile SAD Curriculum](https://tupcossad.netlify.app/)
