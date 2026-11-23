@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Papa from "papaparse";
 import { strFromU8, unzipSync } from "fflate";
-import { buildOverview, buildReportChartData, buildSalesChartSeries, buildWeeklyReport, csvTemplate, datasets, emptyRecords, getFridayReviewWeek, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
+import { buildOverview, buildReportCardChartData, buildReportChartData, buildSalesChartSeries, buildWeeklyReport, csvTemplate, datasets, emptyRecords, getFridayReviewWeek, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
 import { datasetImportFiles, mergeDatasetInputs, parseDatasetFile, parseDatasetInput } from "./datasetImport.js";
 import { createWorkspaceExcel, serializeWorkspaceCsv } from "./export.js";
 
@@ -178,6 +178,68 @@ test("orders graph follows the report period while inventory remains a complete 
   assert.deepEqual(buildReportChartData(overview, "stock", "all").items, stock);
   for (const report of ["sales", "financial", "orders", "stock"]) {
     assert.deepEqual(buildReportChartData(buildOverview(emptyRecords()), report, "all").items, []);
+  }
+});
+
+test("LIVE DATA money graphs match net metrics, preserve losses and weight average order values", () => {
+  const overview = buildOverview({
+    ...emptyRecords(),
+    sales: [
+      { sold_at: "2026-11-16T12:00:00Z", amount: 100, cost: 200 },
+      { sold_at: "2026-11-23T12:00:00Z", amount: 300, cost: 50 },
+    ],
+    refunds: [{ status: "Approved", amount: 125, refund_date: "2026-11-17T12:00:00Z" }],
+    orders: [
+      { ordered_at: "2026-01-01T12:00:00Z", total_amount: 10 },
+      { ordered_at: "2026-01-02T12:00:00Z", total_amount: 1000 },
+      { ordered_at: "2026-01-02T12:00:00Z", total_amount: 1000 },
+      { ordered_at: "2026-11-20T12:00:00Z", total_amount: 300 },
+    ],
+  }, new Date("2026-11-23T12:00:00Z"));
+  const total = (chart) => chart.items.reduce((sum, item) => sum + Math.round(item.value * 100), 0) / 100;
+  const financial = buildReportCardChartData(overview, "financial", "weekly");
+  assert.deepEqual(financial.map(total), [-25, 200, -225, 125]);
+  assert.ok(financial[2].items.some((item) => item.value < 0));
+  const sales = buildReportCardChartData(overview, "sales", "weekly");
+  assert.deepEqual(sales.slice(0, 3).map(total), [-25, 1, 300]);
+  assert.equal(sales[3].items[0].value, 670);
+  assert.equal(sales[3].items.at(-1).value, 300);
+  assert.ok(sales[3].items.length <= 8);
+  assert.equal(total(buildReportCardChartData(overview, "sales", "all")[0]), overview.metrics.grossSales);
+});
+
+test("LIVE DATA order graphs keep current queues separate from the selected order period", () => {
+  const overview = buildOverview({
+    ...emptyRecords(),
+    orders: ["Pending Approval", "Pending Payment", "For Shipping", "Completed", "Completed", "Cancelled"]
+      .map((status, index) => ({ status, ordered_at: index < 4 ? "2026-11-16T12:00:00Z" : "2026-11-01T12:00:00Z" })),
+    dashboard: { pendingOrders: 2, itemsForShipping: 1, completedOrders: 2 },
+  }, new Date("2026-11-23T12:00:00Z"));
+  const total = (chart) => chart.items.reduce((sum, item) => sum + item.value, 0);
+  assert.deepEqual(buildReportCardChartData(overview, "orders", "weekly").map(total), [4, 2, 1, 2]);
+  assert.deepEqual(buildReportCardChartData(overview, "orders", "all").map(total), [6, 2, 1, 2]);
+  const unavailable = buildOverview(emptyRecords());
+  assert.equal(buildReportCardChartData(unavailable, "orders", "all")[2], null);
+});
+
+test("LIVE DATA inventory graphs group large breakdowns without dropping products or units", () => {
+  const overview = buildOverview({
+    ...emptyRecords(),
+    products: Array.from({ length: 16 }, (_, index) => ({
+      category: `Category ${index}`, product_code: index === 15 ? "Other groups" : `SDA-${index}`, stock_quantity: 1,
+      low_stock_threshold: 2, reserved_quantity: index, defective_quantity: index * 2,
+    })),
+  });
+  const weekly = buildReportCardChartData(overview, "stock", "weekly");
+  assert.deepEqual(weekly, buildReportCardChartData(overview, "stock", "all"));
+  assert.deepEqual(weekly.map((chart) => chart.items.reduce((sum, item) => sum + item.value, 0)), [16, 16, 120, 240]);
+  assert.ok(weekly.every((chart) => chart.items.length <= 8));
+  assert.ok(weekly.every((chart) => new Set(chart.items.map((item) => item.label)).size === chart.items.length));
+  assert.ok(weekly.every((chart) => chart.items.some((item) => item.label === "Other groups")));
+  for (const report of ["sales", "financial", "orders", "stock"]) {
+    for (const chart of buildReportCardChartData(buildOverview(emptyRecords()), report, "weekly")) {
+      if (chart) assert.deepEqual(chart.items, []);
+    }
   }
 });
 

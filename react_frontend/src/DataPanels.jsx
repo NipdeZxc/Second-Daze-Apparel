@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { buildReportChartData, buildWeeklyReport, csvTemplate, datasets, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./data/workspace.js";
+import { buildReportCardChartData, buildReportChartData, buildWeeklyReport, csvTemplate, datasets, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./data/workspace.js";
 import {
   datasetImportFiles,
   MAX_DATASET_BATCH_BYTES,
@@ -81,7 +81,7 @@ export function SalesTrendChart({ series, period, longDates = false, gross = fal
 }
 
 function ReportBarsChart({ title, description, chart }) {
-  if (!chart.items.length) return <div className="dashboard-chart-empty">No records are available for this report period.</div>;
+  if (!chart.items.length) return <div className="dashboard-chart-empty">No records are available for this graph. {description}</div>;
   const positive = Math.max(0, ...chart.items.map((item) => item.value));
   const negative = Math.max(0, ...chart.items.map((item) => -item.value));
   const scale = positive + negative || 1;
@@ -815,6 +815,7 @@ export function DataReports({ overview, authUser }) {
   const weekly = view === "weekly";
   const week = weekly && overview?.records ? buildWeeklyReport(overview.records) : null;
   const chart = overview?.records ? buildReportChartData(overview, activeReport, view) : null;
+  const cardCharts = overview?.records ? buildReportCardChartData(overview, activeReport, view) : null;
   const chartTitles = {
     sales: ["Gross sales trend", "Recorded sales before approved refunds."],
     financial: ["Financial breakdown", weekly ? "Amounts for the Friday review period." : "Amounts across all recorded data."],
@@ -926,11 +927,16 @@ export function DataReports({ overview, authUser }) {
         </p>
       )}
       <section className="report-grid">
-        {reports[activeReport].map(([label, value]) => (
+        {reports[activeReport].map(([label, value], index) => (
           <article className="panel report-card" key={label}>
             <span className="eyebrow">LIVE DATA</span><h2>{label}</h2>
             <p>{overview?.records ? "Calculated from records in the database." : "Data is not available."}</p>
-            <div className="report-card__empty">{value}</div>
+            <div className="report-card__value">{value}</div>
+            <div className="report-card-chart">
+              {!cardCharts?.[index]
+                ? <p className="dashboard-chart-empty" role="status">Graph data is not available for this metric. Refresh workspace data to try again.</p>
+                : <ReportBarsChart title={label} description={cardCharts[index].description} chart={cardCharts[index]} />}
+            </div>
           </article>
         ))}
       </section>

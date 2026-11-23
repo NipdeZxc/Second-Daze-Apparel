@@ -294,6 +294,99 @@ export function buildReportChartData(overview, report, view) {
   return { type: "bars", format: "count", items: entries.filter(([, value]) => value > 0).map(([label, value]) => ({ label, value })) };
 }
 
+function reportDateBars(entries, range, format, description) {
+  const totals = new Map();
+  for (const { date, value } of entries) {
+    const day = localDateKey(date);
+    totals.set(day, (totals.get(day) || 0) + cents(value));
+  }
+  const series = [...totals].sort(([left], [right]) => left.localeCompare(right))
+    .map(([day, value]) => [day, value / 100]);
+  const items = buildDateChartSeries(series, range && localDateKey(range.start), range && localDateKey(range.end))
+    .map(({ start, end, amount }) => ({ label: start === end ? start : `${start} to ${end}`, value: amount }));
+  return { type: "bars", format, description, items };
+}
+
+function reportGroupedBars(rows, labelFor, valueFor, description) {
+  const totals = new Map();
+  for (const row of rows) {
+    const label = labelFor(row);
+    totals.set(label, (totals.get(label) || 0) + cents(valueFor(row)));
+  }
+  const items = [...totals].sort(([left, a], [right, b]) => b - a || left.localeCompare(right))
+    .map(([label, value]) => ({ label, value: value / 100 }));
+  if (items.length > 8) {
+    const otherIndex = items.findIndex((item) => item.label === "Other groups");
+    if (otherIndex >= 0) items.push(...items.splice(otherIndex, 1));
+    const remainder = items.splice(7);
+    items.push({ label: "Other groups", value: remainder.reduce((sum, item) => sum + cents(item.value), 0) / 100 });
+  }
+  return { type: "bars", format: "count", description, items };
+}
+
+export function buildReportCardChartData(overview, report, view) {
+  const summary = buildReportChartData(overview, report, view);
+  const { records } = overview;
+  const weekly = view === "weekly";
+  const range = weekly ? overview.fridayReview : null;
+  const period = weekly ? "Friday review week" : "All-time";
+  const sales = weekly ? overview.fridayReview.sales : records.sales;
+  const refunds = records.refunds.filter((refund) => refund.status === "Approved"
+    && (!weekly || dateInRange(refund.refund_date, { start: new Date(range.start), end: new Date(range.end) })));
+  if (report === "sales" || report === "financial") {
+    const saleEntries = (valueFor) => sales.map((sale) => ({ date: sale.sold_at, value: valueFor(sale) }));
+    const refundEntries = refunds.map((refund) => ({ date: refund.refund_date, value: -Number(refund.amount) }));
+    const net = reportDateBars([...saleEntries((sale) => Number(sale.amount)), ...refundEntries], range, "money", `Net sales after approved refunds · ${period}.`);
+    if (report === "financial") {
+      return [
+        net,
+        reportDateBars(saleEntries((sale) => Number(sale.cost)), range, "money", `Recorded sales cost · ${period}.`),
+        reportDateBars([...saleEntries((sale) => (cents(sale.amount) - cents(sale.cost)) / 100), ...refundEntries], range, "money", `Net sales minus recorded cost · ${period}.`),
+        reportDateBars(refunds.map((refund) => ({ date: refund.refund_date, value: Number(refund.amount) })), range, "money", `Approved refunds by refund date · ${period}.`),
+      ];
+    }
+    const today = records.sales.filter((sale) => localDateKey(sale.sold_at) === localDateKey(overview.asOf));
+    const hours = new Map();
+    for (const sale of today) {
+      const hour = Math.floor(new Date(sale.sold_at).getHours() / 3) * 3;
+      hours.set(hour, (hours.get(hour) || 0) + cents(sale.amount));
+    }
+    const orderEntries = records.orders.map((order) => ({ date: order.ordered_at, value: Number(order.total_amount || 0) }));
+    const averages = reportDateBars(orderEntries, null, "money", "Average order value by order date · All-time. Intervals are weighted by order count.");
+    const counts = reportDateBars(orderEntries.map((entry) => ({ ...entry, value: 1 })), null, "count", "");
+    averages.items = averages.items.flatMap((item, index) => counts.items[index].value > 0
+      ? [{ ...item, value: cents(item.value / counts.items[index].value) / 100 }] : []);
+    return [
+      net,
+      reportDateBars(saleEntries(() => 1), range, "count", `Recorded sale transactions by date · ${period}.`),
+      { type: "bars", format: "money", description: "Today's gross sales by local time, in three-hour intervals.",
+        items: [...hours].sort(([left], [right]) => left - right)
+          .map(([hour, value]) => ({ label: `${String(hour).padStart(2, "0")}:00–${String(hour + 2).padStart(2, "0")}:59`, value: value / 100 })) },
+      averages,
+    ];
+  }
+  if (report === "orders") {
+    return [
+      { ...summary, description: `Current status of orders placed in ${period}.` },
+      reportGroupedBars(records.orders.filter((order) => ["Pending Approval", "Pending Payment"].includes(order.status)), (order) => order.status, () => 1, "Pending approvals and payments · Current totals across all dates."),
+      overview.metrics.itemsForShipping == null ? null : {
+        type: "bars", format: "count", description: "Orders currently marked For Shipping · All dates.",
+        items: [{ label: "For Shipping", value: overview.metrics.itemsForShipping }],
+      },
+      reportDateBars(records.orders.filter((order) => order.status === "Completed")
+        .map((order) => ({ date: order.ordered_at, value: 1 })), null, "count", "Currently completed orders by order date · All-time."),
+    ];
+  }
+  const byCategory = (product) => product.category || "Uncategorized";
+  const byProduct = (product) => product.product_code || product.product_name || "Unnamed product";
+  return [
+    reportGroupedBars(overview.lowStock, byCategory, () => 1, "Low-stock product counts by category · Current inventory."),
+    reportGroupedBars(records.products, byCategory, () => 1, "All product counts by category, including inactive products · Current inventory."),
+    reportGroupedBars(records.products, byProduct, (product) => Number(product.reserved_quantity || 0), "Reserved units by product · Current inventory."),
+    reportGroupedBars(records.products, byProduct, (product) => Number(product.defective_quantity || 0), "Defective units by product · Current inventory."),
+  ];
+}
+
 export function buildOverview(records, now = new Date()) {
   const refunded = records.refunds.filter((refund) => refund.status === "Approved").reduce((sum, refund) => sum + cents(refund.amount), 0);
   const salesTotal = records.sales.reduce((sum, sale) => sum + cents(sale.amount), 0);
@@ -327,7 +420,7 @@ export function buildOverview(records, now = new Date()) {
   const countedOrders = records.orders.filter((order) => !["Cancelled", "Voided"].includes(order.status));
   const orderedTotal = records.orders.reduce((sum, order) => sum + cents(order.total_amount), 0);
   return {
-    records, lowStock, reservations, pendingOrders,
+    records, lowStock, reservations, pendingOrders, asOf: now.toISOString(),
     metrics: {
       grossSales: grossSales / 100, totalCost: totalCost / 100, profit: (grossSales - totalCost) / 100,
       weeklySales: (weeklySalesCents - weeklyRefundCents) / 100,
