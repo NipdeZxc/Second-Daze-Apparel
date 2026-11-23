@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assertUniqueCustomerContacts,
+  byTable,
   datasetFingerprint,
+  planTable,
   supportedDatasetFiles,
   validateDatasetBatchFiles,
 } from "./dataset-import.js";
@@ -108,4 +110,34 @@ test("batch validation requires parent files when remapped references are presen
     { fileName: "user.csv", table: "users", records: [{ ...userRecord, user_id: "2" }] },
     { fileName: "product.csv", table: "products", records: [productRecord] },
   ]), /users ID that is not included in the batch/);
+});
+
+test("planTable skips rows that already exist and their children, and maps new rows after the current max id", async () => {
+  const conn = {
+    async query(sql) {
+      if (sql.includes("product_code")) return [[{ id: 7, natural_value: "SKU-000001" }]];
+      if (sql.includes("MAX")) return [[{ max_id: 7 }]];
+      throw new Error(sql);
+    },
+  };
+  const idMaps = new Map();
+  const skippedIds = new Map();
+  const file = { records: [productRecord, { ...productRecord, product_id: "2", product_code: "SKU-000002" }] };
+  const rows = await planTable(conn, byTable.get("products"), file, idMaps, skippedIds);
+  assert.deepEqual(rows.map((row) => row.product_code), ["SKU-000002"]);
+  assert.equal(idMaps.get("products").get("1"), "7");
+  assert.equal(idMaps.get("products").get("2"), "8");
+  assert.ok(skippedIds.get("products").has("1"));
+
+  const orderConn = {
+    async query(sql) {
+      if (sql.includes("order_number")) return [[{ id: 3, natural_value: "ORD-1" }]];
+      return [[{ max_id: 3 }]];
+    },
+  };
+  const orderFile = { records: [{ order_id: "1", order_number: "ORD-1", customer_id: null, reservation_id: null }] };
+  await planTable(orderConn, byTable.get("orders"), orderFile, idMaps, skippedIds);
+  const itemConn = { async query() { return [[{ max_id: 0 }]]; } };
+  const items = await planTable(itemConn, byTable.get("order_items"), { records: [{ order_item_id: "1", order_id: "1", product_id: "2" }] }, idMaps, skippedIds);
+  assert.equal(items.length, 0);
 });

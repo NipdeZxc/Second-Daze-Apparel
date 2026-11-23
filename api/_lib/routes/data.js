@@ -557,53 +557,71 @@ export async function updateRecord(req, res, { kind, id }) {
 }
 
 const deletableRecords = {
-  products: {
-    table: "products", primaryKey: "product_id", label: "product",
-    blockers: [
-      ["SELECT 1 FROM reservation_items WHERE product_id = ? LIMIT 1", "reservation items"],
-      ["SELECT 1 FROM order_items WHERE product_id = ? LIMIT 1", "order items"],
-      ["SELECT 1 FROM stock_movements WHERE product_id = ? LIMIT 1", "stock movement history"],
-      ["SELECT 1 FROM notifications WHERE reference_type = 'Product' AND reference_id = ? LIMIT 1", "notifications"],
-    ],
+  products: { table: "products", primaryKey: "product_id", label: "product" },
+  customers: { table: "customers", primaryKey: "customer_id", label: "customer" },
+  orders: { table: "orders", primaryKey: "order_id", label: "order" },
+  reservations: { table: "reservations", primaryKey: "reservation_id", label: "reservation" },
+  refunds: { table: "refunds", primaryKey: "refund_id", label: "refund" },
+};
+
+const idList = (rows, column) => rows.map((row) => row[column]);
+
+async function deleteReferenced(conn, referenceTypes, ids) {
+  if (!ids.length) return;
+  await conn.query(`DELETE FROM stock_movements WHERE reference_type IN (?) AND reference_id IN (?)`, [referenceTypes, ids]);
+  await conn.query(`DELETE FROM notifications WHERE reference_type IN (?) AND reference_id IN (?)`, [referenceTypes, ids]);
+}
+
+async function deleteRefundsCascade(conn, refundIds) {
+  if (!refundIds.length) return;
+  await conn.query(`DELETE FROM refund_items WHERE refund_id IN (?)`, [refundIds]);
+  await deleteReferenced(conn, ["Refund"], refundIds);
+  await conn.query(`DELETE FROM refunds WHERE refund_id IN (?)`, [refundIds]);
+}
+
+async function deleteOrdersCascade(conn, orderIds) {
+  if (!orderIds.length) return;
+  const [refunds] = await conn.query(`SELECT refund_id FROM refunds WHERE order_id IN (?)`, [orderIds]);
+  await deleteRefundsCascade(conn, idList(refunds, "refund_id"));
+  await conn.query(`DELETE FROM delivery_receipts WHERE order_id IN (?)`, [orderIds]);
+  for (const table of ["shipments", "invoices", "purchase_orders", "payments", "order_items"]) {
+    await conn.query(`DELETE FROM \`${table}\` WHERE order_id IN (?)`, [orderIds]);
+  }
+  await deleteReferenced(conn, ["Order", "Purchase Order"], orderIds);
+  await conn.query(`DELETE FROM orders WHERE order_id IN (?)`, [orderIds]);
+}
+
+async function deleteReservationsCascade(conn, reservationIds) {
+  if (!reservationIds.length) return;
+  const [orders] = await conn.query(`SELECT order_id FROM orders WHERE reservation_id IN (?)`, [reservationIds]);
+  await deleteOrdersCascade(conn, idList(orders, "order_id"));
+  await conn.query(`DELETE FROM reservation_items WHERE reservation_id IN (?)`, [reservationIds]);
+  await deleteReferenced(conn, ["Reservation"], reservationIds);
+  await conn.query(`DELETE FROM reservations WHERE reservation_id IN (?)`, [reservationIds]);
+}
+
+// Removes the record together with everything that depends on it, leaving no orphaned rows.
+const cascadeDeleters = {
+  refunds: (conn, id) => deleteRefundsCascade(conn, [id]),
+  orders: (conn, id) => deleteOrdersCascade(conn, [id]),
+  reservations: (conn, id) => deleteReservationsCascade(conn, [id]),
+  customers: async (conn, id) => {
+    const [reservations] = await conn.query(`SELECT reservation_id FROM reservations WHERE customer_id = ?`, [id]);
+    await deleteReservationsCascade(conn, idList(reservations, "reservation_id"));
+    const [orders] = await conn.query(`SELECT order_id FROM orders WHERE customer_id = ?`, [id]);
+    await deleteOrdersCascade(conn, idList(orders, "order_id"));
+    const [refunds] = await conn.query(`SELECT refund_id FROM refunds WHERE customer_id = ?`, [id]);
+    await deleteRefundsCascade(conn, idList(refunds, "refund_id"));
+    await conn.query(`DELETE FROM customers WHERE customer_id = ?`, [id]);
   },
-  customers: {
-    table: "customers", primaryKey: "customer_id", label: "customer",
-    blockers: [
-      ["SELECT 1 FROM reservations WHERE customer_id = ? LIMIT 1", "reservations"],
-      ["SELECT 1 FROM orders WHERE customer_id = ? LIMIT 1", "orders"],
-      ["SELECT 1 FROM refunds WHERE customer_id = ? LIMIT 1", "refunds"],
-    ],
-  },
-  orders: {
-    table: "orders", primaryKey: "order_id", label: "order",
-    blockers: [
-      ["SELECT 1 FROM order_items WHERE order_id = ? LIMIT 1", "order items"],
-      ["SELECT 1 FROM payments WHERE order_id = ? LIMIT 1", "payments"],
-      ["SELECT 1 FROM shipments WHERE order_id = ? LIMIT 1", "shipments"],
-      ["SELECT 1 FROM purchase_orders WHERE order_id = ? LIMIT 1", "purchase orders"],
-      ["SELECT 1 FROM invoices WHERE order_id = ? LIMIT 1", "invoices"],
-      ["SELECT 1 FROM delivery_receipts WHERE order_id = ? LIMIT 1", "delivery receipts"],
-      ["SELECT 1 FROM refunds WHERE order_id = ? LIMIT 1", "refunds"],
-      ["SELECT 1 FROM stock_movements WHERE reference_type IN ('Order', 'Purchase Order') AND reference_id = ? LIMIT 1", "stock movement history"],
-      ["SELECT 1 FROM notifications WHERE reference_type = 'Order' AND reference_id = ? LIMIT 1", "notifications"],
-    ],
-  },
-  reservations: {
-    table: "reservations", primaryKey: "reservation_id", label: "reservation",
-    blockers: [
-      ["SELECT 1 FROM reservation_items WHERE reservation_id = ? LIMIT 1", "reservation items"],
-      ["SELECT 1 FROM orders WHERE reservation_id = ? LIMIT 1", "orders"],
-      ["SELECT 1 FROM stock_movements WHERE reference_type = 'Reservation' AND reference_id = ? LIMIT 1", "stock movement history"],
-      ["SELECT 1 FROM notifications WHERE reference_type = 'Reservation' AND reference_id = ? LIMIT 1", "notifications"],
-    ],
-  },
-  refunds: {
-    table: "refunds", primaryKey: "refund_id", label: "refund",
-    blockers: [
-      ["SELECT 1 FROM refund_items WHERE refund_id = ? LIMIT 1", "refund items"],
-      ["SELECT 1 FROM stock_movements WHERE reference_type = 'Refund' AND reference_id = ? LIMIT 1", "stock movement history"],
-      ["SELECT 1 FROM notifications WHERE reference_type = 'Refund' AND reference_id = ? LIMIT 1", "notifications"],
-    ],
+  products: async (conn, id) => {
+    const [items] = await conn.query(`SELECT order_item_id FROM order_items WHERE product_id = ?`, [id]);
+    if (items.length) await conn.query(`DELETE FROM refund_items WHERE order_item_id IN (?)`, [idList(items, "order_item_id")]);
+    await conn.query(`DELETE FROM order_items WHERE product_id = ?`, [id]);
+    await conn.query(`DELETE FROM reservation_items WHERE product_id = ?`, [id]);
+    await conn.query(`DELETE FROM stock_movements WHERE product_id = ?`, [id]);
+    await conn.query(`DELETE FROM notifications WHERE reference_type = 'Product' AND reference_id = ?`, [id]);
+    await conn.query(`DELETE FROM products WHERE product_id = ?`, [id]);
   },
 };
 
@@ -613,35 +631,20 @@ export async function deleteRecord(req, res, { kind, id }) {
   if (!spec) throw new HttpError(400, "This record type cannot be deleted.");
   const recordId = parseId(id);
 
-  try {
-    await withTransaction(async (conn) => {
-      const [records] = await conn.query(
-        `SELECT \`${spec.primaryKey}\` FROM \`${spec.table}\` WHERE \`${spec.primaryKey}\` = ? FOR UPDATE`,
-        [recordId]
-      );
-      if (!records[0]) throw new HttpError(404, "The selected record no longer exists.");
+  await withTransaction(async (conn) => {
+    const [records] = await conn.query(
+      `SELECT \`${spec.primaryKey}\` FROM \`${spec.table}\` WHERE \`${spec.primaryKey}\` = ? FOR UPDATE`,
+      [recordId]
+    );
+    if (!records[0]) throw new HttpError(404, "The selected record no longer exists.");
 
-      for (const [sql, label] of spec.blockers) {
-        const [linked] = await conn.query(sql, [recordId]);
-        if (linked.length) throw new HttpError(409, `Cannot delete this ${spec.label} while it has linked ${label}.`);
-      }
-
-      await conn.query(
-        `DELETE FROM \`${spec.table}\` WHERE \`${spec.primaryKey}\` = ?`,
-        [recordId]
-      );
-      await conn.query(
-        `INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, created_at)
-         VALUES (?, 'delete_record', ?, ?, ?, ?)`,
-        [admin.user_id, spec.label, recordId, `${spec.label} ${recordId} permanently deleted`, new Date()]
-      );
-    });
-  } catch (error) {
-    if (error?.code === "ER_ROW_IS_REFERENCED_2" || error?.errno === 1451) {
-      throw new HttpError(409, `Cannot delete this ${spec.label} because other records depend on it.`);
-    }
-    throw error;
-  }
+    await cascadeDeleters[kind](conn, recordId);
+    await conn.query(
+      `INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, created_at)
+       VALUES (?, 'delete_record', ?, ?, ?, ?)`,
+      [admin.user_id, spec.label, recordId, `${spec.label} ${recordId} permanently deleted`, new Date()]
+    );
+  });
 
   sendJson(res, 200, { ok: true });
 }

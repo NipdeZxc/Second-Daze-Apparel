@@ -11,27 +11,27 @@ const INSERT_CHUNK_SIZE = 250;
 
 const specs = [
   {
-    file: "user.csv", table: "users", primaryKey: "user_id", maxId: 4294967295n,
+    file: "user.csv", table: "users", naturalKey: "username", primaryKey: "user_id", maxId: 4294967295n,
     columns: ["user_id", "role_id", "full_name", "username", "email", "password_hash", "must_change_password", "account_status", "failed_login_count", "locked_until", "created_by", "approved_by", "approved_at", "created_at"],
     foreignKeys: { created_by: "users", approved_by: "users" },
   },
   {
-    file: "customer.csv", table: "customers", primaryKey: "customer_id", maxId: 4294967295n,
+    file: "customer.csv", table: "customers", naturalKey: "contact_number", primaryKey: "customer_id", maxId: 4294967295n,
     columns: ["customer_id", "full_name", "contact_number", "social_media_name", "street_address", "barangay", "city_municipality", "province", "postal_code", "entry_source", "info_verified", "verified_by", "verified_at", "returned_parcels", "created_by", "created_at"],
     foreignKeys: { verified_by: "users", created_by: "users" },
   },
   {
-    file: "product.csv", table: "products", primaryKey: "product_id", maxId: 4294967295n,
+    file: "product.csv", table: "products", naturalKey: "product_code", primaryKey: "product_id", maxId: 4294967295n,
     columns: ["product_id", "product_code", "product_name", "category", "size", "cost_price", "selling_price", "stock_quantity", "reserved_quantity", "defective_quantity", "low_stock_threshold", "is_active", "created_by", "updated_by"],
     foreignKeys: { created_by: "users", updated_by: "users" },
   },
   {
-    file: "reservation.csv", table: "reservations", primaryKey: "reservation_id", maxId: 4294967295n,
+    file: "reservation.csv", table: "reservations", naturalKey: "reservation_number", primaryKey: "reservation_id", maxId: 4294967295n,
     columns: ["reservation_id", "reservation_number", "customer_id", "reservation_days", "reservation_status", "notes", "created_by", "approved_by", "approved_at", "expiry_date", "voided_at", "void_reason", "created_at"],
     foreignKeys: { customer_id: "customers", created_by: "users", approved_by: "users" },
   },
   {
-    file: "orders.csv", table: "orders", primaryKey: "order_id", maxId: 4294967295n,
+    file: "orders.csv", table: "orders", naturalKey: "order_number", primaryKey: "order_id", maxId: 4294967295n,
     columns: ["order_id", "order_number", "customer_id", "reservation_id", "order_date", "order_status", "notes", "created_by", "approved_by", "approved_at"],
     foreignKeys: { customer_id: "customers", reservation_id: "reservations", created_by: "users", approved_by: "users" },
   },
@@ -46,7 +46,7 @@ const specs = [
     foreignKeys: { order_id: "orders", product_id: "products" },
   },
   {
-    file: "payment.csv", table: "payments", primaryKey: "payment_id", maxId: 4294967295n,
+    file: "payment.csv", table: "payments", naturalKey: "gcash_reference_number", primaryKey: "payment_id", maxId: 4294967295n,
     columns: ["payment_id", "order_id", "payment_method", "gcash_reference_number", "amount_paid", "payment_status", "rejection_reason", "paid_at", "recorded_at", "recorded_by", "verified_by", "verified_at"],
     foreignKeys: { order_id: "orders", recorded_by: "users", verified_by: "users" },
   },
@@ -56,22 +56,22 @@ const specs = [
     foreignKeys: { order_id: "orders", updated_by: "users" },
   },
   {
-    file: "purchase_order.csv", table: "purchase_orders", primaryKey: "po_id", maxId: 4294967295n,
+    file: "purchase_order.csv", table: "purchase_orders", naturalKey: "po_number", primaryKey: "po_id", maxId: 4294967295n,
     columns: ["po_id", "po_number", "order_id", "issued_at", "issued_by"],
     foreignKeys: { order_id: "orders", issued_by: "users" },
   },
   {
-    file: "invoice.csv", table: "invoices", primaryKey: "invoice_id", maxId: 4294967295n,
+    file: "invoice.csv", table: "invoices", naturalKey: "invoice_number", primaryKey: "invoice_id", maxId: 4294967295n,
     columns: ["invoice_id", "invoice_number", "order_id", "issued_at", "issued_by"],
     foreignKeys: { order_id: "orders", issued_by: "users" },
   },
   {
-    file: "delivery_receipt.csv", table: "delivery_receipts", primaryKey: "dr_id", maxId: 4294967295n,
+    file: "delivery_receipt.csv", table: "delivery_receipts", naturalKey: "dr_number", primaryKey: "dr_id", maxId: 4294967295n,
     columns: ["dr_id", "dr_number", "order_id", "shipment_id", "delivered_at", "issued_at", "issued_by"],
     foreignKeys: { order_id: "orders", shipment_id: "shipments", issued_by: "users" },
   },
   {
-    file: "refund.csv", table: "refunds", primaryKey: "refund_id", maxId: 4294967295n,
+    file: "refund.csv", table: "refunds", naturalKey: "refund_number", primaryKey: "refund_id", maxId: 4294967295n,
     columns: ["refund_id", "refund_number", "order_id", "customer_id", "refund_date", "days_of_ownership", "issue_description", "inspection_note", "refund_amount", "refund_status", "requested_by", "approved_by", "approved_at", "decision_note"],
     foreignKeys: { order_id: "orders", customer_id: "customers", requested_by: "users", approved_by: "users" },
   },
@@ -87,7 +87,7 @@ const specs = [
   },
 ];
 
-const byTable = new Map(specs.map((spec) => [spec.table, spec]));
+export const byTable = new Map(specs.map((spec) => [spec.table, spec]));
 const byFile = new Map(specs.map((spec) => [spec.file, spec]));
 const importOrder = specs.map((spec) => spec.table);
 export const supportedDatasetFiles = specs.map(({ file, table }) => ({ file, table }));
@@ -217,24 +217,58 @@ export function datasetFingerprint(files) {
   return crypto.createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
-async function allocateIds(conn, files) {
-  const maps = new Map();
-  for (const table of importOrder) {
-    if (!files.has(table)) continue;
-    const spec = byTable.get(table);
-    const [[row]] = await conn.query(`SELECT COALESCE(MAX(\`${spec.primaryKey}\`), 0) AS max_id FROM \`${spec.table}\``);
-    let nextId = BigInt(row.max_id ?? 0) + 1n;
-    if (nextId + BigInt(files.get(table).records.length) - 1n > spec.maxId) {
-      throw new HttpError(409, `No ${spec.primaryKey} range is available for ${spec.file}.`);
+// Parents whose existing rows are reused for references; everything else is skipped along with its children.
+const SHARED_PARENTS = new Set(["users", "customers", "products"]);
+
+function naturalValue(spec, value) {
+  if (value == null || String(value).trim() === "") return null;
+  return spec.table === "customers" ? normalizeContactNumber(value) : String(value).trim();
+}
+
+// Splits a file into rows to insert and rows to skip, mapping source IDs to existing or newly allocated IDs.
+export async function planTable(conn, spec, file, idMaps, skippedIds) {
+  const existingByKey = new Map();
+  if (spec.naturalKey) {
+    const [existing] = await conn.query(`SELECT \`${spec.primaryKey}\` AS id, \`${spec.naturalKey}\` AS natural_value FROM \`${spec.table}\``);
+    for (const row of existing) {
+      const value = naturalValue(spec, row.natural_value);
+      if (value != null) existingByKey.set(value, String(row.id));
     }
-    const map = new Map();
-    for (const record of files.get(table).records) {
-      const source = sourceId(record[spec.primaryKey], `${spec.file} ${spec.primaryKey}`);
-      map.set(source, (nextId++).toString());
-    }
-    maps.set(table, map);
   }
-  return maps;
+  const [[maxRow]] = await conn.query(`SELECT COALESCE(MAX(\`${spec.primaryKey}\`), 0) AS max_id FROM \`${spec.table}\``);
+  let nextId = BigInt(maxRow.max_id ?? 0) + 1n;
+  const map = new Map();
+  const skipped = new Set();
+  const insertable = [];
+
+  for (const record of file.records) {
+    const source = sourceId(record[spec.primaryKey], `${spec.file} ${spec.primaryKey}`);
+    const key = spec.naturalKey ? naturalValue(spec, record[spec.naturalKey]) : null;
+    if (key != null && existingByKey.has(key)) {
+      map.set(source, existingByKey.get(key));
+      skipped.add(source);
+      continue;
+    }
+    const parentSkipped = Object.entries(spec.foreignKeys).some(([column, parentTable]) => (
+      !SHARED_PARENTS.has(parentTable)
+      && record[column] != null && record[column] !== ""
+      && skippedIds.get(parentTable)?.has(sourceId(record[column], `${spec.file} ${column}`))
+    ));
+    const referenceTable = spec.table === "stock_movements" ? STOCK_REFERENCE_TABLES[record.reference_type] : null;
+    const referenceSkipped = referenceTable && !SHARED_PARENTS.has(referenceTable)
+      && record.reference_id != null && record.reference_id !== ""
+      && skippedIds.get(referenceTable)?.has(sourceId(record.reference_id, "stock movement reference_id"));
+    if (parentSkipped || referenceSkipped) {
+      skipped.add(source);
+      continue;
+    }
+    if (nextId > spec.maxId) throw new HttpError(409, `No ${spec.primaryKey} range is available for ${spec.file}.`);
+    map.set(source, (nextId++).toString());
+    insertable.push(record);
+  }
+  idMaps.set(spec.table, map);
+  skippedIds.set(spec.table, skipped);
+  return insertable;
 }
 
 function remapReferences(spec, record, idMaps) {
@@ -276,22 +310,6 @@ export async function importDatasetBatch(req, res) {
 
   const counts = await withTransaction(async (conn) => {
     const fingerprintMarker = `dataset_sha256=${fingerprint}`;
-    const [[priorImport]] = await conn.query(
-      `SELECT 1 FROM audit_log WHERE action = 'import_dataset' AND LOCATE(?, details) > 0 LIMIT 1`,
-      [fingerprintMarker]
-    );
-    if (priorImport) throw new HttpError(409, "This dataset batch has already been imported.");
-
-    const customerFile = filesByTable.get("customers");
-    if (customerFile) {
-      const [existingContacts] = await conn.query(`SELECT contact_number FROM customers FOR UPDATE`);
-      assertUniqueCustomerContacts(
-        customerFile.records,
-        existingContacts.map((row) => row.contact_number)
-      );
-    }
-
-    const idMaps = await allocateIds(conn, filesByTable);
     if (filesByTable.has("users")) {
       const [roleRows] = await conn.query(`SELECT role_id, role_name FROM roles`);
       const roleIdsByName = new Map(roleRows.map((role) => [role.role_name, role.role_id]));
@@ -309,13 +327,17 @@ export async function importDatasetBatch(req, res) {
       }
     }
     const imported = {};
+    const skipped = {};
+    const idMaps = new Map();
+    const skippedIds = new Map();
     const deferredUserReferences = [];
 
     for (const table of importOrder) {
       const file = filesByTable.get(table);
       if (!file) continue;
       const spec = byTable.get(table);
-      const rows = file.records.map((record) => remapReferences(spec, record, idMaps));
+      const insertable = await planTable(conn, spec, file, idMaps, skippedIds);
+      const rows = insertable.map((record) => remapReferences(spec, record, idMaps));
       if (table === "users") {
         for (const row of rows) {
           deferredUserReferences.push({
@@ -334,6 +356,7 @@ export async function importDatasetBatch(req, res) {
         await insertChunk(conn, spec, rows.slice(offset, offset + INSERT_CHUNK_SIZE), offset + 1);
       }
       imported[table] = rows.length;
+      skipped[table] = file.records.length - rows.length;
     }
 
     for (const user of deferredUserReferences) {
@@ -351,8 +374,8 @@ export async function importDatasetBatch(req, res) {
        VALUES (?, 'import_dataset', 'dataset', ?, ?)`,
       [admin.user_id, `${seenTables.size} files, ${totalRows} rows: ${details}`.slice(0, 500), new Date()]
     );
-    return imported;
+    return { imported, skipped };
   });
 
-  sendJson(res, 200, { imported: counts, totalRows });
+  sendJson(res, 200, { imported: counts.imported, skipped: counts.skipped, totalRows });
 }

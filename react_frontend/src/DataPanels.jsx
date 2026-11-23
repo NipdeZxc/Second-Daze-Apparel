@@ -219,7 +219,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
       reservations: "reservation",
       refunds: "refund",
     }[kind];
-    if (!window.confirm(`Permanently delete this ${singular}?\n\nRecord: ${identifier} (ID ${recordId})\n\nThis cannot be undone. Records with linked data cannot be deleted.`)) return;
+    if (!window.confirm(`Permanently delete this ${singular}?\n\nRecord: ${identifier} (ID ${recordId})\n\nThis also deletes all linked records (items, payments, shipments, documents, refunds, stock history). This cannot be undone.`)) return;
     setDeleteError("");
     setDeletingId(recordId);
     try {
@@ -268,7 +268,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
         <div><h2>{title || definition.label}</h2><p>Live records from the shared database.</p></div>
         <span className="quiet-tag">{filteredRows.length} of {rows.length} records</span>
       </div>
-      {deletable && <p className="data-notice">Admins can permanently delete individual records. Linked records are protected and must be retained.</p>}
+      {deletable && <p className="data-notice">Admins can permanently delete individual records. Deleting a record also deletes the records linked to it.</p>}
       {message && <p className="table-message" role="status">{message}</p>}
       <div className="table-tools">
         <label className="table-search">
@@ -485,8 +485,9 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
     setBatchMessage("");
     try {
       const result = await importDatasetBatch(batchPreview);
-      const importedTables = Object.keys(result.imported || {});
-      setBatchMessage(`Imported ${result.totalRows} rows across ${importedTables.length} tables.`);
+      const insertedRows = Object.values(result.imported || {}).reduce((sum, count) => sum + count, 0);
+      const skippedRows = Object.values(result.skipped || {}).reduce((sum, count) => sum + count, 0);
+      setBatchMessage(`Imported ${insertedRows} new rows. Skipped ${skippedRows} rows that already exist (existing data was not replaced).`);
       setBatchPreview(null);
       setBatchFiles([]);
       onImported?.();
@@ -739,7 +740,7 @@ export function DataReports({ overview, authUser }) {
   const reports = {
     sales: [
       [weekly ? "Weekly sales" : "Gross sales", formatMoney(weekly ? metrics?.weeklySales : metrics?.grossSales)],
-      [weekly ? "Weekly transactions" : "Recorded sales", weekly ? week?.sales.transactions ?? "—" : overview?.records?.sales?.length ?? "—"],
+      [weekly ? "Weekly transactions" : "Recorded sales", weekly ? week?.sales.transactions ?? "ï¿½" : overview?.records?.sales?.length ?? "ï¿½"],
       ["Today's sales", formatMoney(metrics?.todaysSales)],
       ["Average order value", formatMoney(metrics?.averageOrderValue)],
     ],
