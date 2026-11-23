@@ -1,7 +1,10 @@
+import { getTabSessionId } from "./tabSession.js";
+
 const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL || "").replace(/\/+$/, "");
 
 export async function apiRequest(path, { method = "GET", body, headers = {}, signal } = {}) {
   const endpoint = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  const tabSessionId = await getTabSessionId();
   const response = await fetch(endpoint, {
     method,
     credentials: "include",
@@ -9,6 +12,7 @@ export async function apiRequest(path, { method = "GET", body, headers = {}, sig
       Accept: "application/json",
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...headers,
+      "X-Session-Tab": tabSessionId,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     signal,

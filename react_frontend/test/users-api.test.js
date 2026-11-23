@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { after, afterEach, test } from "node:test";
 import { approveUser, createUser, disableUser, enableUser, listUsers, resetUserPassword } from "../src/api/users.js";
+import { mockBrowserSession } from "../test-support/browserSession.js";
+
+const browser = mockBrowserSession();
+after(browser.restore);
 
 const originalFetch = globalThis.fetch;
 
@@ -20,6 +24,7 @@ test("user management calls the API and validates the account list", async () =>
   assert.deepEqual(await listUsers(), [{ id: 1, role: "Sales Management" }]);
   assert.equal(request.url, "/api/users");
   assert.equal(request.options.credentials, "include");
+  assert.match(request.options.headers["X-Session-Tab"], /^[a-f0-9]{32}$/);
 });
 
 test("subaccount creation and lifecycle actions use their protected endpoints", async () => {

@@ -47,20 +47,35 @@ function parseCookies(header = "") {
   );
 }
 
-export function setSession(res, user) {
+export function getSessionTabId(req) {
+  const tabId = req?.headers?.["x-session-tab"];
+  if (tabId === undefined) return null;
+  if (typeof tabId !== "string" || !/^[a-f0-9]{32}$/.test(tabId)) {
+    throw new HttpError(400, "Invalid tab session identifier.");
+  }
+  return tabId;
+}
+
+function sessionCookie(tabId) {
+  return tabId ? `${COOKIE}_${tabId}` : COOKIE;
+}
+
+export function setSession(res, user, req) {
+  const tabId = getSessionTabId(req);
   const token = sign({
     uid: user.user_id,
     fp: fingerprint(user.password_hash),
+    tab: tabId,
     exp: Math.floor(Date.now() / 1000) + TTL_SECONDS,
   });
   res.setHeader(
     "Set-Cookie",
-    `${COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${TTL_SECONDS}`
+    `${sessionCookie(tabId)}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${TTL_SECONDS}`
   );
 }
 
-export function clearSession(res) {
-  res.setHeader("Set-Cookie", `${COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
+export function clearSession(res, req) {
+  res.setHeader("Set-Cookie", `${sessionCookie(getSessionTabId(req))}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
 }
 
 export function publicUser(row) {
@@ -76,8 +91,9 @@ export function publicUser(row) {
 }
 
 export async function getSessionUser(req) {
-  const payload = verify(parseCookies(req.headers.cookie)[COOKIE]);
-  if (!payload) return null;
+  const tabId = getSessionTabId(req);
+  const payload = verify(parseCookies(req.headers.cookie)[sessionCookie(tabId)]);
+  if (!payload || (payload.tab ?? null) !== tabId) return null;
   const [rows] = await getPool().query(
     `SELECT u.*, r.role_name FROM users u JOIN roles r ON r.role_id = u.role_id WHERE u.user_id = ?`,
     [payload.uid]

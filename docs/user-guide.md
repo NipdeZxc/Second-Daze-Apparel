@@ -23,6 +23,8 @@ The same website works on a computer and a phone. Old `/mobile` links open the s
 2. The first time, you must **change your temporary password**. It must be 8–72 characters with an uppercase letter, a lowercase letter, a number and a symbol.
 3. You land on your role's dashboard.
 
+Each browser tab has its own login and can use a different staff account. New or duplicated tabs must sign in separately; reloading a tab keeps its login. Use an updated browser with tab storage enabled, and HTTPS on the deployed website. After this session update is deployed, sign in again in each existing tab.
+
 ![Sign-in screen](./screenshots/01-sign-in.png)
 
 If you see **Access awaiting approval**, the Admin hasn't approved your account yet.
@@ -41,7 +43,7 @@ The top search bar is available on every workspace page. Enter at least two char
 Use **Arrow Up/Down** and **Enter** to select a result, or **Escape** to close the results. At most eight results are displayed, with the total shown above them; refine the query to narrow the matches. Search shows loading and failure messages instead of misleading empty results. On phones, the search bar sits below the account and notification controls.
 
 ### Signing out
-Always sign out on shared devices. Sessions also end automatically after 8 hours.
+Signing out affects only the current tab. On shared devices, sign out in every logged-in tab. Sessions also end automatically after 8 hours. Changing or resetting a password, or disabling an account, still ends all sessions for that account.
 
 ---
 

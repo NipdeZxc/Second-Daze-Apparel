@@ -1,7 +1,7 @@
 import { getPool } from "../../_db.js";
 import { HttpError, requireFields, sendJson } from "../http.js";
 import { assertStrongPassword, hashPassword, verifyPassword } from "../password.js";
-import { audit, clearSession, publicUser, requireUser, setSession } from "../auth.js";
+import { audit, clearSession, getSessionTabId, publicUser, requireUser, setSession } from "../auth.js";
 
 const MAX_FAILURES = 5;
 const LOCK_MINUTES = 15;
@@ -32,6 +32,7 @@ async function ensureTestAccount(db, username, password) {
 }
 
 export async function login(req, res) {
+  getSessionTabId(req);
   requireFields(req.body, ["username", "password"]);
   const { username, password } = req.body;
   const db = getPool();
@@ -68,12 +69,12 @@ export async function login(req, res) {
     [new Date(), user.user_id]
   );
   await audit(user.user_id, "login");
-  setSession(res, user);
+  setSession(res, user, req);
   sendJson(res, 200, { user: publicUser(user) });
 }
 
 export async function logout(req, res) {
-  clearSession(res);
+  clearSession(res, req);
   sendJson(res, 200, { ok: true });
 }
 
@@ -102,6 +103,6 @@ export async function changePassword(req, res) {
   ]);
   await audit(user.user_id, "change_password", "user", user.user_id);
   // The old session is no longer valid after the hash changes, so issue a fresh one.
-  setSession(res, { ...user, password_hash: passwordHash });
+  setSession(res, { ...user, password_hash: passwordHash }, req);
   sendJson(res, 200, { ok: true });
 }

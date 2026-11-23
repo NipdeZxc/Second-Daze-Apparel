@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { after, afterEach, test } from "node:test";
 import { getCurrentUser, requestPasswordReset, signIn, signOut } from "../src/api/auth.js";
+import { mockBrowserSession } from "../test-support/browserSession.js";
+
+const browser = mockBrowserSession();
+after(browser.restore);
 
 const originalFetch = globalThis.fetch;
 
@@ -29,6 +33,7 @@ test("login uses the API session and trims the username", async () => {
   assert.equal(request.url, "/api/login");
   assert.equal(request.options.method, "POST");
   assert.equal(request.options.credentials, "include");
+  assert.match(request.options.headers["X-Session-Tab"], /^[a-f0-9]{32}$/);
   assert.deepEqual(JSON.parse(request.options.body), { username: "manager", password: "example" });
   assert.equal(result.status, "authenticated");
   assert.equal(result.user.role, "Sales Management");
@@ -90,4 +95,18 @@ test("logout and password recovery use the API endpoints", async () => {
   await requestPasswordReset("manager@example.com");
   assert.equal(request.url, "/api/forgot-password");
   assert.deepEqual(JSON.parse(request.options.body), { identifier: "manager@example.com" });
+});
+
+test("login, session restoration and logout consistently target the same tab", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse({ user: { username: "manager", role: "Sales Management" } });
+  };
+  await signIn({ username: "manager", password: "example" });
+  await getCurrentUser();
+  await signOut();
+  const selectors = requests.map(({ options }) => options.headers["X-Session-Tab"]);
+  assert.ok(selectors[0]);
+  assert.deepEqual(selectors, [selectors[0], selectors[0], selectors[0]]);
 });
