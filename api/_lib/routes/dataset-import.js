@@ -90,7 +90,7 @@ const specs = [
 export const byTable = new Map(specs.map((spec) => [spec.table, spec]));
 const byFile = new Map(specs.map((spec) => [spec.file, spec]));
 const importOrder = specs.map((spec) => spec.table);
-export const supportedDatasetFiles = specs.map(({ file, table }) => ({ file, table }));
+export const supportedDatasetFiles = specs.map(({ file, table, columns }) => ({ file, table, columns }));
 const STOCK_REFERENCE_TABLES = {
   Order: "orders",
   Reservation: "reservations",
@@ -101,6 +101,9 @@ const STOCK_REFERENCE_TABLES = {
 };
 
 function sourceId(value, label) {
+  if (typeof value === "number" && !Number.isSafeInteger(value)) {
+    throw new HttpError(400, `${label} must be provided as an exact integer string.`);
+  }
   const raw = String(value ?? "").trim();
   if (!/^\d+$/.test(raw) || BigInt(raw) <= 0n) throw new HttpError(400, `${label} must be a positive whole number.`);
   return BigInt(raw).toString();
@@ -112,6 +115,9 @@ export function validateDatasetBatchFiles(files) {
   }
   if (Buffer.byteLength(JSON.stringify(files), "utf8") > MAX_REQUEST_BYTES) {
     throw new HttpError(413, "The combined dataset import must be 3 MB or smaller.");
+  }
+  if (files.some((file) => file?.referenceMode === "backup") && files.some((file) => file?.referenceMode !== "backup")) {
+    throw new HttpError(400, "Import backups separately from legacy dataset files.");
   }
 
   const seenTables = new Set();
@@ -125,6 +131,12 @@ export function validateDatasetBatchFiles(files) {
     }
     if (seenTables.has(spec.table)) throw new HttpError(400, `Only one ${spec.file} file can be imported at a time.`);
     seenTables.add(spec.table);
+    if (file.referenceMode != null && file.referenceMode !== "backup") {
+      throw new HttpError(400, "Unknown dataset reference format.");
+    }
+    if (file.referenceMode === "backup" && spec.table === "users") {
+      throw new HttpError(400, "Backups restore business data, not staff credentials.");
+    }
     if (!Array.isArray(file.records) || file.records.length === 0 || file.records.length > 5000) {
       throw new HttpError(400, `${spec.file} must contain between 1 and 5,000 rows.`);
     }
@@ -142,6 +154,9 @@ export function validateDatasetBatchFiles(files) {
         throw new HttpError(400, `${spec.file} row ${index + 1} has columns that do not match the TiDB schema.`);
       }
       const id = sourceId(record[spec.primaryKey], `${spec.file} row ${index + 1} ${spec.primaryKey}`);
+      if (Object.values(record).some((value) => value != null && !["string", "number", "boolean"].includes(typeof value))) {
+        throw new HttpError(400, `${spec.file} row ${index + 1} contains an invalid value.`);
+      }
       if (seenIds.has(id)) throw new HttpError(409, `${spec.file} contains duplicate ${spec.primaryKey} ${id}.`);
       seenIds.add(id);
     }
@@ -152,6 +167,15 @@ export function validateDatasetBatchFiles(files) {
     for (const [column, parentTable] of Object.entries(spec.foreignKeys)) {
       for (const [index, record] of file.records.entries()) {
         if (record[column] == null || record[column] === "") continue;
+        if (parentTable === "users" && file.referenceMode === "backup") {
+          const references = file.userReferences;
+          if (!Array.isArray(references) || !references.some((user) =>
+            String(user.user_id) === String(record[column]) && typeof user.username === "string" && user.username.trim()
+          )) {
+            throw new HttpError(400, `${spec.file} is missing staff references from the backup.`);
+          }
+          continue;
+        }
         if (!seenTables.has(parentTable)) {
           throw new HttpError(400, `${spec.file} references ${parentTable}; include ${byTable.get(parentTable).file} in the same batch so IDs can be mapped safely.`);
         }
@@ -217,72 +241,108 @@ export function datasetFingerprint(files) {
   return crypto.createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
-// Parents whose existing rows are reused for references; everything else is skipped along with its children.
-const SHARED_PARENTS = new Set(["users", "customers", "products"]);
+const relationalKeys = {
+  orders: [["reservation_id"]],
+  reservation_items: [["reservation_id", "product_id"]],
+  order_items: [["order_id", "product_id"]],
+  shipments: [["order_id"]],
+  purchase_orders: [["order_id"]],
+  invoices: [["order_id"]],
+  delivery_receipts: [["order_id"]],
+  refund_items: [["refund_id", "order_item_id"]],
+};
 
 function naturalValue(spec, value) {
   if (value == null || String(value).trim() === "") return null;
-  return spec.table === "customers" ? normalizeContactNumber(value) : String(value).trim();
+  return spec.table === "customers" ? normalizeContactNumber(value) : String(value).trim().toLowerCase();
 }
 
-// Splits a file into rows to insert and rows to skip, mapping source IDs to existing or newly allocated IDs.
-export async function planTable(conn, spec, file, idMaps, skippedIds) {
+function comparableValue(column, value) {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (column.endsWith("_at") || column === "order_date" || column === "refund_date" || column === "expiry_date") {
+    const timestamp = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(String(value))
+      ? `${String(value).replace(" ", "T")}Z` : value;
+    const date = new Date(timestamp);
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
+  }
+  if (/(_id|quantity|quantity_change|_price|_cost|amount_paid|refund_amount|is_defective)$/.test(column)
+      && /^-?\d+(\.\d+)?$/.test(String(value))) {
+    return String(value).includes(".") ? String(Number(value)) : BigInt(value).toString();
+  }
+  return String(value);
+}
+
+function matchKeys(spec, row) {
+  const keys = [];
+  const natural = spec.naturalKey && naturalValue(spec, row[spec.naturalKey]);
+  if (natural != null) keys.push(JSON.stringify([spec.naturalKey, natural]));
+  for (const columns of relationalKeys[spec.table] || []) {
+    if (columns.every((column) => row[column] != null && row[column] !== "")) {
+      keys.push(JSON.stringify(columns.map((column) => [column, comparableValue(column, row[column])])));
+    }
+  }
+  if (!keys.length) {
+    keys.push(JSON.stringify(spec.columns.filter((column) => column !== spec.primaryKey)
+      .map((column) => [column, comparableValue(column, row[column])])));
+  }
+  return keys;
+}
+
+// Match by business keys after remapping parents, never by an unrelated source primary key.
+export async function planTable(conn, spec, file, idMaps) {
+  const [existing] = await conn.query(
+    `SELECT ${spec.columns.map((column) => `\`${column}\``).join(", ")} FROM \`${spec.table}\` FOR UPDATE`
+  );
   const existingByKey = new Map();
-  if (spec.naturalKey) {
-    const [existing] = await conn.query(`SELECT \`${spec.primaryKey}\` AS id, \`${spec.naturalKey}\` AS natural_value FROM \`${spec.table}\``);
-    for (const row of existing) {
-      const value = naturalValue(spec, row.natural_value);
-      if (value != null) existingByKey.set(value, String(row.id));
+  for (const row of existing) {
+    for (const key of matchKeys(spec, row)) {
+      const id = String(row[spec.primaryKey]);
+      if (existingByKey.has(key) && existingByKey.get(key) !== id) {
+        throw new HttpError(409, `${spec.file} matches ambiguous existing records. Resolve duplicates before importing.`);
+      }
+      existingByKey.set(key, id);
     }
   }
   const [[maxRow]] = await conn.query(`SELECT COALESCE(MAX(\`${spec.primaryKey}\`), 0) AS max_id FROM \`${spec.table}\``);
   let nextId = BigInt(maxRow.max_id ?? 0) + 1n;
   const map = new Map();
-  const skipped = new Set();
   const insertable = [];
 
   for (const record of file.records) {
     const source = sourceId(record[spec.primaryKey], `${spec.file} ${spec.primaryKey}`);
-    const key = spec.naturalKey ? naturalValue(spec, record[spec.naturalKey]) : null;
-    if (key != null && existingByKey.has(key)) {
-      map.set(source, existingByKey.get(key));
-      skipped.add(source);
-      continue;
-    }
-    const parentSkipped = Object.entries(spec.foreignKeys).some(([column, parentTable]) => (
-      !SHARED_PARENTS.has(parentTable)
-      && record[column] != null && record[column] !== ""
-      && skippedIds.get(parentTable)?.has(sourceId(record[column], `${spec.file} ${column}`))
-    ));
-    const referenceTable = spec.table === "stock_movements" ? STOCK_REFERENCE_TABLES[record.reference_type] : null;
-    const referenceSkipped = referenceTable && !SHARED_PARENTS.has(referenceTable)
-      && record.reference_id != null && record.reference_id !== ""
-      && skippedIds.get(referenceTable)?.has(sourceId(record.reference_id, "stock movement reference_id"));
-    if (parentSkipped || referenceSkipped) {
-      skipped.add(source);
+    const mapped = spec.table === "users" ? record : remapReferences(spec, record, idMaps, false);
+    const keys = matchKeys(spec, mapped);
+    const matches = new Set(keys.filter((key) => existingByKey.has(key)).map((key) => existingByKey.get(key)));
+    if (matches.size > 1) throw new HttpError(409, `${spec.file} has conflicting identifiers for existing records.`);
+    if (matches.size) {
+      map.set(source, [...matches][0]);
       continue;
     }
     if (nextId > spec.maxId) throw new HttpError(409, `No ${spec.primaryKey} range is available for ${spec.file}.`);
-    map.set(source, (nextId++).toString());
+    const target = (nextId++).toString();
+    map.set(source, target);
+    for (const key of keys) existingByKey.set(key, target);
     insertable.push(record);
   }
   idMaps.set(spec.table, map);
-  skippedIds.set(spec.table, skipped);
   return insertable;
 }
 
-function remapReferences(spec, record, idMaps) {
+function remapReferences(spec, record, idMaps, includePrimaryKey = true) {
   const row = { ...record };
-  row[spec.primaryKey] = idMaps.get(spec.table).get(sourceId(row[spec.primaryKey], spec.primaryKey));
+  if (includePrimaryKey) row[spec.primaryKey] = idMaps.get(spec.table).get(sourceId(row[spec.primaryKey], spec.primaryKey));
   for (const [column, parentTable] of Object.entries(spec.foreignKeys)) {
     if (row[column] == null || row[column] === "") continue;
     const parentMap = idMaps.get(parentTable);
     const mapped = parentMap?.get(sourceId(row[column], `${spec.file} ${column}`));
-    if (mapped) row[column] = mapped;
+    if (!mapped) throw new HttpError(400, `${spec.file}: ${column} could not be mapped to ${parentTable}.`);
+    row[column] = mapped;
   }
   if (spec.table === "stock_movements" && row.reference_id != null) {
     const parentTable = STOCK_REFERENCE_TABLES[row.reference_type];
     const mapped = parentTable && idMaps.get(parentTable)?.get(sourceId(row.reference_id, "stock movement reference_id"));
+    if (parentTable && !mapped) throw new HttpError(400, "Stock movement reference could not be mapped.");
     if (mapped) row.reference_id = mapped;
   }
   return row;
@@ -292,7 +352,16 @@ async function insertChunk(conn, spec, records, start) {
   const columns = spec.columns.map((column) => `\`${column}\``).join(", ");
   const rowPlaceholders = `(${spec.columns.map(() => "?").join(", ")})`;
   const placeholders = records.map(() => rowPlaceholders).join(", ");
-  const values = records.flatMap((record) => spec.columns.map((column) => record[column] ?? null));
+  const values = records.flatMap((record) => spec.columns.map((column) => {
+    const value = record[column] ?? null;
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)
+        && (column.endsWith("_at") || ["order_date", "refund_date", "expiry_date"].includes(column))) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) throw new HttpError(400, `${spec.file} contains an invalid ${column}.`);
+      return date;
+    }
+    return value;
+  }));
   try {
     await conn.query(`INSERT INTO \`${spec.table}\` (${columns}) VALUES ${placeholders}`, values);
   } catch (error) {
@@ -304,78 +373,100 @@ async function insertChunk(conn, spec, records, start) {
 
 export async function importDatasetBatch(req, res) {
   const admin = await requireRole(req, ADMIN);
-  const { totalRows, seenTables } = validateDatasetBatchFiles(req.body.files);
-  const filesByTable = new Map(req.body.files.map((file) => [file.table, file]));
-  const fingerprint = datasetFingerprint(req.body.files);
+  validateDatasetBatchFiles(req.body.files);
+  const counts = await withTransaction((conn) => restoreDatasetBatch(conn, req.body.files, admin));
+  sendJson(res, 200, counts);
+}
 
-  const counts = await withTransaction(async (conn) => {
-    const fingerprintMarker = `dataset_sha256=${fingerprint}`;
-    if (filesByTable.has("users")) {
-      const [roleRows] = await conn.query(`SELECT role_id, role_name FROM roles`);
-      const roleIdsByName = new Map(roleRows.map((role) => [role.role_name, role.role_id]));
-      const legacyRoles = new Map([
-        ["1", "Admin"],
-        ["2", "Sales Management"],
-        ["3", "Inventory Management"],
-      ]);
-      for (const user of filesByTable.get("users").records) {
-        const roleName = legacyRoles.get(sourceId(user.role_id, "user role_id"));
-        if (!roleName || !roleIdsByName.has(roleName)) {
-          throw new HttpError(400, "The imported user role IDs do not match the TiDB role seed data.");
+export async function restoreDatasetBatch(conn, files, admin) {
+  const { totalRows, seenTables } = validateDatasetBatchFiles(files);
+  const filesByTable = new Map(files.map((file) => [file.table, {
+    ...file, records: file.records.map((record) => ({ ...record })),
+  }]));
+  const fingerprint = datasetFingerprint(files);
+  const fingerprintMarker = `dataset_sha256=${fingerprint}`;
+  if (filesByTable.has("users")) {
+    const [roleRows] = await conn.query(`SELECT role_id, role_name FROM roles`);
+    const roleIdsByName = new Map(roleRows.map((role) => [role.role_name, role.role_id]));
+    const legacyRoles = new Map([
+      ["1", "Admin"],
+      ["2", "Sales Management"],
+      ["3", "Inventory Management"],
+    ]);
+    for (const user of filesByTable.get("users").records) {
+      const roleName = legacyRoles.get(sourceId(user.role_id, "user role_id"));
+      if (!roleName || !roleIdsByName.has(roleName)) {
+        throw new HttpError(400, "The imported user role IDs do not match the TiDB role seed data.");
+      }
+      user.role_id = roleIdsByName.get(roleName);
+    }
+  }
+  const imported = {};
+  const skipped = {};
+  const idMaps = new Map();
+  const deferredUserReferences = [];
+  if (files.some((file) => file.referenceMode === "backup")) {
+    const [staff] = await conn.query("SELECT user_id, username FROM users");
+    const byUsername = new Map(staff.map((user) => [user.username.toLowerCase(), String(user.user_id)]));
+    const userMap = new Map();
+    for (const file of files.filter((item) => item.referenceMode === "backup")) {
+      for (const reference of file.userReferences || []) {
+        if (!reference || typeof reference.username !== "string") {
+          throw new HttpError(400, "Invalid backup staff reference.");
         }
-        user.role_id = roleIdsByName.get(roleName);
-      }
-    }
-    const imported = {};
-    const skipped = {};
-    const idMaps = new Map();
-    const skippedIds = new Map();
-    const deferredUserReferences = [];
-
-    for (const table of importOrder) {
-      const file = filesByTable.get(table);
-      if (!file) continue;
-      const spec = byTable.get(table);
-      const insertable = await planTable(conn, spec, file, idMaps, skippedIds);
-      const rows = insertable.map((record) => remapReferences(spec, record, idMaps));
-      if (table === "users") {
-        for (const row of rows) {
-          deferredUserReferences.push({
-            userId: row.user_id,
-            createdBy: row.created_by,
-            approvedBy: row.approved_by,
-          });
-          row.created_by = null;
-          row.approved_by = null;
-          // Imported password hashes were not checked against the password policy.
-          row.must_change_password = 1;
+        const target = byUsername.get(reference.username.toLowerCase());
+        if (!target) throw new HttpError(409, `Staff account "${reference.username}" is required to restore this backup. Staff passwords and accounts are not restored.`);
+        const source = sourceId(reference.user_id, "Backup staff user_id");
+        if (userMap.has(source) && userMap.get(source) !== target) {
+          throw new HttpError(409, "Selected backups contain conflicting staff references.");
         }
-      }
-
-      for (let offset = 0; offset < rows.length; offset += INSERT_CHUNK_SIZE) {
-        await insertChunk(conn, spec, rows.slice(offset, offset + INSERT_CHUNK_SIZE), offset + 1);
-      }
-      imported[table] = rows.length;
-      skipped[table] = file.records.length - rows.length;
-    }
-
-    for (const user of deferredUserReferences) {
-      if (user.createdBy != null || user.approvedBy != null) {
-        await conn.query(
-          `UPDATE users SET created_by = ?, approved_by = ? WHERE user_id = ?`,
-          [user.createdBy, user.approvedBy, user.userId]
-        );
+        userMap.set(source, target);
       }
     }
+    idMaps.set("users", userMap);
+  }
 
-    const details = `${fingerprintMarker}; ${Object.entries(imported).map(([table, count]) => `${table}=${count}`).join(", ")}`;
-    await conn.query(
-      `INSERT INTO audit_log (user_id, action, entity_type, details, created_at)
-       VALUES (?, 'import_dataset', 'dataset', ?, ?)`,
-      [admin.user_id, `${seenTables.size} files, ${totalRows} rows: ${details}`.slice(0, 500), new Date()]
-    );
-    return { imported, skipped };
-  });
+  for (const table of importOrder) {
+    const file = filesByTable.get(table);
+    if (!file) continue;
+    const spec = byTable.get(table);
+    const insertable = await planTable(conn, spec, file, idMaps);
+    const rows = insertable.map((record) => remapReferences(spec, record, idMaps));
+    if (table === "users") {
+      for (const row of rows) {
+        deferredUserReferences.push({
+          userId: row.user_id,
+          createdBy: row.created_by,
+          approvedBy: row.approved_by,
+        });
+        row.created_by = null;
+        row.approved_by = null;
+        // Imported password hashes were not checked against the password policy.
+        row.must_change_password = 1;
+      }
+    }
 
-  sendJson(res, 200, { imported: counts.imported, skipped: counts.skipped, totalRows });
+    for (let offset = 0; offset < rows.length; offset += INSERT_CHUNK_SIZE) {
+      await insertChunk(conn, spec, rows.slice(offset, offset + INSERT_CHUNK_SIZE), offset + 1);
+    }
+    imported[table] = rows.length;
+    skipped[table] = file.records.length - rows.length;
+  }
+
+  for (const user of deferredUserReferences) {
+    if (user.createdBy != null || user.approvedBy != null) {
+      await conn.query(
+        `UPDATE users SET created_by = ?, approved_by = ? WHERE user_id = ?`,
+        [user.createdBy, user.approvedBy, user.userId]
+      );
+    }
+  }
+
+  const details = `${fingerprintMarker}; ${Object.entries(imported).map(([table, count]) => `${table}=${count}`).join(", ")}`;
+  await conn.query(
+    `INSERT INTO audit_log (user_id, action, entity_type, details, created_at)
+     VALUES (?, 'import_dataset', 'dataset', ?, ?)`,
+    [admin.user_id, `${seenTables.size} files, ${totalRows} rows: ${details}`.slice(0, 500), new Date()]
+  );
+  return { imported, skipped, totalRows };
 }

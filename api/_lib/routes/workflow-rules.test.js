@@ -27,7 +27,7 @@ test("verifying a payment deducts stock, records the sale, marks the order paid 
     ["SELECT * FROM orders WHERE order_id", [{ order_id: 5, order_number: "ORD-1", order_status: "Pending Payment", reservation_id: null, created_by: 2 }]],
     ["SELECT payment_id FROM payments", [{ payment_id: 8 }]],
     ["SELECT product_id, quantity FROM order_items", [{ product_id: 3, quantity: 2 }]],
-    ["SELECT * FROM products WHERE product_id", [{ product_id: 3, product_name: "Denim jacket", stock_quantity: 10 }]],
+    ["SELECT * FROM products WHERE product_id", [{ product_id: 3, product_name: "Denim jacket", stock_quantity: 10, is_active: 1 }]],
     ["SELECT product_name, stock_quantity, low_stock_threshold", [{ product_name: "Denim jacket", stock_quantity: 8, low_stock_threshold: 2 }]],
     ["SELECT last_number FROM document_counters", [{ last_number: 4 }]],
   ]);
@@ -83,7 +83,7 @@ test("approving a reservation holds stock for the agreed days (4.1, 4.2)", async
   const conn = fakeConnection([
     ["SELECT * FROM reservations WHERE reservation_id", [{ reservation_id: 7, reservation_number: "RES-1", reservation_status: "Pending Approval", reservation_days: 3, created_by: 2 }]],
     ["SELECT product_id, quantity FROM reservation_items", [{ product_id: 3, quantity: 2 }]],
-    ["SELECT * FROM products WHERE product_id", [{ product_id: 3, product_name: "Denim jacket", stock_quantity: 10 }]],
+    ["SELECT * FROM products WHERE product_id", [{ product_id: 3, product_name: "Denim jacket", stock_quantity: 10, is_active: 1 }]],
     ["SELECT product_name, stock_quantity, low_stock_threshold", [{ product_name: "Denim jacket", stock_quantity: 8, low_stock_threshold: 2 }]],
   ]);
   const before = Date.now();
@@ -95,6 +95,48 @@ test("approving a reservation holds stock for the agreed days (4.1, 4.2)", async
   const [, , expiry] = writesMatching(conn, /SET reservation_status = 'Active'/)[0].params;
   const days = (expiry.getTime() - before) / 86400000;
   assert.ok(days >= 2.99 && days <= 3.01, `expiry should be 3 days ahead, got ${days}`);
+});
+
+test("a newly created product can be requested for reservation and is held only after approval", async () => {
+  const product = { product_id: 99, product_name: "Denim jacket", product_code: "P-NEW", is_active: 1, stock_quantity: 10, selling_price: 500 };
+  const conn = fakeConnection([
+    ["SELECT 1 FROM products WHERE product_code", []],
+    ["SELECT customer_id, full_name FROM customers", [{ customer_id: 4, full_name: "Test Customer" }]],
+    ["SELECT * FROM products WHERE is_active", [product]],
+    ["SELECT last_number FROM document_counters", [{ last_number: 1 }]],
+    ["SELECT * FROM reservations WHERE reservation_id", [{ reservation_id: 99, reservation_number: "RES-NEW", reservation_status: "Pending Approval", reservation_days: 3, created_by: 2 }]],
+    ["SELECT product_id, quantity FROM reservation_items", [{ product_id: 99, quantity: 2 }]],
+    ["SELECT * FROM products WHERE product_id", [product]],
+    ["SELECT product_name, stock_quantity, low_stock_threshold", [{ ...product, low_stock_threshold: 1 }]],
+  ]);
+  await formActions["4.4-add-product"](conn, { user_id: 3, role_name: "Inventory Management" }, {
+    "Product code": "P-NEW", "Product name": product.product_name, Category: "Outerwear", Size: "M",
+    "Cost price": "200", "Selling price": "500", "Starting stock": "10", "Low-stock threshold": "1",
+  });
+  await formActions["5.1-new-reservation"](conn, sales, { Customer: "Test Customer", Product: "P-NEW", Quantity: "2", "Agreed days": "3" });
+  assert.deepEqual(writesMatching(conn, /INSERT INTO reservation_items/)[0].params, [99, 99, 2, 500]);
+  assert.equal(writesMatching(conn, /UPDATE products/).length, 0, "Pending requests do not reserve stock");
+  await reservationActions.approve(conn, admin, 99);
+  assert.deepEqual(writesMatching(conn, /reserved_quantity = reserved_quantity \+ \?/)[0].params, [2, 2, 99]);
+});
+
+test("cancelling a converted unpaid order releases its reservation hold exactly once", async () => {
+  const order = { order_id: 5, order_status: "Pending Payment", reservation_id: 7 };
+  const conn = fakeConnection([
+    ["SELECT * FROM orders WHERE order_id", [order]],
+    ["SELECT * FROM reservations WHERE reservation_id", [{ reservation_id: 7, reservation_status: "Active" }]],
+    ["FROM reservation_items", [{ product_id: 3, quantity: 2 }]],
+    ["FROM stock_movements", [{ product_id: 3, held_quantity: 2 }]],
+    ["FROM products WHERE product_id", [{ product_id: 3, reserved_quantity: 2 }]],
+  ]);
+  await orderActions.cancel(conn, sales, 5);
+  assert.deepEqual(writesMatching(conn, /reserved_quantity = reserved_quantity - \?/)[0].params, [2, 2, 3]);
+  assert.deepEqual(writesMatching(conn, /INSERT INTO stock_movements/)[0].params.slice(0, 5), [3, "Reservation Release", 2, "Reservation", 7]);
+  assert.equal(writesMatching(conn, /SET reservation_status = 'Cancelled'/).length, 1);
+  order.order_status = "Cancelled";
+  const count = conn.writes.length;
+  await assert.rejects(orderActions.cancel(conn, sales, 5), (error) => error.status === 409);
+  assert.equal(conn.writes.length, count);
 });
 
 test("refund approval returns non-defective items to stock and keeps defective items out (4.5)", async () => {

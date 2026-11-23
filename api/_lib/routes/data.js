@@ -162,6 +162,7 @@ export async function releaseReservationStock(conn, reservationId, userId, remar
 const iso = (value) => (value ? new Date(value).toISOString() : "");
 
 function rowActions(kind, row, role) {
+  if (role === INVENTORY && ["customers", "reservations", "orders", "refunds"].includes(kind)) return [];
   const admin = role === ADMIN;
   const base = `data/${kind}/${row.id}`;
   const action = (id, label, extra = {}) => ({ id, label, path: `${base}/${id}`, ...extra });
@@ -704,8 +705,10 @@ export const reservationActions = {
     if (!reservation) throw new HttpError(404, "Reservation not found.");
     expectStatus(reservation.reservation_status, ["Pending Approval"], "This reservation");
     const [items] = await conn.query(`SELECT product_id, quantity FROM reservation_items WHERE reservation_id = ?`, [id]);
+    if (!items.length) throw new HttpError(409, "This reservation has no items.");
     for (const item of items) {
       const product = await lockProduct(conn, item.product_id);
+      if (!product || !product.is_active) throw new HttpError(409, "A reserved product is missing or inactive.");
       if (product.stock_quantity < item.quantity) {
         throw new HttpError(409, `Not enough stock for ${product.product_name} (${product.stock_quantity} available).`);
       }
@@ -752,6 +755,9 @@ export const reservationActions = {
     const [[reservation]] = await conn.query(`SELECT * FROM reservations WHERE reservation_id = ? FOR UPDATE`, [id]);
     if (!reservation) throw new HttpError(404, "Reservation not found.");
     expectStatus(reservation.reservation_status, ["Active"], "This reservation");
+    if (!reservation.expiry_date || new Date(reservation.expiry_date) < new Date()) {
+      throw new HttpError(409, "This reservation has expired.");
+    }
     const [existing] = await conn.query(`SELECT 1 FROM orders WHERE reservation_id = ?`, [id]);
     if (existing.length) throw new HttpError(409, "This reservation already has an order.");
     const orderNumber = await nextDocumentNumber(conn, "ORD");
@@ -886,6 +892,16 @@ export const orderActions = {
   async cancel(conn, user, id) {
     const order = await lockOrder(conn, id);
     expectStatus(order.order_status, ["Pending Approval", "Pending Payment"], "This order");
+    if (order.reservation_id) {
+      const [[reservation]] = await conn.query(`SELECT * FROM reservations WHERE reservation_id = ? FOR UPDATE`, [order.reservation_id]);
+      if (!reservation) throw new HttpError(409, "The linked reservation no longer exists.");
+      expectStatus(reservation.reservation_status, ["Active"], "The linked reservation");
+      await releaseReservationStock(conn, order.reservation_id, user.user_id, "Reservation order cancelled");
+      await conn.query(
+        `UPDATE reservations SET reservation_status = 'Cancelled', voided_at = ?, void_reason = 'Order cancelled' WHERE reservation_id = ?`,
+        [new Date(), order.reservation_id]
+      );
+    }
     await conn.query(`UPDATE orders SET order_status = 'Cancelled' WHERE order_id = ?`, [id]);
     return "cancel_order";
   },
@@ -949,8 +965,8 @@ const productActions = {
 const rowActionTable = {
   products: { handlers: productActions, roles: [ADMIN, INVENTORY], entity: "product" },
   customers: { handlers: customerActions, roles: [ADMIN, SALES], entity: "customer" },
-  reservations: { handlers: reservationActions, roles: [ADMIN, SALES, INVENTORY], adminOnly: ["approve", "reject"], entity: "reservation" },
-  orders: { handlers: orderActions, roles: [ADMIN, SALES, INVENTORY], adminOnly: ["approve", "verify-payment", "reject-payment"], entity: "order" },
+  reservations: { handlers: reservationActions, roles: [ADMIN, SALES], adminOnly: ["approve", "reject"], entity: "reservation" },
+  orders: { handlers: orderActions, roles: [ADMIN, SALES], adminOnly: ["approve", "verify-payment", "reject-payment"], entity: "order" },
   refunds: { handlers: refundActions, roles: [ADMIN], entity: "refund" },
 };
 
@@ -1219,13 +1235,19 @@ export const formActions = {
 };
 formActions["8.6-mobile-new-reservation"] = formActions["5.1-new-reservation"];
 
+const formRoles = {
+  "4.4-add-product": [ADMIN, INVENTORY],
+  "4.3-edit-product-admin-only": [ADMIN],
+  "3.6-approval-request-detail": [ADMIN],
+};
+
 export async function runFormAction(req, res) {
-  // Form actions are sales workflows; Inventory may only submit the add-product form.
   const user = await requireRole(req, ADMIN, SALES, INVENTORY);
   requireFields(req.body, ["screenId"]);
-  if (user.role_name === INVENTORY && req.body.screenId !== "4.4-add-product") throw new HttpError(403, "You do not have access to this.");
   const handler = Object.hasOwn(formActions, req.body.screenId) ? formActions[req.body.screenId] : null;
   if (!handler) throw new HttpError(404, "This form is not available.");
+  const allowedRoles = formRoles[req.body.screenId] || [ADMIN, SALES];
+  if (!allowedRoles.includes(user.role_name)) throw new HttpError(403, "You do not have access to this.");
   const values = req.body.values && typeof req.body.values === "object" ? req.body.values : {};
   const result = await withTransaction((conn) => handler(conn, user, values));
   await audit(user.user_id, result.action, result.entity, result.id);

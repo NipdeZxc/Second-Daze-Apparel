@@ -3,12 +3,27 @@ import { buildWeeklyReport, csvTemplate, datasets, importColumns, importKinds, M
 import {
   datasetImportFiles,
   MAX_DATASET_BATCH_BYTES,
-  MAX_DATASET_BATCH_ROWS,
   MAX_DATASET_FILE_BYTES,
-  parseDatasetFile,
+  mergeDatasetInputs,
+  parseDatasetInput,
 } from "./data/datasetImport.js";
 import { deleteAllData, deleteRecord, exportWorkspaceData, importDatasetBatch, importRecords, runRowAction, updateRecord } from "./api/workspace.js";
-import { createWorkspaceExcel, serializeWorkspaceCsv } from "./data/export.js";
+import { createWorkspaceExcel } from "./data/export.js";
+import { matchesGlobalSearch } from "./data/globalSearch.js";
+
+export function SearchField({ label, value, onChange, placeholder, className = "", showLabel = true, inputRef, ...inputProps }) {
+  return (
+    <label className={className}>
+      {showLabel && <span>{label}</span>}
+      <span className="search-field">
+        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" />
+        </svg>
+        <input {...inputProps} ref={inputRef} type="search" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={label} />
+      </span>
+    </label>
+  );
+}
 
 export const screenDatasets = {
   "3.9-orders-status-tracking": "orders",
@@ -106,7 +121,7 @@ function RecordRows({ columns, rows, rowKey }) {
         <tbody>
           {rows.length ? rows.map((row) => (
             <tr key={row[rowKey]}>
-              {columns.map((column) => <td key={column.key}>{displayValue(row[column.key], column)}</td>)}
+              {columns.map((column) => <td data-label={column.label} key={column.key}>{displayValue(row[column.key], column)}</td>)}
             </tr>
           )) : <tr><td className="empty-cell" colSpan={columns.length}>No records yet.</td></tr>}
         </tbody>
@@ -133,12 +148,13 @@ function printOrder(order) {
   win.print();
 }
 
-export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false, onRecordUpdated }) {
+export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false, onRecordUpdated, initialSearch = "" }) {
   const definition = datasets[kind];
   const editable = canEdit && definition.editable;
   const deletable = authUser?.role === "Admin" && ["products", "customers", "orders", "reservations", "refunds"].includes(kind);
   const editColumns = definition.columns.filter((column) => !column.readonly);
-  const [query, setQuery] = useState("");
+  const displayColumns = definition.columns.filter((column) => column.key !== "status");
+  const [query, setQuery] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState("");
   const [sortKey, setSortKey] = useState(definition.key);
   const [sortDirection, setSortDirection] = useState("asc");
@@ -163,10 +179,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
   const hasStatus = kind === "products" || Boolean(statusColumn);
   const statuses = statusColumn?.values || [...new Set(rows.map(recordStatus).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const filteredRows = rows.filter((record) => {
-    const matchesQuery = !query.trim() || [
-      ...Object.values(record),
-      ...(hasStatus ? [recordStatus(record)] : []),
-    ].some((value) => String(value ?? "").toLowerCase().includes(query.trim().toLowerCase()));
+    const matchesQuery = matchesGlobalSearch(hasStatus ? { ...record, status: recordStatus(record) } : record, query);
     return matchesQuery && (!statusFilter || recordStatus(record) === statusFilter);
   });
   const sortColumn = definition.columns.find((column) => column.key === sortKey);
@@ -186,14 +199,14 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
   const pageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize));
   const visibleRows = sortedRows.slice((page - 1) * pageSize, page * pageSize);
   useEffect(() => {
-    setQuery("");
+    setQuery(initialSearch);
     setStatusFilter("");
     setSortKey(definition.key);
     setSortDirection("asc");
     setPage(1);
     setMessage("");
     setDeleteError("");
-  }, [kind, definition.key]);
+  }, [kind, definition.key, initialSearch]);
   const closeDialog = () => {
     setSelectedRecord(null);
     setDialogMode("");
@@ -271,10 +284,8 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
       {deletable && <p className="data-notice">Admins can permanently delete individual records. Deleting a record also deletes the records linked to it.</p>}
       {message && <p className="table-message" role="status">{message}</p>}
       <div className="table-tools">
-        <label className="table-search">
-          <span>Search records</span>
-          <input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} type="search" placeholder={`Search ${definition.label.toLowerCase()}`} />
-        </label>
+        <SearchField className="table-search" label="Search records" value={query}
+          onChange={(value) => { setQuery(value); setPage(1); }} placeholder={`Search ${definition.label.toLowerCase()}`} />
         {hasStatus && (
           <label className="table-filter">
             <span>Status</span>
@@ -295,7 +306,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
         <table>
           <thead>
             <tr>
-              {definition.columns.map((column) => (
+              {displayColumns.map((column) => (
                 <th scope="col" aria-sort={sortKey === column.key ? (sortDirection === "asc" ? "ascending" : "descending") : "none"} key={column.key}>
                   <button className="table-sort" type="button" onClick={() => changeSort(column.key)} aria-label={`Sort by ${column.label} ${sortKey === column.key && sortDirection === "asc" ? "descending" : "ascending"}`}>
                     {column.label}{sortKey === column.key && <span aria-hidden="true">{sortDirection === "asc" ? " ↑" : " ↓"}</span>}
@@ -309,9 +320,10 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
           <tbody>
             {visibleRows.length ? visibleRows.map((record) => (
               <tr key={record[definition.key]}>
-                {definition.columns.map((column) => <td key={column.key}>{displayValue(record[column.key], column)}</td>)}
-                {hasStatus && <td><span className="record-status">{recordStatus(record)}</span></td>}
-                <td className="record-actions">
+                {displayColumns.map((column) => <td data-label={column.label} key={column.key}>{displayValue(record[column.key], column)}</td>)}
+                {hasStatus && <td data-label="Status"><span className="record-status">{recordStatus(record)}</span></td>}
+                <td className="record-actions" data-label="Actions">
+                  <div className="record-actions__buttons">
                   <button type="button" className="table-action" onClick={() => { setSelectedRecord(record); setDialogMode("view"); }}>View</button>
                   {editable && <button type="button" className="table-action" onClick={() => openEdit(record)}>Edit</button>}
                   {deletable && (
@@ -325,10 +337,11 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
                     </button>
                   )}
                   <RowActions actions={record.actions} onDone={onRecordUpdated} />
+                  </div>
                 </td>
               </tr>
             )) : (
-              <tr><td className="empty-cell" colSpan={definition.columns.length + (hasStatus ? 2 : 1)}>{rows.length ? "No records match these filters." :               "No records yet."}</td></tr>
+              <tr><td className="empty-cell" colSpan={displayColumns.length + (hasStatus ? 2 : 1)}>{rows.length ? "No records match these filters." :               "No records yet."}</td></tr>
             )}
           </tbody>
         </table>
@@ -355,7 +368,7 @@ export function RecordsTable({ kind, rows = [], title, authUser, canEdit = false
             {dialogMode === "view" ? (
               <>
                 <dl className="record-details">
-                  {definition.columns.map((column) => <div key={column.key}><dt>{column.label}</dt><dd>{displayValue(selectedRecord[column.key], column)}</dd></div>)}
+                  {displayColumns.map((column) => <div key={column.key}><dt>{column.label}</dt><dd>{displayValue(selectedRecord[column.key], column)}</dd></div>)}
                   {hasStatus && <div><dt>Status</dt><dd>{recordStatus(selectedRecord)}</dd></div>}
                 </dl>
                 <div className="record-dialog__actions">
@@ -457,21 +470,12 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
     setBatchBusy(true);
     try {
       const parsed = [];
-      const seen = new Set();
       for (const item of batchFiles) {
-        const dataset = parseDatasetFile(item.name, await item.text());
-        if (seen.has(dataset.table)) throw new Error(`Select only one ${dataset.fileName} file.`);
-        seen.add(dataset.table);
-        parsed.push(dataset);
+        const datasets = parseDatasetInput(item.name, await item.text());
+        if (!datasets) throw new Error(`${item.name} is not a supported dataset or CSV backup. Use the single-file importer for restock templates.`);
+        parsed.push(datasets);
       }
-      const rowCount = parsed.reduce((sum, item) => sum + item.records.length, 0);
-      if (rowCount > MAX_DATASET_BATCH_ROWS) {
-        throw new Error(`A dataset batch may contain at most ${MAX_DATASET_BATCH_ROWS} rows.`);
-      }
-      if (new TextEncoder().encode(JSON.stringify(parsed)).length > MAX_DATASET_BATCH_BYTES) {
-        throw new Error("The selected records are too large to send in one batch.");
-      }
-      setBatchPreview(parsed);
+      setBatchPreview(mergeDatasetInputs(parsed));
     } catch (validationError) {
       setBatchError(validationError.message || "The selected dataset files could not be read.");
     } finally {
@@ -487,7 +491,7 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
       const result = await importDatasetBatch(batchPreview);
       const insertedRows = Object.values(result.imported || {}).reduce((sum, count) => sum + count, 0);
       const skippedRows = Object.values(result.skipped || {}).reduce((sum, count) => sum + count, 0);
-      setBatchMessage(`Imported ${insertedRows} new rows. Skipped ${skippedRows} rows that already exist (existing data was not replaced).`);
+      setBatchMessage(`Imported ${insertedRows} new rows. Skipped ${skippedRows} matching rows. Existing records and stock balances were not replaced.`);
       setBatchPreview(null);
       setBatchFiles([]);
       onImported?.();
@@ -512,7 +516,16 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
           if (file.size > MAX_CSV_BYTES) { setError("CSV files must be 2 MB or smaller."); return; }
           setBusy(true);
           try {
-            const records = parseImport(kind, await file.text(), existingRecords?.[kind] || []);
+            const csv = await file.text();
+            const datasets = parseDatasetInput(file.name, csv);
+            if (datasets) {
+              setBatchError("");
+              setBatchMessage("");
+              setBatchPreview(mergeDatasetInputs([datasets]));
+              return;
+            }
+            setBatchPreview(null);
+            const records = parseImport(kind, csv, existingRecords);
             setPreview(records);
           } catch (validationError) {
             setError(validationError.message || "The CSV could not be read.");
@@ -528,7 +541,7 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
               </select>
             </label>
             <label className="field">
-              <span>CSV file (UTF-8, max 2 MB / 5,000 rows)</span>
+              <span>CSV template or backup (UTF-8, max 2 MB)</span>
               <input type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.target.files[0] || null); resetPreview(); }} />
             </label>
             <div className="csv-import__actions">
@@ -543,7 +556,8 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
         )}
         <p className="form-note">Use plain numbers without currency symbols or thousands separators.
           For products, matching product codes add <code>stock_quantity</code> to available stock without changing product details; new codes create products with that initial stock. Import a shipment only once.
-          Duplicate identifiers within a file reject the entire import. Orders, reservations and sales are created through their workflows, not by import. Admins can load the full TiDB dataset with the batch importer below.</p>
+          Duplicate identifiers within a file reject the entire import. These templates are for restocking or new customers.
+          CSV backups are detected automatically and restore all business tables without replacing matching records or adding stock again.</p>
         {error && <p className="inline-error" role="alert">{error}</p>}
         {message && <p className="form-note" role="status">{message}</p>}
         {preview && (
@@ -570,11 +584,11 @@ export function CsvImportPanel({ authUser, existingRecords, onImported }) {
           </div>
         )}
         <div className="csv-import__batch">
-          <h3>Import multiple TiDB dataset files</h3>
+          <h3>Import CSV backups or multiple TiDB dataset files</h3>
           <p className="form-note">
-            Select one or more supported files from the dataset folder. Files are inserted in foreign-key order as one transaction;
+            Select a CSV backup from Export records, or supported files from the dataset folder. Files are inserted in foreign-key order as one transaction;
             include files referenced by the selected rows (usually the full dataset) so foreign keys map correctly. If any file fails, the entire batch rolls back.
-            Existing records are not overwritten.
+            Existing records are not overwritten. Backups reuse existing staff accounts by username; passwords are never imported from backups.
           </p>
           <form onSubmit={reviewBatch}>
             <label className="field">
@@ -649,13 +663,15 @@ export function DataExportPanel({ authUser, records, onDeleted }) {
     setBusy(true);
     try {
       if (format === "csv") {
-        downloadFile(serializeWorkspaceCsv(records), "text/csv;charset=utf-8", `${filename}.csv`);
+        const csv = await exportWorkspaceData("backup");
+        downloadFile(csv, "text/csv;charset=utf-8", `${filename}.csv`);
+        setMessage("Exported a complete business-data CSV backup. Import it using either CSV file selector.");
       } else {
         const workbook = createWorkspaceExcel(records);
         downloadFile(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `${filename}.xlsx`);
+        const count = Object.keys(datasets).reduce((total, kind) => total + (records[kind] || []).length, 0);
+        setMessage(`Exported ${count} report records. Excel reports cannot be imported as backups.`);
       }
-      const count = Object.keys(datasets).reduce((total, kind) => total + (records[kind] || []).length, 0);
-      setMessage(`Exported ${count} records.`);
     } catch (exportError) {
       setError(exportError.message || "Workspace records could not be exported.");
     } finally {
@@ -689,9 +705,11 @@ export function DataExportPanel({ authUser, records, onDeleted }) {
       </div>
       <div className="csv-import__content">
         <p className="data-notice">
-          Exports products, customers, orders, sales, reservations, refunds, sales documents, and staff accounts.
-          CSV combines these record types in one file with a <code> record_type</code> column; Excel creates a
-          separate sheet for each type. Exported fields follow the workspace record lists.
+          CSV is a restorable backup of products, customers, orders and their items, payments, shipments,
+          reservations and their items, refunds and their items, documents, and stock history.
+          Sales and report totals are rebuilt from these records. Staff accounts, passwords, notifications and audit logs are not backed up;
+          existing staff accounts are matched by username during restore.
+          Excel is a read-only report of workspace lists, not an importable backup.
         </p>
         <div className="csv-import__actions">
           <button type="button" className="button button--outline" disabled={busy} onClick={() => runExport("csv")}>

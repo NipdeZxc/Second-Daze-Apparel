@@ -19,6 +19,8 @@ export function getPool() {
       },
       waitForConnections: true,
       connectionLimit: 3,
+      supportBigNumbers: true,
+      bigNumberStrings: true,
       timezone: "Z",
     });
   }

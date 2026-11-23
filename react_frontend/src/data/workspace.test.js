@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Papa from "papaparse";
 import { strFromU8, unzipSync } from "fflate";
-import { buildOverview, buildWeeklyReport, csvTemplate, datasets, emptyRecords, getFridayReviewWeek, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
-import { datasetImportFiles, parseDatasetFile } from "./datasetImport.js";
+import { buildOverview, buildSalesChartSeries, buildWeeklyReport, csvTemplate, datasets, emptyRecords, getFridayReviewWeek, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
+import { datasetImportFiles, mergeDatasetInputs, parseDatasetFile, parseDatasetInput } from "./datasetImport.js";
 import { createWorkspaceExcel, serializeWorkspaceCsv } from "./export.js";
 
 const productCsv = `${csvTemplate("products")}TEST-1,"Shirt, ""Blue""",Tops,M,100.10,200.20,2,3`;
@@ -73,6 +73,38 @@ test("overview of empty records has no synthetic data", () => {
   assert.deepEqual(overview.queues, { accessApprovals: 0, ordersToFulfill: 0, lowStockItems: 0, unpaidReservations: 0 });
 });
 
+test("All-time chart retains more than 30 sale dates and groups them without losing totals", () => {
+  const sales = Array.from({ length: 90 }, (_, index) => {
+    const date = new Date(2025, 0, index + 1, 12);
+    return { sale_no: `SALE-${index}`, amount: 10.01, cost: 1, sold_at: date.toISOString() };
+  });
+  const overview = buildOverview({ ...emptyRecords(), sales });
+  assert.equal(overview.dailySales.length, 90);
+  const series = buildSalesChartSeries(overview.dailySales, "all");
+  assert.ok(series.length <= 8);
+  assert.equal(series[0].start, "2025-01-01");
+  assert.equal(series.at(-1).end, "2025-03-31");
+  assert.equal(Math.round(series.reduce((sum, point) => sum + point.amount, 0) * 100), 90090);
+});
+
+test("chart filters include both date boundaries, exclude future sales and handle empty ranges", () => {
+  const dailySales = [
+    ["2026-10-24", 100], ["2026-10-25", 200], ["2026-11-16", 300],
+    ["2026-11-17", 400], ["2026-11-23", 500], ["2026-11-24", 600],
+  ];
+  const now = new Date(2026, 10, 23, 14);
+  const week = buildSalesChartSeries(dailySales, "7", now);
+  assert.equal(week.length, 7);
+  assert.equal(week[0].start, "2026-11-17");
+  assert.equal(week.at(-1).end, "2026-11-23");
+  assert.deepEqual(week.map(({ amount }) => amount), [400, 0, 0, 0, 0, 0, 500]);
+  const month = buildSalesChartSeries(dailySales, "30", now);
+  assert.equal(month[0].start, "2026-10-25");
+  assert.equal(month.reduce((sum, point) => sum + point.amount, 0), 1400);
+  assert.deepEqual(buildSalesChartSeries([["2025-01-01", 100]], "7", now), []);
+  assert.deepEqual(buildSalesChartSeries([], "all", now), []);
+});
+
 test("TiDB dataset CSV parser recognizes supported files and keeps schema columns", () => {
   const definition = datasetImportFiles.find((item) => item.file === "product.csv");
   const values = {
@@ -110,6 +142,27 @@ test("TiDB dataset CSV parser rejects unknown files, missing columns, and duplic
   };
   const row = definition.columns.map((column) => values[column]).join(",");
   assert.throws(() => parseDatasetFile("product.csv", `${definition.columns.join(",")}\n${row}\n${row}`), /duplicate product_id/);
+});
+
+test("both file selectors recognize backups independently of filenames and reject incomplete report exports", () => {
+  const definition = datasetImportFiles.find((item) => item.table === "products");
+  const record = Object.fromEntries(definition.columns.map((column) => [column, null]));
+  Object.assign(record, { product_id: "1", product_code: "SKU-1", product_name: 'Shirt, "Blue"' });
+  const csv = Papa.unparse([
+    ["record_type", "record_data"],
+    ["__backup", JSON.stringify({ version: 1, userReferences: [] })],
+    ["products", JSON.stringify(record)],
+  ]);
+  const files = parseDatasetInput("renamed.csv", `\uFEFF${csv}`);
+  assert.equal(files[0].referenceMode, "backup");
+  assert.deepEqual(files[0].records[0], record);
+  assert.equal(mergeDatasetInputs([files, files])[0].records.length, 1);
+  const conflict = [{ ...files[0], records: [{ ...record, product_name: "Different item" }] }];
+  assert.throws(() => mergeDatasetInputs([files, conflict]), /conflicting rows/);
+  const report = serializeWorkspaceCsv({ ...emptyRecords(), products: [record] });
+  assert.throws(() => parseDatasetInput("second-daze-records.csv", report), /older report CSV.*cannot restore all data/);
+  assert.equal(parseDatasetInput("restock.csv", productCsv), null);
+  assert.throws(() => parseDatasetInput("backup.csv", csv.replace('"version"":1', '"version"":99')), /Unsupported CSV backup version/);
 });
 
 test("overview nets approved refunds, counts low stock and open orders", () => {

@@ -202,6 +202,42 @@ function dateInRange(value, range) {
   return !Number.isNaN(date.getTime()) && date >= range.start && date <= range.end;
 }
 
+function localDateKey(value) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+export function buildSalesChartSeries(dailySales, range, now = new Date()) {
+  if (!["7", "30", "all"].includes(String(range))) throw new Error("Choose a supported sales date range.");
+  let series = dailySales;
+  let startKey;
+  let endKey;
+  if (range !== "all") {
+    const start = new Date(now);
+    start.setDate(start.getDate() - Number(range) + 1);
+    startKey = localDateKey(start);
+    endKey = localDateKey(now);
+    series = series.filter(([day]) => day >= startKey && day <= endKey);
+  }
+  if (!series.length) return [];
+  startKey ??= series[0][0];
+  endKey ??= series.at(-1)[0];
+  const startTime = Date.parse(`${startKey}T00:00:00Z`);
+  const endTime = Date.parse(`${endKey}T00:00:00Z`);
+  const days = (endTime - startTime) / 86400000 + 1;
+  const groupDays = Math.ceil(days / 8);
+  const totals = Array(Math.ceil(days / groupDays)).fill(0);
+  for (const [day, amount] of series) {
+    const index = Math.floor((Date.parse(`${day}T00:00:00Z`) - startTime) / 86400000 / groupDays);
+    totals[index] += cents(amount);
+  }
+  return totals.map((total, index) => ({
+    start: new Date(startTime + index * groupDays * 86400000).toISOString().slice(0, 10),
+    end: new Date(Math.min(endTime, startTime + ((index + 1) * groupDays - 1) * 86400000)).toISOString().slice(0, 10),
+    amount: total / 100,
+  }));
+}
+
 export function buildOverview(records, now = new Date()) {
   const refunded = records.refunds.filter((refund) => refund.status === "Approved").reduce((sum, refund) => sum + cents(refund.amount), 0);
   const salesTotal = records.sales.reduce((sum, sale) => sum + cents(sale.amount), 0);
@@ -227,10 +263,9 @@ export function buildOverview(records, now = new Date()) {
   ).length;
   const unpaidReservations = records.dashboard?.unpaidReservations
     ?? records.reservations.filter((item) => ["Pending Approval", "Active"].includes(item.status)).length;
-  const dateKey = (value) => new Date(value).toLocaleDateString("en-CA");
   const dailySales = new Map();
   for (const sale of records.sales) {
-    const day = dateKey(sale.sold_at);
+    const day = localDateKey(sale.sold_at);
     dailySales.set(day, (dailySales.get(day) || 0) + cents(sale.amount));
   }
   const countedOrders = records.orders.filter((order) => !["Cancelled", "Voided"].includes(order.status));
@@ -248,7 +283,7 @@ export function buildOverview(records, now = new Date()) {
       itemsForShipping: records.dashboard?.itemsForShipping ?? null,
       completedOrders: records.dashboard?.completedOrders
         ?? records.orders.filter((order) => order.status === "Completed").length,
-      todaysSales: records.sales.filter((sale) => dateKey(sale.sold_at) === dateKey(now)).reduce((sum, sale) => sum + cents(sale.amount), 0) / 100,
+      todaysSales: records.sales.filter((sale) => localDateKey(sale.sold_at) === localDateKey(now)).reduce((sum, sale) => sum + cents(sale.amount), 0) / 100,
       ordersPlaced: records.orders.length,
       averageOrderValue: records.orders.length ? orderedTotal / 100 / records.orders.length : null,
       fulfillmentRate: countedOrders.length
@@ -269,7 +304,7 @@ export function buildOverview(records, now = new Date()) {
       lowStockItems: lowStock.length,
       unpaidReservations,
     },
-    dailySales: [...dailySales].sort(([a], [b]) => a.localeCompare(b)).slice(-30).map(([day, amount]) => [day, amount / 100]),
+    dailySales: [...dailySales].sort(([a], [b]) => a.localeCompare(b)).map(([day, amount]) => [day, amount / 100]),
     recentActivity: records.recentActivity,
     updatedAt: records.updatedAt,
   };

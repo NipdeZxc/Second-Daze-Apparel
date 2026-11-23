@@ -35,6 +35,11 @@ Open **Notifications** to see low-stock alerts, approvals and reservation remind
 
 ![Notifications](./screenshots/27-notifications-admin.png)
 
+### Global search
+The top search bar is available on every workspace page. Enter at least two characters to search role-accessible records and pages by name, SKU, order number, contact number or other displayed details. Select a record to open its module with the table filtered to that record's identifier; clear **Search records** to see the full list. Staff accounts and notifications have their own matching search fields.
+
+Use **Arrow Up/Down** and **Enter** to select a result, or **Escape** to close the results. At most eight results are displayed, with the total shown above them; refine the query to narrow the matches. Search shows loading and failure messages instead of misleading empty results. On phones, the search bar sits below the account and notification controls.
+
 ### Signing out
 Always sign out on shared devices. Sessions also end automatically after 8 hours.
 
@@ -73,6 +78,8 @@ Always sign out on shared devices. Sessions also end automatically after 8 hours
 ### Reports and dashboard
 - **Dashboard**: total sales, total profit, pending orders, unpaid reservations, items for shipping and completed orders.
 - **Reports & Analytics**: sales, financial, order and stock reports. Use **Friday review week** (Monday to Friday) or **All-time** in the **View** list.
+- **Dashboard charts**: choose **Last 7 days**, **Last 30 days** or **All-time**. Longer series are grouped into labelled date intervals; each bar shows that interval's total. Hover over a bar for the exact dates and amount.
+- **Record tables**: columns wrap on wide screens. On narrow panels, records display as stacked labelled fields with the same sorting and action buttons, without horizontal scrolling.
 
 ![Admin dashboard](./screenshots/10-admin-dashboard.png)
 
@@ -80,8 +87,9 @@ Always sign out on shared devices. Sessions also end automatically after 8 hours
 
 ### Import and export
 - **Import CSV**: choose Products or Customers, click **Download template** for the right columns, fill it in, then **Preview CSV** and **Import**. Importing an existing product code adds stock. The same file can't be imported twice.
-- **Full TiDB dataset import**: use this only to add a dataset batch once. An identical batch is rejected, and customer contact numbers already in the database cannot be imported again.
-- **Export records**: **Download CSV** or **Download Excel** to back up everything. Do this every week after the Friday review and keep the files somewhere private.
+- **Full TiDB dataset import**: select the linked dataset files together. Existing rows are matched by business identifiers (such as SKU, contact number and order number) and skipped without replacing data or adding stock again. Linked items are matched using their remapped parent IDs. New rows are inserted in one transaction.
+- **Export records**: **Download CSV** creates a restorable business-data backup, including line items, payments, shipments, documents and stock history. Choose that CSV in either import file selector, preview it and confirm the batch. Re-importing it skips matching records. Staff accounts and passwords, notifications and audit logs are not restored; required staff accounts must already exist and are matched by username. Keep backups private.
+- **Download Excel** creates a report, not a restorable backup. Older CSV exports containing display columns rather than `record_type,record_data` are also reports: they omitted record links and line-item details and cannot restore all data. Download a new CSV backup before deleting any records.
 - **Delete all data**: permanently removes all business records but keeps staff accounts. Export first. Type `DELETE ALL DATA` to enable the button. Use this only to clear test data.
 
 ![Delete all data stays disabled until the exact phrase is typed](./screenshots/26-delete-all-disabled.png)

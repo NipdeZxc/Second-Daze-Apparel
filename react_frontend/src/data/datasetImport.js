@@ -86,7 +86,9 @@ export const datasetImportFiles = [
 const byFileName = new Map(datasetImportFiles.map((definition) => [definition.file, definition]));
 
 export function parseDatasetFile(fileName, csv) {
-  const definition = byFileName.get(String(fileName).split(/[\\/]/).pop().toLowerCase());
+  const baseName = String(fileName).split(/[\\/]/).pop().toLowerCase();
+  const definition = byFileName.get(baseName)
+    || datasetImportFiles.find((item) => `${item.table}.csv` === baseName);
   if (!definition) throw new Error(`${fileName} is not a supported TiDB dataset CSV.`);
   if (new TextEncoder().encode(csv).length > MAX_DATASET_FILE_BYTES) {
     throw new Error(`${fileName} is larger than 2 MB.`);
@@ -136,4 +138,94 @@ export function parseDatasetFile(fileName, csv) {
   });
 
   return { table: definition.table, fileName: definition.file, records };
+}
+
+export function parseDatasetInput(fileName, csv) {
+  if (new TextEncoder().encode(csv).length > MAX_DATASET_FILE_BYTES) {
+    throw new Error(`${fileName} is larger than 2 MB.`);
+  }
+  const parsed = Papa.parse(csv.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n"), {
+    skipEmptyLines: "greedy", delimiter: ",", newline: "\n",
+  });
+  if (parsed.errors.length) throw new Error(`${fileName}: invalid CSV: ${parsed.errors[0].message}`);
+  const [header = [], ...rows] = parsed.data;
+  if (header.includes("record_type")) {
+    if (header.join(",") !== "record_type,record_data") {
+      throw new Error("This is an older report CSV, not a complete backup. It omitted order items, payments and record links, so it cannot restore all data. Download a new CSV backup from Export records.");
+    }
+    if (rows[0]?.[0] !== "__backup" || rows.some((row) => row.length !== 2)) {
+      throw new Error("The CSV backup is missing its metadata or has malformed rows.");
+    }
+    let metadata;
+    const recordsByTable = new Map();
+    try {
+      metadata = JSON.parse(rows[0][1]);
+      for (const [table, json] of rows.slice(1)) {
+        const definition = datasetImportFiles.find((item) => item.table === table && table !== "users");
+        if (!definition) throw new Error(`Unknown backup record type: ${table}.`);
+        const record = JSON.parse(json);
+        if (!record || typeof record !== "object" || Array.isArray(record)
+            || Object.keys(record).length !== definition.columns.length
+            || definition.columns.some((column) => !Object.hasOwn(record, column))) {
+          throw new Error(`Backup ${table} columns do not match the schema.`);
+        }
+        const records = recordsByTable.get(table) || [];
+        records.push(record);
+        recordsByTable.set(table, records);
+      }
+    } catch (error) {
+      throw new Error(`Invalid CSV backup: ${error.message}`);
+    }
+    if (metadata?.version !== 1 || !Array.isArray(metadata.userReferences)) {
+      throw new Error("Unsupported CSV backup version or missing staff references.");
+    }
+    const totalRows = rows.length - 1;
+    if (!totalRows || totalRows > MAX_DATASET_BATCH_ROWS) {
+      throw new Error(`A backup must contain between 1 and ${MAX_DATASET_BATCH_ROWS} business rows.`);
+    }
+    return [...recordsByTable].map(([table, records]) => {
+      const definition = datasetImportFiles.find((item) => item.table === table);
+      if (records.length > MAX_DATASET_FILE_ROWS) throw new Error(`${table} exceeds ${MAX_DATASET_FILE_ROWS} rows.`);
+      return { table, fileName: definition.file, records, referenceMode: "backup", userReferences: metadata.userReferences };
+    });
+  }
+  const definition = datasetImportFiles.find((item) => item.columns.every((column) => header.includes(column)));
+  return definition ? [parseDatasetFile(definition.file, csv)] : null;
+}
+
+export function mergeDatasetInputs(inputs) {
+  const files = new Map();
+  for (const file of inputs.flat()) {
+    const existing = files.get(file.table);
+    if (!existing) {
+      files.set(file.table, { ...file, records: [...file.records] });
+      continue;
+    }
+    if (existing.referenceMode !== file.referenceMode
+        || JSON.stringify(existing.userReferences) !== JSON.stringify(file.userReferences)) {
+      throw new Error("Do not mix backups from different databases or legacy datasets in one import.");
+    }
+    const definition = datasetImportFiles.find((item) => item.table === file.table);
+    const byId = new Map(existing.records.map((row) => [String(row[definition.primaryKey]), row]));
+    for (const row of file.records) {
+      const id = String(row[definition.primaryKey]);
+      if (byId.has(id)) {
+        if (definition.columns.some((column) => byId.get(id)[column] !== row[column])) {
+          throw new Error(`${file.table} contains conflicting rows for ${definition.primaryKey} ${id}.`);
+        }
+      } else {
+        byId.set(id, row);
+        existing.records.push(row);
+      }
+    }
+    if (existing.records.length > MAX_DATASET_FILE_ROWS) throw new Error(`${file.table} exceeds ${MAX_DATASET_FILE_ROWS} rows.`);
+  }
+  const result = [...files.values()];
+  if (result.reduce((sum, file) => sum + file.records.length, 0) > MAX_DATASET_BATCH_ROWS) {
+    throw new Error(`A dataset batch may contain at most ${MAX_DATASET_BATCH_ROWS} rows.`);
+  }
+  if (new TextEncoder().encode(JSON.stringify(result)).length > MAX_DATASET_BATCH_BYTES) {
+    throw new Error("The selected records are too large to send in one batch.");
+  }
+  return result;
 }

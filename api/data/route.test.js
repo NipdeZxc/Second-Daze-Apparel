@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import handler, { normalizeDataRouteUrl } from "./[kind].js";
 import apiHandler, { routes } from "../[...route].js";
-import { importProductRow, restockLabel } from "../_lib/routes/data.js";
+import { formActions, importProductRow, restockLabel, runFormAction, runRowAction } from "../_lib/routes/data.js";
 
 function fakeConnection(existingProducts = [], insertId = 12) {
   const calls = [];
@@ -248,5 +248,70 @@ test("Inventory users cannot submit sales form actions or see customer contact d
   } finally {
     pool.query = originalQuery;
     delete process.env.SESSION_SECRET;
+  }
+});
+
+test("all workflow actions enforce the Admin, Sales and Inventory role matrix before database writes", async () => {
+  const { getPool } = await import("../_db.js");
+  const { setSession } = await import("../_lib/auth.js");
+  const previousSecret = process.env.SESSION_SECRET;
+  process.env.SESSION_SECRET = "role-matrix-test-secret".repeat(2);
+  const pool = getPool();
+  const originalQuery = pool.query;
+  const originalGetConnection = pool.getConnection;
+  const reachedTransaction = new Error("Authorized transaction reached");
+  let user;
+  pool.query = async () => [[user], []];
+  pool.getConnection = async () => { throw reachedTransaction; };
+  const rowActions = {
+    products: ["stock-in"],
+    customers: ["verify"],
+    reservations: ["approve", "reject", "cancel", "convert"],
+    orders: ["approve", "record-payment", "verify-payment", "reject-payment", "pack", "ship", "in-transit", "complete", "cancel"],
+    refunds: ["approve", "reject"],
+  };
+  const adminOnly = new Set(["reservations/approve", "reservations/reject", "orders/approve", "orders/verify-payment", "orders/reject-payment", "refunds/approve", "refunds/reject"]);
+  try {
+    for (const role of ["Admin", "Sales Management", "Inventory Management"]) {
+      user = { user_id: 1, role_id: 1, role_name: role, account_status: "Active", password_hash: "test-hash", must_change_password: 0 };
+      let cookie;
+      setSession({ setHeader(_name, value) { cookie = value.split(";")[0]; } }, user);
+      const req = { headers: { cookie }, body: {} };
+      for (const [kind, actions] of Object.entries(rowActions)) {
+        for (const action of actions) {
+          const allowed = role === "Admin" || (!adminOnly.has(`${kind}/${action}`)
+            && (kind === "products" ? role === "Inventory Management" : role === "Sales Management"));
+          await assert.rejects(runRowAction(req, {}, { kind, id: "0", action }),
+            (error) => error.status === (allowed ? 400 : 403), `${role}: ${kind}/${action}`);
+        }
+      }
+      for (const screenId of Object.keys(formActions)) {
+        const allowed = role === "Admin" || (
+          screenId === "4.4-add-product" ? role === "Inventory Management"
+            : !["4.3-edit-product-admin-only", "3.6-approval-request-detail"].includes(screenId) && role === "Sales Management"
+        );
+        await assert.rejects(runFormAction({ ...req, body: { screenId, values: {} } }, {}),
+          (error) => allowed ? error === reachedTransaction : error.status === 403, `${role}: ${screenId}`);
+      }
+      if (role !== "Admin") {
+        for (const [method, url, body] of [
+          ["POST", "/api/data/import", {}], ["POST", "/api/data/import-batch", { files: [] }],
+          ["POST", "/api/data/delete-all", { confirm: "DELETE ALL DATA" }],
+          ["DELETE", "/api/data/products/1", {}], ["PUT", "/api/data/products/SKU-1", {}],
+          ["GET", "/api/export/backup", {}], ["POST", "/api/users", {}],
+          ["POST", "/api/users/2/approve", {}], ["POST", "/api/users/2/disable", {}],
+          ["POST", "/api/users/2/enable", {}], ["POST", "/api/users/2/reset-password", {}],
+        ]) {
+          const res = { status(code) { this.statusCode = code; return this; }, setHeader() {}, json(value) { this.body = value; } };
+          await apiHandler({ ...req, method, url, body }, res);
+          assert.equal(res.statusCode, 403, `${role}: ${method} ${url}`);
+        }
+      }
+    }
+  } finally {
+    pool.query = originalQuery;
+    pool.getConnection = originalGetConnection;
+    if (previousSecret === undefined) delete process.env.SESSION_SECRET;
+    else process.env.SESSION_SECRET = previousSecret;
   }
 });

@@ -3,8 +3,9 @@ import { formFields, screens, tableColumns } from "./screens.js";
 import { getCurrentUser, requestPasswordReset, signIn, signOut } from "./api/auth.js";
 import { getWorkspaceRecords, markNotificationsRead, submitWorkspaceAction } from "./api/workspace.js";
 import { approveUser, createUser, disableUser, enableUser, listUsers, resetUserPassword } from "./api/users.js";
-import { buildOverview } from "./data/workspace.js";
-import { ApprovalQueue, CsvImportPanel, DataExportPanel, DataReports, formatMoney, RecordsTable, screenDatasets } from "./DataPanels.jsx";
+import { buildOverview, buildSalesChartSeries } from "./data/workspace.js";
+import { findGlobalSearchResults, globalSearchHref, matchesGlobalSearch, searchFromHash } from "./data/globalSearch.js";
+import { ApprovalQueue, CsvImportPanel, DataExportPanel, DataReports, formatMoney, RecordsTable, screenDatasets, SearchField } from "./DataPanels.jsx";
 import { canAccessScreen, homeScreenForRole, navigationForRole, normalizeRole } from "./roles.js";
 import { isValidPhilippineMobileNumber, normalizePhilippineMobileNumber } from "./formValidation.js";
 
@@ -90,8 +91,12 @@ function homeId(user) {
   return homeScreenForRole(user?.role);
 }
 
-function DashboardTopbar({ authUser, search, onSearch, onSignOut, unreadCount = 0 }) {
+function DashboardTopbar({ authUser, search, onSearch, searchResults, searchReady, searchError, onRefresh, onSignOut, unreadCount = 0 }) {
   const [profileOpen, setProfileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeResult, setActiveResult] = useState(-1);
+  const searchRef = useRef(null);
+  const resultsId = useId();
   const profileRef = useRef(null);
   const profileButtonRef = useRef(null);
   useEffect(() => {
@@ -115,23 +120,98 @@ function DashboardTopbar({ authUser, search, onSearch, onSignOut, unreadCount = 
       window.removeEventListener("hashchange", closeOnNavigation);
     };
   }, [profileOpen]);
+  useEffect(() => {
+    if (!searchOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!searchRef.current?.contains(event.target)) setSearchOpen(false);
+    };
+    const closeOnNavigation = () => setSearchOpen(false);
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    window.addEventListener("hashchange", closeOnNavigation);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      window.removeEventListener("hashchange", closeOnNavigation);
+    };
+  }, [searchOpen]);
+  const results = searchReady && !searchError ? searchResults.results : [];
+  const chooseResult = (result) => {
+    window.location.hash = globalSearchHref(result).slice(1);
+    onSearch("");
+    setSearchOpen(false);
+    setActiveResult(-1);
+  };
+  const handleSearchKey = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setSearchOpen(false);
+      setActiveResult(-1);
+    } else if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+      event.preventDefault();
+      setSearchOpen(true);
+      if (results.length) {
+        setActiveResult((index) => event.key === "ArrowDown"
+          ? (index + 1) % results.length
+          : (index < 0 ? results.length - 1 : (index - 1 + results.length) % results.length));
+      }
+    } else if (event.key === "Enter" && searchOpen && results.length) {
+      event.preventDefault();
+      chooseResult(results[activeResult] || results[0]);
+    }
+  };
   const displayName = authUser?.username || "Staff";
   const initials = displayName.split(/[ .@_-]/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
   return (
     <header className="dashboard-topbar">
       <Brand compact to={`#/${homeId(authUser)}`} />
-      {onSearch && (
-        <label className="dashboard-search">
-          <Icon name="search" size={15} />
-          <input
-            type="search"
+      <div className="dashboard-search-container" ref={searchRef} onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false);
+      }}>
+          <SearchField
+            className="dashboard-search"
+            label="Search all workspace records and pages"
+            showLabel={false}
             value={search}
-            onChange={(event) => onSearch(event.target.value)}
-            placeholder={authUser?.role === "Admin" ? "Search orders, requests, reports" : "Search tasks, orders, reservations"}
-            aria-label="Search dashboard"
+            onChange={(value) => { onSearch(value); setSearchOpen(true); setActiveResult(-1); }}
+            onFocus={() => { setSearchOpen(true); setActiveResult(-1); }}
+            onClick={() => setSearchOpen(true)}
+            onKeyDown={handleSearchKey}
+            placeholder="Search records and pages"
+            role="combobox"
+            autoComplete="off"
+            aria-autocomplete="list"
+            aria-haspopup="listbox"
+            aria-controls={resultsId}
+            aria-expanded={searchOpen}
+            aria-activedescendant={searchOpen && results[activeResult] ? `${resultsId}-${activeResult}` : undefined}
           />
-        </label>
-      )}
+          {searchOpen && (
+            <div className="dashboard-search-results">
+              {search.trim().length < 2 ? (
+                <p role="status">Type at least 2 characters to search records and pages.</p>
+              ) : searchError ? (
+                <p role="alert">Search is unavailable. <button className="text-link" type="button" onClick={onRefresh}>Retry loading data</button></p>
+              ) : !searchReady ? (
+                <p role="status">Loading workspace records...</p>
+              ) : searchResults.total ? (
+                <p role="status">Showing {results.length} of {searchResults.total} matching results</p>
+              ) : (
+                <p role="status">No results match "{search.trim()}".</p>
+              )}
+              <ul id={resultsId} role="listbox" aria-label="Workspace search results">
+                {results.map((result, index) => (
+                  <li key={result.id} id={`${resultsId}-${index}`} role="option" aria-selected={activeResult === index}>
+                    <a className="dashboard-search-result" href={globalSearchHref(result)} tabIndex={-1}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={(event) => { event.preventDefault(); chooseResult(result); }}>
+                      <span className="dashboard-search-result__copy"><strong>{result.title}</strong><small>{result.detail}</small></span>
+                      <span className="dashboard-search-result__category">{result.category}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+      </div>
       <ScreenLink className="dashboard-notifications" screen={screens.find((item) => item.id === "9-notifications")} aria-label={`Open notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}>
         <Icon name="bell" size={17} />
         {unreadCount > 0 && <span className="dashboard-notifications__dot" aria-hidden="true" />}
@@ -359,7 +439,7 @@ function PageHeader({ screen, authUser }) {
   );
 }
 
-function EmptyTable({ screen, overview, authUser, onRecordsChanged }) {
+function EmptyTable({ screen, overview, authUser, onRecordsChanged, initialSearch }) {
   const kind = screenDatasets[screen.id];
   if (kind) {
     const records = overview?.records?.[kind];
@@ -373,6 +453,7 @@ function EmptyTable({ screen, overview, authUser, onRecordsChanged }) {
       authUser={authUser}
       canEdit={isAdmin(authUser)}
       onRecordUpdated={onRecordsChanged}
+      initialSearch={initialSearch}
     />;
   }
   const columns = tableColumns[screen.id] || ["Name", "Details", "Status", "Action"];
@@ -423,48 +504,51 @@ function formatUpdatedAt(value) {
   return timestamp.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-function dateKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function getSalesSeries(overview, days) {
-  const endDate = new Date();
-  endDate.setHours(0, 0, 0, 0);
-  const startDate = new Date(endDate);
-  startDate.setDate(startDate.getDate() - days + 1);
-  const startKey = dateKey(startDate);
-  const endKey = dateKey(endDate);
-  return (overview?.dailySales || []).filter(([day]) => day >= startKey && day <= endKey);
-}
-
 function SalesRangeControl({ value, onChange }) {
   return (
     <label className="dashboard-range">
       <span>Date range</span>
-      <select value={value} onChange={(event) => onChange(Number(event.target.value))}>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="7">Last 7 days</option>
         <option value="30">Last 30 days</option>
+        <option value="all">All-time</option>
       </select>
     </label>
   );
 }
 
 function SalesChart({ overview, days }) {
-  const salesSeries = getSalesSeries(overview, days);
-  const chartMaximum = Math.max(1, ...salesSeries.map(([, value]) => value));
+  const salesSeries = buildSalesChartSeries(overview?.dailySales || [], days);
+  const chartMaximum = Math.max(0, ...salesSeries.map(({ amount }) => amount));
+  const period = days === "all" ? "All-time" : `Last ${days} days`;
+  const compactMoney = (value) => new Intl.NumberFormat("en-PH", {
+    style: "currency", currency: "PHP", notation: "compact", maximumFractionDigits: 1,
+  }).format(value);
+  const label = (day) => days === "all"
+    ? new Date(`${day}T00:00:00`).toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "2-digit" })
+    : day.slice(5);
+  const grouped = salesSeries.some(({ start, end }) => start !== end);
   if (!salesSeries.length) {
     return <div className="dashboard-chart-empty">No sales recorded in this period. Import sales data to display trends.</div>;
   }
   return (
-    <div className="dashboard-chart" style={{ gridTemplateColumns: `repeat(${salesSeries.length}, minmax(0, 1fr))` }} role="img" aria-label={`Sales by date for the last ${days} days: ${salesSeries.map(([day, value]) => `${day}: ${formatMoney(value)}`).join(", ")}`}>
-      {salesSeries.map(([day, value]) => (
-        <div className="dashboard-chart__day" key={day}>
-          <span className="dashboard-chart__amount" title={formatMoney(value)}>{formatMoney(value)}</span>
-          <span className="dashboard-chart__bar" style={{ height: `${(value / chartMaximum) * 100}%` }} />
-          <span className="dashboard-chart__label" title={day}>{day.slice(5)}</span>
-        </div>
-      ))}
-    </div>
+    <figure className="dashboard-chart-figure">
+      <div className="dashboard-chart" style={{ gridTemplateColumns: `repeat(${salesSeries.length}, minmax(0, 1fr))` }} role="img" aria-label={`Sales totals — ${period}: ${salesSeries.map(({ start, end, amount }) => `${start}${start !== end ? ` to ${end}` : ""}: ${formatMoney(amount)}`).join(", ")}`}>
+        {salesSeries.map(({ start, end, amount }) => (
+          <div className="dashboard-chart__day" key={start} title={`${start}${start !== end ? ` to ${end}` : ""}: ${formatMoney(amount)}`}>
+            <span className="dashboard-chart__amount">{compactMoney(amount)}</span>
+            <div className="dashboard-chart__plot">
+              <span className="dashboard-chart__bar" style={{ height: `${chartMaximum > 0 ? (amount / chartMaximum) * 100 : 0}%` }} />
+            </div>
+            <span className="dashboard-chart__label">
+              <span>{label(start)}</span>
+              {start !== end && <span>to {label(end)}</span>}
+            </span>
+          </div>
+        ))}
+      </div>
+      <figcaption>{period}{grouped ? " · Bars show totals for the labelled date intervals." : " · Daily sales totals."}</figcaption>
+    </figure>
   );
 }
 
@@ -472,8 +556,8 @@ function formatQueueCount(count, label = "item") {
   return `${count} ${count === 1 ? label : `${label}s`}`;
 }
 
-function Dashboard({ overviewState, onRefresh, search }) {
-  const [salesRange, setSalesRange] = useState(7);
+function Dashboard({ overviewState, onRefresh }) {
+  const [salesRange, setSalesRange] = useState("7");
   const queues = overviewState.data?.queues;
   const summary = overviewState.data?.metrics;
   const metrics = [
@@ -496,9 +580,6 @@ function Dashboard({ overviewState, onRefresh, search }) {
     title: activity.message,
     detail: formatUpdatedAt(activity.createdAt),
   }));
-  const filteredRequests = requests.filter((request) =>
-    `${request.title} ${request.detail}`.toLowerCase().includes(search.toLowerCase()),
-  );
   const orderStats = [
     { label: "Orders placed", value: summary?.ordersPlaced ?? "—", detail: "All imported orders" },
     { label: "Avg order value", value: formatMoney(summary?.averageOrderValue), detail: "Average imported order amount" },
@@ -545,9 +626,9 @@ function Dashboard({ overviewState, onRefresh, search }) {
               <div><h2>Recent activity</h2><p>Latest recorded workspace activity</p></div>
               <ScreenLink className="text-link" screen={screens.find((item) => item.id === "2.6-reports")}>View reports</ScreenLink>
             </div>
-            {filteredRequests.length ? (
+            {requests.length ? (
               <div className="dashboard-request-list">
-                {filteredRequests.map((request, index) => {
+                {requests.map((request, index) => {
                   const content = (
                     <>
                       <span className="dashboard-request__icon"><Icon name={index === 0 ? "file" : index === 1 ? "refresh" : "calendar"} size={14} /></span>
@@ -562,7 +643,7 @@ function Dashboard({ overviewState, onRefresh, search }) {
                 })}
               </div>
             ) : (
-              <div className="dashboard-empty">{search ? "No activity matches your search." : "No recent activity is available."}</div>
+              <div className="dashboard-empty">No recent activity is available.</div>
             )}
           </section>
         </div>
@@ -595,8 +676,8 @@ function Dashboard({ overviewState, onRefresh, search }) {
   );
 }
 
-function StaffDashboard({ overviewState, onRefresh, search }) {
-  const [salesRange, setSalesRange] = useState(7);
+function StaffDashboard({ overviewState, onRefresh }) {
+  const [salesRange, setSalesRange] = useState("7");
   const queues = overviewState.data?.queues;
   const summary = overviewState.data?.metrics;
   const count = (value) => (typeof value === "number" ? value : "—");
@@ -605,15 +686,14 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
     { label: "Today's sales", value: formatMoney(summary?.todaysSales), detail: "Sales recorded today", icon: "chart", screenId: "3.9-orders-status-tracking" },
     { label: "Active reservations", value: count(summary?.activeReservations), detail: "Unexpired holds awaiting action", icon: "calendar", screenId: "5-reservations" },
   ];
-  const matches = (item) => `${item.title} ${item.detail}`.toLowerCase().includes(search.toLowerCase());
   const tasks = (overviewState.data?.pendingOrders || []).map((order) => ({
     title: order.order_number, detail: `${order.customer_name} · ${formatMoney(order.total_amount)}`,
     status: order.status, screenId: "3.9-orders-status-tracking",
-  })).filter(matches);
+  }));
   const reservations = (overviewState.data?.reservations || []).map((reservation) => ({
     title: reservation.reservation_number, detail: `${reservation.customer_name} · ${reservation.status}${reservation.expires_at ? ` · expires ${new Date(reservation.expires_at).toLocaleDateString()}` : ""}`,
-  })).filter(matches);
-  const activity = (overviewState.data?.recentActivity || []).map((item) => ({ title: item.message, detail: formatUpdatedAt(item.createdAt) })).filter(matches);
+  }));
+  const activity = (overviewState.data?.recentActivity || []).map((item) => ({ title: item.message, detail: formatUpdatedAt(item.createdAt) }));
   const quickActions = [
     ["3-sales-catalog", "Start a sale", "bag"],
     ["3.4-new-refund-request", "New refund request", "refresh"],
@@ -666,7 +746,7 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
                 })}
               </div>
             ) : (
-              <div className="dashboard-empty">{search ? "No tasks match your search." : overviewState.data ? "No recorded orders need follow-up." : "Order data is not available."}</div>
+              <div className="dashboard-empty">{overviewState.data ? "No recorded orders need follow-up." : "Order data is not available."}</div>
             )}
           </section>
         </div>
@@ -693,7 +773,7 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
                   <span className="dashboard-status__icon"><Icon name="clock" size={14} /></span>
                   <span><strong>{item.title}</strong><small>{item.detail}</small></span>
                 </ScreenLink>
-              )) : <div className="dashboard-empty">{search ? "No reservations match your search." : overviewState.data ? "No recorded active reservations." : "Reservation data is not available."}</div>}
+              )) : <div className="dashboard-empty">{overviewState.data ? "No recorded active reservations." : "Reservation data is not available."}</div>}
             </div>
           </section>
           <div className="dashboard-sync">
@@ -705,7 +785,7 @@ function StaffDashboard({ overviewState, onRefresh, search }) {
   );
 }
 
-function UserManagementPanel({ screen }) {
+function UserManagementPanel({ screen, initialSearch = "" }) {
   const approvalsOnly = screen.id === "2.2-access-approvals";
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -714,6 +794,8 @@ function UserManagementPanel({ screen }) {
   const [message, setMessage] = useState("");
   const [temporaryCredentials, setTemporaryCredentials] = useState(null);
   const [formBusy, setFormBusy] = useState(false);
+  const [query, setQuery] = useState(initialSearch);
+  useEffect(() => setQuery(initialSearch), [initialSearch]);
 
   const refreshUsers = async (signal) => {
     setLoading(true);
@@ -789,6 +871,7 @@ function UserManagementPanel({ screen }) {
   };
 
   const visibleUsers = approvalsOnly ? users.filter((user) => user.status === "Pending Approval") : users;
+  const filteredUsers = visibleUsers.filter((user) => matchesGlobalSearch(user, query));
 
   return (
     <div className="account-management">
@@ -820,26 +903,31 @@ function UserManagementPanel({ screen }) {
           <div><h2>{approvalsOnly ? "Pending access approvals" : "Workspace accounts"}</h2><p>Account status and available Admin actions come from the backend.</p></div>
           <button type="button" className="button button--outline" onClick={() => refreshUsers()} disabled={loading}>Refresh</button>
         </div>
-        {loading ? <p className="empty-cell">Loading accounts…</p> : visibleUsers.length ? (
+        <div className="table-tools table-tools--single">
+          <SearchField className="table-search" label="Search staff accounts" value={query} onChange={setQuery} placeholder="Search name, username, role or status" />
+        </div>
+        {loading ? <p className="empty-cell">Loading accounts…</p> : filteredUsers.length ? (
           <div className="table-scroll">
             <table>
               <thead><tr><th>Full name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
-                {visibleUsers.map((user) => (
+                {filteredUsers.map((user) => (
                   <tr key={user.id}>
-                    <td>{user.fullName}</td><td>{user.username}</td><td>{user.email || "—"}</td><td>{user.role}</td><td><span className="record-status">{user.status}</span></td>
-                    <td className="record-actions">
+                    <td data-label="Full name">{user.fullName}</td><td data-label="Username">{user.username}</td><td data-label="Email">{user.email || "—"}</td><td data-label="Role">{user.role}</td><td data-label="Status"><span className="record-status">{user.status}</span></td>
+                    <td className="record-actions" data-label="Actions">
+                      <div className="record-actions__buttons">
                       {user.role !== "Admin" && user.status === "Pending Approval" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "approve")}>Approve</button>}
                       {user.role !== "Admin" && user.status === "Active" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "disable")}>Disable</button>}
                       {user.role !== "Admin" && user.status === "Disabled" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "enable")}>Enable</button>}
                       {user.role !== "Admin" && <button className="table-action" type="button" disabled={busyId === String(user.id)} onClick={() => performAction(user, "reset")}>Reset password</button>}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        ) : <p className="empty-cell">{approvalsOnly ? "There are no accounts awaiting approval." : "No accounts are available."}</p>}
+        ) : <p className="empty-cell">{query ? "No accounts match your search." : approvalsOnly ? "There are no accounts awaiting approval." : "No accounts are available."}</p>}
       </section>
     </div>
   );
@@ -883,9 +971,12 @@ function InventoryDashboard({ overviewState, onRefresh }) {
   );
 }
 
-function NotificationsPanel({ notifications = [], onRefresh }) {
+function NotificationsPanel({ notifications = [], onRefresh, initialSearch = "" }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState(initialSearch);
+  useEffect(() => setQuery(initialSearch), [initialSearch]);
+  const filteredNotifications = notifications.filter((notification) => matchesGlobalSearch(notification, query, ["category", "message"]));
   const unreadCount = notifications.filter((notification) => !notification.is_read).length;
   const markAllRead = async () => {
     setBusy(true);
@@ -909,9 +1000,12 @@ function NotificationsPanel({ notifications = [], onRefresh }) {
         </button>
       </div>
       {error && <p className="inline-error form-feedback" role="alert">{error}</p>}
-      {notifications.length ? (
+      <div className="table-tools table-tools--single">
+        <SearchField className="table-search" label="Search notifications" value={query} onChange={setQuery} placeholder="Search category or message" />
+      </div>
+      {filteredNotifications.length ? (
         <ul className="notification-list">
-          {notifications.map((notification) => (
+          {filteredNotifications.map((notification) => (
             <li className={notification.is_read ? "" : "notification-list__unread"} key={notification.id}>
               <span className="notification-list__category">{notification.category}</span>
               <span className="notification-list__message">{notification.message}</span>
@@ -920,7 +1014,7 @@ function NotificationsPanel({ notifications = [], onRefresh }) {
           ))}
         </ul>
       ) : (
-        <div className="empty-message"><span className="empty-message__icon"><Icon name="bell" /></span><p>No notifications yet.</p></div>
+        <div className="empty-message"><span className="empty-message__icon"><Icon name="bell" /></span><p>{query ? "No notifications match your search." : "No notifications yet."}</p></div>
       )}
     </section>
   );
@@ -996,7 +1090,9 @@ function FormPanel({ screen, mobile = false, authUser, onActionSaved }) {
         screenId: screen.id,
         values: pendingValues,
       });
-      setMessage("Saved to the database.");
+      setMessage(["5.1-new-reservation", "8.6-mobile-new-reservation"].includes(screen.id)
+        ? "Reservation saved as Pending Approval. Stock will be reserved when an Admin approves it."
+        : "Saved to the database.");
       setMessageType("status");
       setConfirming(false);
       formRef.current?.reset();
@@ -1430,34 +1526,38 @@ function MobilePreview({ screen, onAuthenticated, authUser, onSignOut, overviewS
   );
 }
 
-function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewState, onRefresh }) {
-  const [dashboardSearch, setDashboardSearch] = useState("");
+function MainPreview({ screen, authUser, onAuthenticated, onSignOut, overviewState, onRefresh, initialSearch }) {
+  const [globalSearch, setGlobalSearch] = useState("");
+  useEffect(() => setGlobalSearch(""), [authUser?.username]);
   if (screen.kind.startsWith("auth") || screen.kind === "pending") {
     return <AuthScreen key={screen.id} screen={screen} onAuthenticated={onAuthenticated} />;
   }
   const isDashboard = ["dashboard", "staff-dashboard", "sales-dashboard", "inventory-dashboard"].includes(screen.kind);
   const unreadCount = (overviewState.data?.records?.notifications || []).filter((item) => !item.is_read).length;
+  const searchResults = findGlobalSearchResults(globalSearch, overviewState.data?.records, authUser?.role);
   return (
     <div className="app-shell app-shell--dashboard">
-      <DashboardTopbar authUser={authUser} search={dashboardSearch} onSearch={isDashboard ? setDashboardSearch : undefined} onSignOut={onSignOut} unreadCount={unreadCount} />
+      <DashboardTopbar authUser={authUser} search={globalSearch} onSearch={setGlobalSearch}
+        searchResults={searchResults} searchReady={Boolean(overviewState.data?.records)} searchError={overviewState.error}
+        onRefresh={onRefresh} onSignOut={onSignOut} unreadCount={unreadCount} />
       <Sidebar active={screen.id} authUser={authUser} onSignOut={onSignOut} />
       <main className="workspace">
         <PageHeader screen={screen} authUser={authUser} />
         <div className="workspace__body">
           {overviewState.error && !isDashboard && <WorkspaceSyncStatus overviewState={overviewState} onRefresh={onRefresh} />}
-          {screen.kind === "dashboard" && <Dashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
-          {(screen.kind === "staff-dashboard" || screen.kind === "sales-dashboard") && <StaffDashboard overviewState={overviewState} onRefresh={onRefresh} search={dashboardSearch} />}
+          {screen.kind === "dashboard" && <Dashboard overviewState={overviewState} onRefresh={onRefresh} />}
+          {(screen.kind === "staff-dashboard" || screen.kind === "sales-dashboard") && <StaffDashboard overviewState={overviewState} onRefresh={onRefresh} />}
           {screen.kind === "inventory-dashboard" && <InventoryDashboard overviewState={overviewState} onRefresh={onRefresh} />}
           {screen.kind === "csv-import" && <CsvImportPanel authUser={authUser} existingRecords={overviewState.data?.records} onImported={onRefresh} />}
           {screen.kind === "data-export" && <DataExportPanel authUser={authUser} records={overviewState.data?.records} onDeleted={onRefresh} />}
-          {["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <UserManagementPanel key={screen.id} screen={screen} />}
-          {screen.kind === "table" && !["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <EmptyTable screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
-          {screen.kind === "catalog" && <RecordsTable kind="products" rows={overviewState.data?.records?.products} title="Product catalog" />}
+          {["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <UserManagementPanel key={screen.id} screen={screen} initialSearch={initialSearch} />}
+          {screen.kind === "table" && !["2.1-subaccounts", "2.2-access-approvals", "7-staff-accounts"].includes(screen.id) && <EmptyTable screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} initialSearch={initialSearch} />}
+          {screen.kind === "catalog" && <RecordsTable kind="products" rows={overviewState.data?.records?.products} title="Product catalog" initialSearch={initialSearch} />}
           {screen.kind === "form" && <FormPanel key={screen.id} screen={screen} authUser={authUser} onActionSaved={onRefresh} />}
           {screen.kind === "detail" && <DetailPanel screen={screen} overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
           {screen.kind === "success" && <DetailPanel screen={screen} success overview={overviewState.data} authUser={authUser} onRecordsChanged={onRefresh} />}
           {screen.kind === "reports" && <DataReports overview={overviewState.data} authUser={authUser} />}
-          {screen.kind === "notifications" && <NotificationsPanel notifications={overviewState.data?.records?.notifications} onRefresh={onRefresh} />}
+          {screen.kind === "notifications" && <NotificationsPanel notifications={overviewState.data?.records?.notifications} onRefresh={onRefresh} initialSearch={initialSearch} />}
           <WorkflowLinks screenId={screen.id} authUser={authUser} />
         </div>
         <footer className="workspace__footer"><span>Second Daze Apparel</span><span>Operations workspace</span></footer>
@@ -1470,11 +1570,15 @@ export default function App() {
   const [authUser, setAuthUser] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [currentId, setCurrentId] = useState(() => routeId());
+  const [initialSearch, setInitialSearch] = useState(() => searchFromHash(window.location.hash));
   const [authError, setAuthError] = useState("");
   const [overviewState, setOverviewState] = useState({ status: "loading", data: null, error: "" });
   const [overviewRefresh, setOverviewRefresh] = useState(0);
   useEffect(() => {
-    const updateRoute = () => setCurrentId(routeId());
+    const updateRoute = () => {
+      setCurrentId(routeId());
+      setInitialSearch(searchFromHash(window.location.hash));
+    };
     window.addEventListener("hashchange", updateRoute);
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
@@ -1594,6 +1698,7 @@ export default function App() {
         onSignOut={handleSignOut}
         overviewState={overviewState}
         onRefresh={() => setOverviewRefresh((current) => current + 1)}
+        initialSearch={initialSearch}
       />
     </>
   );
