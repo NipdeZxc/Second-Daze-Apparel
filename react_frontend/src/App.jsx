@@ -5,7 +5,7 @@ import { getWorkspaceRecords, markNotificationsRead, submitWorkspaceAction } fro
 import { approveUser, createUser, disableUser, enableUser, listUsers, resetUserPassword } from "./api/users.js";
 import { buildOverview, buildSalesChartSeries } from "./data/workspace.js";
 import { findGlobalSearchResults, globalSearchHref, matchesGlobalSearch, searchFromHash } from "./data/globalSearch.js";
-import { ApprovalQueue, CsvImportPanel, DataExportPanel, DataReports, formatMoney, RecordsTable, screenDatasets, SearchField } from "./DataPanels.jsx";
+import { ApprovalQueue, CsvImportPanel, DataExportPanel, DataReports, formatMoney, RecordsTable, SalesTrendChart, screenDatasets, SearchField } from "./DataPanels.jsx";
 import { canAccessScreen, homeScreenForRole, navigationForRole, normalizeRole } from "./roles.js";
 import { isValidPhilippineMobileNumber, normalizePhilippineMobileNumber } from "./formValidation.js";
 
@@ -519,37 +519,8 @@ function SalesRangeControl({ value, onChange }) {
 
 function SalesChart({ overview, days }) {
   const salesSeries = buildSalesChartSeries(overview?.dailySales || [], days);
-  const chartMaximum = Math.max(0, ...salesSeries.map(({ amount }) => amount));
   const period = days === "all" ? "All-time" : `Last ${days} days`;
-  const compactMoney = (value) => new Intl.NumberFormat("en-PH", {
-    style: "currency", currency: "PHP", notation: "compact", maximumFractionDigits: 1,
-  }).format(value);
-  const label = (day) => days === "all"
-    ? new Date(`${day}T00:00:00`).toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "2-digit" })
-    : day.slice(5);
-  const grouped = salesSeries.some(({ start, end }) => start !== end);
-  if (!salesSeries.length) {
-    return <div className="dashboard-chart-empty">No sales recorded in this period. Import sales data to display trends.</div>;
-  }
-  return (
-    <figure className="dashboard-chart-figure">
-      <div className="dashboard-chart" style={{ gridTemplateColumns: `repeat(${salesSeries.length}, minmax(0, 1fr))` }} role="img" aria-label={`Sales totals — ${period}: ${salesSeries.map(({ start, end, amount }) => `${start}${start !== end ? ` to ${end}` : ""}: ${formatMoney(amount)}`).join(", ")}`}>
-        {salesSeries.map(({ start, end, amount }) => (
-          <div className="dashboard-chart__day" key={start} title={`${start}${start !== end ? ` to ${end}` : ""}: ${formatMoney(amount)}`}>
-            <span className="dashboard-chart__amount">{compactMoney(amount)}</span>
-            <div className="dashboard-chart__plot">
-              <span className="dashboard-chart__bar" style={{ height: `${chartMaximum > 0 ? (amount / chartMaximum) * 100 : 0}%` }} />
-            </div>
-            <span className="dashboard-chart__label">
-              <span>{label(start)}</span>
-              {start !== end && <span>to {label(end)}</span>}
-            </span>
-          </div>
-        ))}
-      </div>
-      <figcaption>{period}{grouped ? " · Bars show totals for the labelled date intervals." : " · Daily sales totals."}</figcaption>
-    </figure>
-  );
+  return <SalesTrendChart series={salesSeries} period={period} longDates={days === "all"} />;
 }
 
 function formatQueueCount(count, label = "item") {

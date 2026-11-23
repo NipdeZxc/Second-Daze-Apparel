@@ -81,6 +81,7 @@ Signing out affects only the current tab. On shared devices, sign out in every l
 - **Dashboard**: total sales, total profit, pending orders, unpaid reservations, items for shipping and completed orders.
 - **Reports & Analytics**: sales, financial, order and stock reports. Use **Friday review week** (Monday to Friday) or **All-time** in the **View** list.
 - **Dashboard charts**: choose **Last 7 days**, **Last 30 days** or **All-time**. Longer series are grouped into labelled date intervals; each bar shows that interval's total. Hover over a bar for the exact dates and amount.
+- **Report graphs**: all roles can view graphs in **Sales and inventory reports**. Sales shows gross sales before refunds, while the sales summary cards show net sales after approved refunds. Financial compares net sales, cost, profit and approved refunds; negative amounts extend left of the zero marker. Orders groups records by current status. The **View** selector filters sales, financial and order graphs; the stock graph always shows current product counts by stock health. Long sales histories use at most eight date intervals, without horizontal scrolling.
 - **Record tables**: columns wrap on wide screens. On narrow panels, records display as stacked labelled fields with the same sorting and action buttons, without horizontal scrolling.
 
 ![Admin dashboard](./screenshots/10-admin-dashboard.png)

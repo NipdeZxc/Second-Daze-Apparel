@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Papa from "papaparse";
 import { strFromU8, unzipSync } from "fflate";
-import { buildOverview, buildSalesChartSeries, buildWeeklyReport, csvTemplate, datasets, emptyRecords, getFridayReviewWeek, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
+import { buildOverview, buildReportChartData, buildSalesChartSeries, buildWeeklyReport, csvTemplate, datasets, emptyRecords, getFridayReviewWeek, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./workspace.js";
 import { datasetImportFiles, mergeDatasetInputs, parseDatasetFile, parseDatasetInput } from "./datasetImport.js";
 import { createWorkspaceExcel, serializeWorkspaceCsv } from "./export.js";
 
@@ -103,6 +103,82 @@ test("chart filters include both date boundaries, exclude future sales and handl
   assert.equal(month.reduce((sum, point) => sum + point.amount, 0), 1400);
   assert.deepEqual(buildSalesChartSeries([["2025-01-01", 100]], "7", now), []);
   assert.deepEqual(buildSalesChartSeries([], "all", now), []);
+});
+
+test("report sales charts respect Friday boundaries, fill gaps and retain all historical totals", () => {
+  const now = new Date("2026-11-23T12:00:00Z");
+  const historical = Array.from({ length: 90 }, (_, index) => ({
+    sold_at: new Date(Date.UTC(2026, 0, index + 1, 12)).toISOString(), amount: 10.01, cost: 1,
+  }));
+  const records = {
+    ...emptyRecords(),
+    sales: [...historical,
+      { sold_at: "2026-11-16T00:00:00Z", amount: 100.01, cost: 10 },
+      { sold_at: "2026-11-20T23:59:59.999Z", amount: 200.02, cost: 20 },
+      { sold_at: "2026-11-21T00:00:00Z", amount: 300.03, cost: 30 },
+    ],
+    refunds: [{ status: "Approved", amount: 50, refund_date: "2026-11-17T12:00:00Z" }],
+  };
+  const overview = buildOverview(records, now);
+  const weekly = buildReportChartData(overview, "sales", "weekly").items;
+  const dayKey = (value) => {
+    const date = new Date(value);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+  assert.equal(weekly[0].start, dayKey(overview.fridayReview.start));
+  assert.equal(weekly.at(-1).end, dayKey(overview.fridayReview.end));
+  assert.ok(weekly.some((point) => point.amount === 0));
+  assert.equal(Math.round(weekly.reduce((sum, point) => sum + point.amount, 0) * 100), 30003);
+  assert.equal(overview.metrics.weeklySales, 250.03);
+  const all = buildReportChartData(overview, "sales", "all").items;
+  assert.ok(all.length <= 8);
+  assert.equal(Math.round(all.reduce((sum, point) => sum + point.amount, 0) * 100), 150096);
+});
+
+test("financial report graphs include approved refunds and preserve negative net sales and profit", () => {
+  const overview = buildOverview({
+    ...emptyRecords(),
+    sales: [
+      { sold_at: "2026-11-16T12:00:00Z", amount: 100, cost: 200 },
+      { sold_at: "2026-11-01T12:00:00Z", amount: 500, cost: 100 },
+    ],
+    refunds: [
+      { status: "Approved", amount: 125, refund_date: "2026-11-17T12:00:00Z" },
+      { status: "Approved", amount: 150, refund_date: "2026-11-01T12:00:00Z" },
+      { status: "Pending Approval", amount: 9000, refund_date: "2026-11-17T12:00:00Z" },
+    ],
+  }, new Date("2026-11-23T12:00:00Z"));
+  const values = (view) => Object.fromEntries(buildReportChartData(overview, "financial", view).items.map(({ label, value }) => [label, value]));
+  assert.deepEqual(values("weekly"), { "Net sales": -25, "Recorded cost": 200, Profit: -225, "Approved refunds": 125 });
+  assert.deepEqual(values("all"), { "Net sales": 325, "Recorded cost": 300, Profit: 25, "Approved refunds": 275 });
+});
+
+test("orders graph follows the report period while inventory remains a complete current snapshot", () => {
+  const overview = buildOverview({
+    ...emptyRecords(),
+    orders: [
+      { status: "Pending Approval", ordered_at: "2026-11-16T12:00:00Z" },
+      { status: "Completed", ordered_at: "2026-11-20T12:00:00Z" },
+      { status: "Delivered", ordered_at: "2026-11-01T12:00:00Z" },
+      { status: "Paid", ordered_at: "2026-11-21T12:00:00Z" },
+    ],
+    products: [
+      { stock_quantity: 10, low_stock_threshold: 2, is_active: 1 },
+      { stock_quantity: 2, low_stock_threshold: 2, is_active: 1 },
+      { stock_quantity: 0, low_stock_threshold: 2, is_active: 0 },
+      { stock_quantity: 100, low_stock_threshold: 2, is_active: "0" },
+      { stock_quantity: 10, low_stock_threshold: 2, is_active: false },
+    ],
+  }, new Date("2026-11-23T12:00:00Z"));
+  const weeklyOrders = buildReportChartData(overview, "orders", "weekly").items;
+  assert.deepEqual(weeklyOrders, [{ label: "Completed", value: 1 }, { label: "Pending Approval", value: 1 }]);
+  assert.equal(buildReportChartData(overview, "orders", "all").items.reduce((sum, item) => sum + item.value, 0), 4);
+  const stock = [{ label: "In stock", value: 1 }, { label: "Low stock", value: 1 }, { label: "Inactive", value: 3 }];
+  assert.deepEqual(buildReportChartData(overview, "stock", "weekly").items, stock);
+  assert.deepEqual(buildReportChartData(overview, "stock", "all").items, stock);
+  for (const report of ["sales", "financial", "orders", "stock"]) {
+    assert.deepEqual(buildReportChartData(buildOverview(emptyRecords()), report, "all").items, []);
+  }
 });
 
 test("TiDB dataset CSV parser recognizes supported files and keeps schema columns", () => {

@@ -219,6 +219,10 @@ export function buildSalesChartSeries(dailySales, range, now = new Date()) {
     endKey = localDateKey(now);
     series = series.filter(([day]) => day >= startKey && day <= endKey);
   }
+  return buildDateChartSeries(series, startKey, endKey);
+}
+
+function buildDateChartSeries(series, startKey, endKey) {
   if (!series.length) return [];
   startKey ??= series[0][0];
   endKey ??= series.at(-1)[0];
@@ -236,6 +240,58 @@ export function buildSalesChartSeries(dailySales, range, now = new Date()) {
     end: new Date(Math.min(endTime, startTime + ((index + 1) * groupDays - 1) * 86400000)).toISOString().slice(0, 10),
     amount: total / 100,
   }));
+}
+
+export function buildReportChartData(overview, report, view) {
+  if (!["sales", "financial", "orders", "stock"].includes(report) || !["weekly", "all"].includes(view)) {
+    throw new Error("Choose a supported report and date range.");
+  }
+  const records = overview.records;
+  const weekly = view === "weekly";
+  const sales = weekly ? overview.fridayReview.sales : records.sales;
+  if (report === "sales") {
+    let items;
+    if (weekly) {
+      const totals = new Map();
+      for (const sale of sales) {
+        const day = localDateKey(sale.sold_at);
+        totals.set(day, (totals.get(day) || 0) + cents(sale.amount));
+      }
+      const dailySales = [...totals].sort(([left], [right]) => left.localeCompare(right))
+        .map(([day, amount]) => [day, amount / 100]);
+      items = buildDateChartSeries(dailySales, localDateKey(overview.fridayReview.start), localDateKey(overview.fridayReview.end));
+    } else {
+      items = buildSalesChartSeries(overview.dailySales, "all");
+    }
+    return { type: "trend", format: "money", items };
+  }
+  if (report === "financial") {
+    const range = { start: new Date(overview.fridayReview.start), end: new Date(overview.fridayReview.end) };
+    const refunds = records.refunds.filter((refund) =>
+      refund.status === "Approved" && (!weekly || dateInRange(refund.refund_date, range)),
+    );
+    const metrics = overview.metrics;
+    return {
+      type: "bars", format: "money",
+      items: sales.length || refunds.length ? [
+        { label: "Net sales", value: weekly ? metrics.weeklySales : metrics.grossSales },
+        { label: "Recorded cost", value: weekly ? metrics.weeklyCost : metrics.totalCost },
+        { label: "Profit", value: weekly ? metrics.weeklyProfit : metrics.profit },
+        { label: "Approved refunds", value: refunds.reduce((sum, refund) => sum + cents(refund.amount), 0) / 100 },
+      ] : [],
+    };
+  }
+  const counts = report === "stock" ? new Map([["In stock", 0], ["Low stock", 0], ["Inactive", 0]]) : new Map();
+  const rows = report === "stock" ? records.products : weekly ? overview.fridayReview.orders : records.orders;
+  for (const row of rows) {
+    const label = report === "stock"
+      ? row.status === "Inactive" || [0, false, "0"].includes(row.is_active) ? "Inactive"
+        : Number(row.stock_quantity) <= Number(row.low_stock_threshold) ? "Low stock" : "In stock"
+      : row.status || "Unknown";
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  const entries = report === "stock" ? [...counts] : [...counts].sort(([left], [right]) => left.localeCompare(right));
+  return { type: "bars", format: "count", items: entries.filter(([, value]) => value > 0).map(([label, value]) => ({ label, value })) };
 }
 
 export function buildOverview(records, now = new Date()) {

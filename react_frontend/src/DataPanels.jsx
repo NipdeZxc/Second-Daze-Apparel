@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { buildWeeklyReport, csvTemplate, datasets, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./data/workspace.js";
+import { buildReportChartData, buildWeeklyReport, csvTemplate, datasets, importColumns, importKinds, MAX_CSV_BYTES, parseImport } from "./data/workspace.js";
 import {
   datasetImportFiles,
   MAX_DATASET_BATCH_BYTES,
@@ -45,6 +45,68 @@ export function formatMoney(value) {
   return typeof value === "number"
     ? new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value)
     : "—";
+}
+
+export function SalesTrendChart({ series, period, longDates = false, gross = false }) {
+  const chartMaximum = Math.max(0, ...series.map(({ amount }) => amount));
+  const compactMoney = (value) => new Intl.NumberFormat("en-PH", {
+    style: "currency", currency: "PHP", notation: "compact", maximumFractionDigits: 1,
+  }).format(value);
+  const label = (day) => longDates
+    ? new Date(`${day}T00:00:00`).toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "2-digit" })
+    : day.slice(5);
+  const grouped = series.some(({ start, end }) => start !== end);
+  if (!series.length) {
+    return <div className="dashboard-chart-empty">No sales recorded in this period. Import sales data to display trends.</div>;
+  }
+  return (
+    <figure className="dashboard-chart-figure">
+      <div className="dashboard-chart" style={{ gridTemplateColumns: `repeat(${series.length}, minmax(0, 1fr))` }} role="img" aria-label={`${gross ? "Gross sales" : "Sales totals"} — ${period}: ${series.map(({ start, end, amount }) => `${start}${start !== end ? ` to ${end}` : ""}: ${formatMoney(amount)}`).join(", ")}`}>
+        {series.map(({ start, end, amount }) => (
+          <div className="dashboard-chart__day" key={start} title={`${start}${start !== end ? ` to ${end}` : ""}: ${formatMoney(amount)}`}>
+            <span className="dashboard-chart__amount">{compactMoney(amount)}</span>
+            <div className="dashboard-chart__plot">
+              <span className="dashboard-chart__bar" style={{ height: `${chartMaximum > 0 ? (amount / chartMaximum) * 100 : 0}%` }} />
+            </div>
+            <span className="dashboard-chart__label">
+              <span>{label(start)}</span>
+              {start !== end && <span>to {label(end)}</span>}
+            </span>
+          </div>
+        ))}
+      </div>
+      <figcaption>{period}{gross ? " · Gross sales before approved refunds." : ""}{grouped ? " · Bars show totals for the labelled date intervals." : " · Daily sales totals."}</figcaption>
+    </figure>
+  );
+}
+
+function ReportBarsChart({ title, description, chart }) {
+  if (!chart.items.length) return <div className="dashboard-chart-empty">No records are available for this report period.</div>;
+  const positive = Math.max(0, ...chart.items.map((item) => item.value));
+  const negative = Math.max(0, ...chart.items.map((item) => -item.value));
+  const scale = positive + negative || 1;
+  const zero = negative / scale * 100;
+  const formatValue = (value) => chart.format === "money" ? formatMoney(value) : value.toLocaleString("en-PH");
+  return (
+    <figure className="report-bars-figure">
+      <div className="report-bars" role="img" aria-label={`${title}: ${chart.items.map((item) => `${item.label}: ${formatValue(item.value)}`).join(", ")}`}>
+        {chart.items.map((item) => {
+          const width = Math.abs(item.value) / scale * 100;
+          return (
+            <div className="report-bars__row" key={item.label} title={`${item.label}: ${formatValue(item.value)}`}>
+              <span className="report-bars__label">{item.label}</span>
+              <span className="report-bars__track" style={{ "--zero": `${zero}%` }}>
+                <span className={`report-bars__fill${item.value < 0 ? " report-bars__fill--negative" : ""}`}
+                  style={{ width: `${width}%`, left: `${item.value < 0 ? zero - width : zero}%` }} />
+              </span>
+              <strong className="report-bars__value">{formatValue(item.value)}</strong>
+            </div>
+          );
+        })}
+      </div>
+      <figcaption>{description}{negative > 0 ? " Negative amounts extend left of the zero marker." : ""}</figcaption>
+    </figure>
+  );
 }
 
 function displayValue(value, column) {
@@ -752,12 +814,19 @@ export function DataReports({ overview, authUser }) {
   const metrics = overview?.metrics;
   const weekly = view === "weekly";
   const week = weekly && overview?.records ? buildWeeklyReport(overview.records) : null;
+  const chart = overview?.records ? buildReportChartData(overview, activeReport, view) : null;
+  const chartTitles = {
+    sales: ["Gross sales trend", "Recorded sales before approved refunds."],
+    financial: ["Financial breakdown", weekly ? "Amounts for the Friday review period." : "Amounts across all recorded data."],
+    orders: ["Orders by status", weekly ? "Current status of orders placed during the Friday review period." : "All recorded orders grouped by current status."],
+    stock: ["Product stock status", "Current product counts by stock health. Inventory is a current snapshot, not limited by the report date range."],
+  };
   const refundedTotal = overview?.records?.refunds
     ?.filter((refund) => refund.status === "Approved")
     .reduce((sum, refund) => sum + Number(refund.amount || 0), 0);
   const reports = {
     sales: [
-      [weekly ? "Weekly sales" : "Gross sales", formatMoney(weekly ? metrics?.weeklySales : metrics?.grossSales)],
+      [weekly ? "Weekly net sales" : "Net sales", formatMoney(weekly ? metrics?.weeklySales : metrics?.grossSales)],
       [weekly ? "Weekly transactions" : "Recorded sales", weekly ? week?.sales.transactions ?? "�" : overview?.records?.sales?.length ?? "�"],
       ["Today's sales", formatMoney(metrics?.todaysSales)],
       ["Average order value", formatMoney(metrics?.averageOrderValue)],
@@ -864,6 +933,15 @@ export function DataReports({ overview, authUser }) {
             <div className="report-card__empty">{value}</div>
           </article>
         ))}
+      </section>
+      <section className="panel report-chart-panel">
+        <div className="panel__top">
+          <div><h2>{chartTitles[activeReport][0]}</h2><p>Visual summary of this report.</p></div>
+        </div>
+        {!chart ? <p className="dashboard-chart-empty" role="status">Report graph data is not available. Refresh workspace data to try again.</p>
+          : chart.type === "trend"
+            ? <SalesTrendChart series={chart.items} period={weekly ? "Friday review week" : "All-time"} longDates={!weekly} gross />
+            : <ReportBarsChart title={chartTitles[activeReport][0]} description={chartTitles[activeReport][1]} chart={chart} />}
       </section>
       {authUser?.role === "Admin" && (
         <section className="panel report-exports">
