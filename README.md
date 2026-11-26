@@ -18,14 +18,10 @@ Rheinwell Q. Palomares
 Use these accounts on the live website, not on the Vercel or TiDB Cloud consoles.
 
 | Role | Username | Password |
-|---|---|
+| --- | --- | --- |
 | Admin | `sd_admin` | `Sd3_pass`
 | Sales Management | `sd_sales` | `Sd3_pass`
 | Inventory Management | `sd_inventory` | `Sd3_pass`
-
-Passwords are shared privately with the professor and are not published in this
-repository. Use separate browser profiles or different browsers when testing
-multiple roles; tabs in the same browser profile share the website session.
 
 ## Instructional materials
 
